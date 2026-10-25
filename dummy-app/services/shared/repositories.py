@@ -46,6 +46,12 @@ class OrderRepository:
         return dict(row)
 
 
+KEY_CONFLICT = "Reservation key belongs to different input"
+CART_LINES_SQL = (
+    "SELECT product_id, quantity FROM cart_reservation_lines WHERE reservation_id=$1 ORDER BY product_id"
+)
+
+
 class InventoryRepository:
     def __init__(self, db):
         self.db = db
@@ -68,6 +74,11 @@ class InventoryRepository:
             )
             if cancelled:
                 raise AppError(409, "reservation_released", "Reservation key was already released")
+            # Legacy and cart reservations share one key namespace.
+            if await self._cart_schema_present(conn) and await conn.fetchval(
+                "SELECT 1 FROM cart_reservations WHERE reservation_id=$1", data.order_id
+            ):
+                raise AppError(409, "idempotency_conflict", KEY_CONFLICT)
             product = await conn.fetchrow(
                 "SELECT * FROM products WHERE product_id=$1 FOR UPDATE", data.product_id
             )
@@ -78,7 +89,7 @@ class InventoryRepository:
             )
             if existing:
                 if existing["product_id"] != data.product_id or existing["quantity"] != data.quantity:
-                    raise AppError(409, "idempotency_conflict", "Reservation key belongs to different input")
+                    raise AppError(409, "idempotency_conflict", KEY_CONFLICT)
                 return {"reservation_id": data.order_id, "status": existing["status"]}
             if product["stock"] < data.quantity:
                 raise AppError(409, "insufficient_stock", "Insufficient stock")
@@ -92,6 +103,60 @@ class InventoryRepository:
                 data.quantity,
             )
             return {"reservation_id": data.order_id, "status": "reserved"}
+
+    async def reserve_lines(self, data):
+        """Reserve every cart line atomically or none. Requires the cart_reservations migration."""
+        key = data.order_id
+        async with self.key_lock(key), self.db.connection("inventory.reserve") as conn:
+            if not await self._cart_schema_present(conn):
+                raise AppError(
+                    503, "cart_reservations_unavailable", "Cart reservations need the 001 schema migration"
+                )
+            # Same per-key serialization and release tombstone as single-item reservations.
+            await conn.execute("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", key)
+            if await conn.fetchval("SELECT 1 FROM reservation_releases WHERE reservation_id=$1", key):
+                raise AppError(409, "reservation_released", "Reservation key was already released")
+            if await conn.fetchval("SELECT 1 FROM reservations WHERE reservation_id=$1", key):
+                raise AppError(409, "idempotency_conflict", KEY_CONFLICT)
+            requested = [(item.product_id, item.quantity) for item in data.items]
+            existing = await conn.fetchval(
+                "SELECT status FROM cart_reservations WHERE reservation_id=$1", key
+            )
+            if existing:
+                lines = await conn.fetch(CART_LINES_SQL, key)
+                if [tuple(line) for line in lines] != requested:
+                    raise AppError(409, "idempotency_conflict", KEY_CONFLICT)
+                return {"reservation_id": key, "status": existing}
+            # Lock product rows in product_id order so overlapping carts cannot deadlock.
+            rows = await conn.fetch(
+                "SELECT product_id, stock FROM products WHERE product_id = ANY($1::text[]) "
+                "ORDER BY product_id FOR UPDATE",
+                [product for product, _ in requested],
+            )
+            stock = {row["product_id"]: row["stock"] for row in rows}
+            unknown = [product for product, _ in requested if product not in stock]
+            if unknown:
+                raise AppError(
+                    404, "product_not_found", "Product was not found", {"unknown_products": unknown}
+                )
+            unavailable = [
+                {"product_id": product, "requested": quantity, "available": stock[product]}
+                for product, quantity in requested
+                if stock[product] < quantity
+            ]
+            if unavailable:
+                raise AppError(
+                    409, "insufficient_stock", "Insufficient stock", {"unavailable_items": unavailable}
+                )
+            await conn.executemany("UPDATE products SET stock=stock-$2 WHERE product_id=$1", requested)
+            await conn.execute(
+                "INSERT INTO cart_reservations (reservation_id, status) VALUES ($1,'reserved')", key
+            )
+            await conn.executemany(
+                "INSERT INTO cart_reservation_lines VALUES ($1,$2,$3)",
+                [(key, product, quantity) for product, quantity in requested],
+            )
+            return {"reservation_id": key, "status": "reserved"}
 
     async def release(self, reservation_id):
         async with self.key_lock(reservation_id), self.db.connection("inventory.release") as conn:
@@ -111,8 +176,28 @@ class InventoryRepository:
                     row["product_id"],
                     row["quantity"],
                 )
+            elif not row and await self._cart_schema_present(conn):
+                status = await conn.fetchval(
+                    "SELECT status FROM cart_reservations WHERE reservation_id=$1 FOR UPDATE", reservation_id
+                )
+                if status == "reserved":
+                    lines = await conn.fetch(CART_LINES_SQL, reservation_id)
+                    await conn.execute(
+                        "UPDATE cart_reservations SET status='released' WHERE reservation_id=$1",
+                        reservation_id,
+                    )
+                    await conn.executemany(
+                        "UPDATE products SET stock=stock+$2 WHERE product_id=$1",
+                        [tuple(line) for line in lines],
+                    )
             # An absent reservation is already released; safe after an ambiguous reserve timeout.
+            # The response is sent only after this transaction (tombstone included) commits.
             return {"reservation_id": reservation_id, "status": "released"}
+
+    @staticmethod
+    async def _cart_schema_present(conn):
+        # Checked per call (not cached) so behaviour stays correct before, after and across a rollback.
+        return await conn.fetchval("SELECT to_regclass('cart_reservations') IS NOT NULL")
 
 
 class PaymentRepository:

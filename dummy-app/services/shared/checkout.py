@@ -9,7 +9,7 @@ import json
 import re
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 ATTEMPT_REF_PATTERN = re.compile(r"ATT-[0-9A-F]{4}-[0-9]{4}")
 
@@ -50,6 +50,13 @@ class CartLines(BaseModel):
     def normalize(self):
         self.items = merge_lines(self.items)
         return self
+
+
+class CartReservationInput(CartLines):
+    """Inventory reservation of a whole cart; order_id is the idempotency and release key."""
+
+    model_config = ConfigDict(extra="forbid")
+    order_id: str = Field(pattern=r"^order-[a-f0-9-]{36}$")
 
 
 class CheckoutInput(CartLines):

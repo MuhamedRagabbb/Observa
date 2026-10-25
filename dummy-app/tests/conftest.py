@@ -57,7 +57,7 @@ class MemoryInventory:
                 raise AppError(409, "reservation_released", "Reservation key was already released")
             if data.order_id in self.reservations:
                 old = self.reservations[data.order_id]
-                if old["product_id"] != data.product_id or old["quantity"] != data.quantity:
+                if old.get("product_id") != data.product_id or old.get("quantity") != data.quantity:
                     raise AppError(409, "idempotency_conflict", "Conflict")
                 return {"reservation_id": data.order_id, "status": old["status"]}
             if data.product_id not in self.stock:
@@ -68,12 +68,38 @@ class MemoryInventory:
             self.reservations[data.order_id] = {**data.model_dump(), "status": "reserved"}
             return {"reservation_id": data.order_id, "status": "reserved"}
 
+    async def reserve_lines(self, data):
+        async with self.lock, self.db.operation("inventory.reserve"):
+            key, lines = data.order_id, [(i.product_id, i.quantity) for i in data.items]
+            if key in self.released:
+                raise AppError(409, "reservation_released", "Reservation key was already released")
+            old = self.reservations.get(key)
+            if old:
+                if old.get("lines") != lines:
+                    raise AppError(409, "idempotency_conflict", "Conflict")
+                return {"reservation_id": key, "status": old["status"]}
+            unknown = [product for product, _ in lines if product not in self.stock]
+            if unknown:
+                raise AppError(404, "product_not_found", "Unknown product", {"unknown_products": unknown})
+            short = [
+                {"product_id": p, "requested": q, "available": self.stock[p]}
+                for p, q in lines
+                if self.stock[p] < q
+            ]
+            if short:
+                raise AppError(409, "insufficient_stock", "Insufficient stock", {"unavailable_items": short})
+            for product, quantity in lines:
+                self.stock[product] -= quantity
+            self.reservations[key] = {"lines": lines, "status": "reserved"}
+            return {"reservation_id": key, "status": "reserved"}
+
     async def release(self, reservation_id):
         async with self.lock, self.db.operation("inventory.release"):
             self.released.add(reservation_id)
             old = self.reservations.get(reservation_id)
             if old and old["status"] == "reserved":
-                self.stock[old["product_id"]] += old["quantity"]
+                for product, quantity in old.get("lines") or [(old["product_id"], old["quantity"])]:
+                    self.stock[product] += quantity
                 old["status"] = "released"
             return {"reservation_id": reservation_id, "status": "released"}
 

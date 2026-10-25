@@ -8,6 +8,7 @@ class ErrorBody(BaseModel):
     message: str
     request_id: str
     trace_id: str | None = None
+    details: dict | None = None
 
 
 ERRORS = {code: {"model": ErrorBody} for code in (400, 401, 404, 409, 422, 500, 502, 503, 504)}

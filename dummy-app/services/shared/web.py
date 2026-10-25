@@ -90,15 +90,15 @@ class ObservabilityMiddleware:
 
 
 def error_response(exc):
-    return JSONResponse(
-        status_code=exc.status,
-        content={
-            "error_code": exc.code,
-            "message": exc.message,
-            "request_id": request_id_var.get(),
-            "trace_id": correlation()["trace_id"],
-        },
-    )
+    content = {
+        "error_code": exc.code,
+        "message": exc.message,
+        "request_id": request_id_var.get(),
+        "trace_id": correlation()["trace_id"],
+    }
+    if exc.details is not None:
+        content["details"] = exc.details  # additive; legacy errors keep the original four fields
+    return JSONResponse(status_code=exc.status, content=content)
 
 
 def make_app(service, settings, *, repository_factory=None, telemetry=None):
