@@ -1,5 +1,6 @@
 from fastapi import Request
 
+from services.shared.checkout import CartLines, CartQuote, build_quote
 from services.shared.client import DependencyClient
 from services.shared.config import Settings
 from services.shared.models import OrderInput, OrderResult, Product
@@ -29,6 +30,13 @@ def create_app(settings=None, *, telemetry=None, client=None):
             template="/orders/{order_id}",
             retry=True,
         )
+
+    @app.post("/api/cart/quote", response_model=CartQuote)
+    async def cart_quote(data: CartLines, request: Request):
+        products = await request.app.state.client.request(
+            "inventory-service", settings.inventory_url, "GET", "/inventory/products", retry=True
+        )
+        return build_quote(data, products)
 
     @app.get("/api/products", response_model=list[Product])
     async def products(request: Request):
