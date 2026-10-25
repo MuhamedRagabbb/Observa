@@ -11,6 +11,7 @@ They are **not** applied automatically at service startup.
 |---|---|---|---|
 | inventory | `001_cart_reservations` | New `cart_reservations` + `cart_reservation_lines` tables; legacy tables and tombstones untouched | Drop both new tables, only while no cart reservation exists |
 | orders | `001_checkout_attempts` | New `checkout_attempts`, `order_items` and `order_number_seq`; legacy `orders` untouched | Drop the two tables and the sequence, only while no attempt exists |
+| orders | `002_checkout_pricing` | Adds `order_items.unit_price_cents`, `checkout_attempts.total_cents` and `failure_details` (all nullable) | Drop the three columns, only before any attempt is priced |
 | payments | `001_payment_void_fence` | Allows `voided` tombstones; customer/amount nullable **only** for voided rows | Restore the original status CHECK and NOT NULLs, only while no voided row exists |
 
 The payments migration replaces the auto-named `payments_status_check` constraint, which is the name on the live database. If that name ever differs, the migration fails and rolls back rather than leaving the fence half-installed.
