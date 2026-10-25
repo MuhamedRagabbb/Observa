@@ -1,0 +1,9 @@
+.venv
+.cache
+.git
+__pycache__
+.pytest_cache
+.ruff_cache
+.env
+ground-truth
+test-results

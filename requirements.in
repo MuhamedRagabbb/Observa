@@ -1,0 +1,7 @@
+fastapi==0.115.6
+uvicorn==0.34.0
+httpx==0.28.1
+asyncpg==0.30.0
+opentelemetry-sdk==1.29.0
+opentelemetry-exporter-otlp-proto-http==1.29.0
+psutil==6.1.1

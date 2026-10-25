@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#173e35"><meta name="description" content="متجر OBSERVA التجريبي — اختر منتجًا وأنشئ طلبًا وتابع نتيجته.">
+  <title>OBSERVA — المتجر التجريبي</title>
+  <link rel="icon" href="/ui/assets/mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/ui/assets/style.css">
+  <script type="module" src="/ui/assets/app.js"></script>
+</head>
+<body data-page="store">
+  <a class="skip-link" href="#main">انتقل للمحتوى</a>
+  <header class="topbar"><div class="shell topbar-inner">
+    <a class="brand" href="/" aria-label="OBSERVA — الرئيسية"><img src="/ui/assets/mark.svg" alt="" width="38" height="38"><span><b dir="ltr">OBSERVA<span class="brand-dot">.</span></b><small>المتجر التجريبي</small></span></a>
+    <nav class="main-nav" aria-label="التنقل الرئيسي"><a href="#products" data-tab="products" class="active">المنتجات</a><a href="#orders" data-tab="orders">طلباتي <span class="nav-count" id="nav-order-count">0</span></a></nav>
+    <a class="button button-outline button-small" data-link="control" href="http://localhost:8090">لوحة التجارب <span aria-hidden="true">↗</span></a>
+  </div></header>
+  <main id="main" class="shell">
+    <section id="products-view">
+      <div class="hero">
+        <div class="hero-copy"><span class="eyebrow"><span class="tiny-star">✳</span> مساحة صغيرة لتجربة كاملة</span><h1>اختيارات بسيطة.<br>وكل طلب له حكاية<span>.</span></h1><p>اختار من مجموعتنا المكتبية، جرّب الطلب، وتابع النتيجة.<br class="desktop-only"> تجربة متجر حقيقية بمنتجات ومدفوعات افتراضية.</p><a class="button button-primary" href="#catalog">اكتشف المنتجات <span aria-hidden="true">←</span></a><div class="hero-note"><svg class="icon"><use href="/ui/assets/icons.svg#shield"></use></svg> بيئة تجريبية · مفيش دفع حقيقي</div></div>
+        <div class="journey" aria-label="خطوات التجربة"><div class="journey-top"><span class="mini-label" dir="ltr">THE LITTLE THINGS</span><span class="pill pill-white"><span class="status-dot" id="store-dot"></span><span id="store-health">جاري الاتصال</span></span></div><div class="journey-art"><svg viewBox="0 0 300 190" aria-hidden="true"><use href="/ui/assets/products.svg#collection"></use></svg></div><div class="journey-steps"><div><span>01</span><b>اختار منتجك</b></div><i aria-hidden="true">←</i><div><span>02</span><b>أكّد الطلب</b></div><i aria-hidden="true">←</i><div><span>03</span><b>تابع النتيجة</b></div></div></div>
+      </div>
+      <section id="catalog" class="catalog-section" aria-labelledby="catalog-title">
+        <div class="section-heading"><div><span class="eyebrow muted">تفاصيل صغيرة، يوم أحسن</span><h2 id="catalog-title">مجموعة المكتب <span id="product-count" class="heading-count">—</span></h2></div><div class="catalog-tools"><label class="search-box"><svg class="icon"><use href="/ui/assets/icons.svg#search"></use></svg><input id="product-search" type="search" placeholder="دوّر على منتج…" aria-label="البحث عن منتج"></label><button id="reload-products" class="icon-button" aria-label="تحديث المنتجات" title="تحديث المنتجات"><svg class="icon"><use href="/ui/assets/icons.svg#refresh"></use></svg></button></div></div>
+        <div class="catalog-meta"><span>منتجات افتراضية، نتائج فعلية من التطبيق.</span><label class="check-label"><input id="available-only" type="checkbox"> المتاح فقط</label></div>
+        <div id="catalog-message" role="status" class="inline-message" hidden></div>
+        <div id="product-grid" class="product-grid" aria-busy="true"><div class="skeleton product-skeleton"></div><div class="skeleton product-skeleton"></div><div class="skeleton product-skeleton"></div></div>
+      </section>
+      <div class="store-bottom"><div><svg class="icon"><use href="/ui/assets/icons.svg#box"></use></svg><span><b>مخزون متصل</b><small>التوفر بيتحدّث من خدمة المخزون</small></span></div><div><svg class="icon"><use href="/ui/assets/icons.svg#shield"></use></svg><span><b>دفع افتراضي بالكامل</b><small>من غير بطاقات أو بيانات مالية</small></span></div><div><svg class="icon"><use href="/ui/assets/icons.svg#route"></use></svg><span><b>تابع كل خطوة</b><small>نتيجة واضحة لكل محاولة طلب</small></span></div></div>
+    </section>
+    <section id="orders-view" class="orders-section" hidden aria-labelledby="orders-title">
+      <div class="page-intro"><span class="eyebrow muted">من أول اختيار لحد النتيجة</span><h1 id="orders-title">طلباتك، في مكان واحد<span>.</span></h1><p>طلبات هذا المتصفح ومحاولاته فقط. تقدر كمان تضيف طلب موجود باستخدام رقمه.</p></div>
+      <form id="lookup-form" class="lookup-form"><label for="lookup-id">متابعة طلب برقم الطلب</label><div class="lookup-row"><input id="lookup-id" class="text-input mono" dir="ltr" placeholder="order-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" required maxlength="80"><button class="button button-primary" type="submit">عرض الطلب</button></div></form>
+      <div class="section-heading"><h2>آخر الطلبات <span id="order-count" class="heading-count">0</span></h2><button id="refresh-orders" class="button button-outline button-small"><svg class="icon"><use href="/ui/assets/icons.svg#refresh"></use></svg> تحديث الحالات</button></div>
+      <div id="orders-message" class="inline-message" role="status" hidden></div><div id="orders-list" class="orders-list"></div>
+    </section>
+    <noscript><p class="inline-message error">فعّل JavaScript علشان تقدر تعرض المنتجات وتنفّذ الطلبات.</p></noscript>
+  </main>
+  <footer class="shell footer"><span><b dir="ltr">OBSERVA.</b> تجربة صغيرة، رؤية أوضح.</span><div><span>بيانات وأسعار تجريبية بالدولار</span><a href="/docs">توثيق API ↗</a></div></footer>
+  <dialog id="checkout-dialog" class="checkout-dialog" aria-labelledby="checkout-title"><button class="dialog-close icon-button" data-close-dialog aria-label="إغلاق"><svg class="icon"><use href="/ui/assets/icons.svg#close"></use></svg></button><div id="checkout-body"></div></dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+</body></html>
