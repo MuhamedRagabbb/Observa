@@ -2,6 +2,11 @@
 
 import json
 import re
+import time
+
+import pytest
+
+from services.shared.models import RuntimeUpdate
 
 CONTACT = {"name": "Demo name", "email": "demo@example.com"}
 REF = "ATT-7F3A-0915"
@@ -271,3 +276,33 @@ async def test_resolve_of_a_stalled_new_attempt_never_reserves_or_charges(mesh):
     downstream = [r for r in mesh["transport"].requests[calls_before:] if r[1] in ("inventory", "payments")]
     assert downstream == []
     assert stock(mesh)["sku-001"] == 1000 and not payments(mesh)
+
+
+@pytest.mark.parametrize(
+    ("items", "expected"), [((("sku-001", 1), ("sku-002", 1)), 500), ((("sku-001", 1), ("sku-002", 2)), 201)]
+)
+async def test_f3_fails_carts_whose_total_quantity_is_even(mesh, items, expected):
+    """Every line is odd in the failing cart: F3 depends on the cart's total units, as in the legacy flow."""
+    runtime = mesh["apps"]["orders"].state.runtime
+    await runtime.update(
+        RuntimeUpdate(expires_at=time.time() + 30, release_version="v2-buggy", persistence_delay_seconds=1)
+    )
+    started = time.perf_counter()
+    response = await checkout(mesh, items=items)
+    assert time.perf_counter() - started >= 1  # slow persistence is part of the signature
+    assert response.status_code == expected
+    if expected == 500:
+        assert response.json()["error_code"] == "order_persistence_error"
+        assert '"error.type":"OrderPersistenceCompatibilityError"' in mesh["logs"].getvalue()
+        assert (stock(mesh)["sku-001"], stock(mesh)["sku-002"]) == (1000, 1000)  # released, not charged
+        assert payments(mesh) == {}
+        for app in mesh["apps"].values():
+            app.state.telemetry.traces.force_flush()
+        spans = [
+            s
+            for e in mesh["exporters"].values()
+            for s in e.get_finished_spans()
+            if s.name == "order.persistence"
+        ]
+        assert spans and spans[0].events[0].attributes["exception.type"] == "RuntimeError"
+        assert spans[0].events[0].attributes["exception.message"] == "OrderPersistenceCompatibilityError"

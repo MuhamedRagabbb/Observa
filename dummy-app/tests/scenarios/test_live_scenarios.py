@@ -3,11 +3,22 @@ import json
 import os
 import time
 from pathlib import Path
+from uuid import uuid4
 
 import httpx
 import pytest
 
-from tests.integration.test_live import BASE, JAEGER, LOKI, PROM, eventually, successful_order
+from tests.integration.test_live import (
+    BASE,
+    CONTROLLER,
+    INVENTORY,
+    JAEGER,
+    LOKI,
+    ORDERS,
+    PROM,
+    eventually,
+    successful_order,
+)
 
 LIVE_PROJECT = "observa-dummy"
 
@@ -33,8 +44,9 @@ pytestmark = [
     ),
     pytest.mark.skipif(FAULT_REFUSAL is not None, reason=FAULT_REFUSAL or ""),
 ]
-CONTROLLER = os.getenv("TEST_CONTROLLER_URL", "http://localhost:8090")
 ORDER = {"product_id": "sku-005", "quantity": 2, "customer_id": "scenario-user"}
+# The controller writes here; a throwaway project redirects it with GROUND_TRUTH_DIR.
+JOURNAL = Path(os.getenv("GROUND_TRUTH_DIR", "ground-truth")) / "incidents.jsonl"
 
 
 @pytest.fixture
@@ -97,7 +109,7 @@ async def test_f1_real_pool_saturation_wait_timeouts_and_recovery(live):
     await successful_order(live)
     series = await eventually(lambda: metrics(live, 'db_pool_timeouts_total{service_name="orders-service"}'))
     assert any(float(row["value"][1]) > 0 for row in series)
-    journal = [json.loads(line) for line in Path("ground-truth/incidents.jsonl").read_text().splitlines()]
+    journal = [json.loads(line) for line in JOURNAL.read_text().splitlines()]
     record = next(record for record in journal if record["incident_id"] == incident["incident_id"])
     assert record["ended_at"] and record["root_cause"] == "Orders DB connection-pool exhaustion"
 
@@ -106,7 +118,7 @@ async def test_f2_payment_errors_normal_latency_compensation_and_recovery(live):
     start = time.perf_counter()
     await successful_order(live)
     baseline = time.perf_counter() - start
-    before_products = (await live.get("http://localhost:8002/inventory/products")).json()
+    before_products = (await live.get(INVENTORY + "/inventory/products")).json()
     before = next(row["stock"] for row in before_products if row["product_id"] == "sku-005")
     await activate(live, "payments_errors", {"failure_rate": 1})
     start = time.perf_counter()
@@ -114,7 +126,7 @@ async def test_f2_payment_errors_normal_latency_compensation_and_recovery(live):
     latency = (time.perf_counter() - start) / len(responses)
     assert all(response.status_code == 503 for response in responses)
     assert latency < max(0.5, baseline * 4)
-    after_products = (await live.get("http://localhost:8002/inventory/products")).json()
+    after_products = (await live.get(INVENTORY + "/inventory/products")).json()
     assert next(row["stock"] for row in after_products if row["product_id"] == "sku-005") == before
     trace_id = responses[0].headers["x-trace-id"]
 
@@ -130,15 +142,15 @@ async def test_f2_payment_errors_normal_latency_compensation_and_recovery(live):
         ]
 
     await eventually(failed_payment_span)
-    assert (await live.get("http://localhost:8001/health")).status_code == 200
+    assert (await live.get(ORDERS + "/health")).status_code == 200
     await deactivate(live, "payments_errors")
     await successful_order(live)
 
 
 async def test_f3_deployment_slow_span_new_error_rollback(live):
-    health_before = (await live.get("http://localhost:8001/health")).json()
+    health_before = (await live.get(ORDERS + "/health")).json()
     incident = await activate(live, "bad_deployment", {"delay_seconds": 1})
-    health_during = (await live.get("http://localhost:8001/health")).json()
+    health_during = (await live.get(ORDERS + "/health")).json()
     assert health_during["service.version"] == "v2-buggy"
     assert health_before["deployment.id"] != health_during["deployment.id"]
     start = time.perf_counter()
@@ -162,7 +174,7 @@ async def test_f3_deployment_slow_span_new_error_rollback(live):
 
     await eventually(signature_ready)
     await deactivate(live, "bad_deployment")
-    assert (await live.get("http://localhost:8001/health")).json()["service.version"] == "v1"
+    assert (await live.get(ORDERS + "/health")).json()["service.version"] == "v1"
     await successful_order(live)
     # Controller labels/ground truth may not appear in any application log stream.
     result = await live.get(
@@ -175,6 +187,58 @@ async def test_f3_deployment_slow_span_new_error_rollback(live):
     assert result.json()["data"]["result"] == []
 
 
+def cart(ref, *quantities):
+    items = [
+        {"product_id": sku, "quantity": q} for sku, q in zip(("sku-001", "sku-003"), quantities, strict=True)
+    ]
+    body = {
+        "customer_id": "scenario-user",
+        "contact": {"name": "Scenario", "email": "s@example.com"},
+        "items": items,
+    }
+    return {"json": body, "headers": {"Idempotency-Key": ref}}
+
+
+async def test_f3_in_the_checkout_flow_fails_even_totals_with_the_same_signature(live):
+    run = f"{uuid4().int % 0x10000:04X}"
+    incident = await activate(live, "bad_deployment", {"delay_seconds": 1})
+    try:
+        start = time.perf_counter()
+        failed = await live.post(
+            BASE + "/api/checkout", **cart(f"ATT-{run}-0001", 1, 1)
+        )  # odd lines, even total
+        assert time.perf_counter() - start >= 1
+        assert (failed.status_code, failed.json()["error_code"]) == (500, "order_persistence_error")
+        assert failed.json()["details"]["state"] == "failed"
+        placed = await live.post(BASE + "/api/checkout", **cart(f"ATT-{run}-0002", 1, 2))  # odd total
+        assert placed.status_code in (201, 402), placed.text  # 402: the 2% baseline decline
+        trace_id = failed.headers["x-trace-id"]
+
+        async def signature_ready():
+            data = (await live.get(JAEGER + "/api/traces/" + trace_id)).json().get("data", [])
+            spans = [s for s in data[0]["spans"] if s["operationName"] == "order.persistence"] if data else []
+            ready = spans and spans[0]["duration"] >= 1_000_000
+            return spans if ready and "OrderPersistenceCompatibilityError" in json.dumps(spans) else None
+
+        await eventually(signature_ready)
+    finally:
+        await deactivate(live, "bad_deployment")
+    record = next(
+        r
+        for r in map(json.loads, JOURNAL.read_text().splitlines())
+        if r["incident_id"] == incident["incident_id"]
+    )
+    assert (record["scenario"], record["root_cause_service"]) == ("bad_deployment", "orders-service")
+    assert record["expected_signals"] == [
+        "release_changed",
+        "slow_order_persistence",
+        "OrderPersistenceCompatibilityError",
+    ]
+    assert record["ended_at"]
+    recovered = await live.post(BASE + "/api/checkout", **cart(f"ATT-{run}-0003", 1, 1))
+    assert recovered.status_code in (201, 402), recovered.text  # v1 again: even totals complete
+
+
 async def test_live_ttl_and_automatic_rotation(live):
     await activate(live, "payments_errors", {"failure_rate": 1}, duration=0.5)
 
@@ -184,7 +248,7 @@ async def test_live_ttl_and_automatic_rotation(live):
 
     await eventually(expired, 5)
     await successful_order(live)
-    before = len(Path("ground-truth/incidents.jsonl").read_text().splitlines())
+    before = len(JOURNAL.read_text().splitlines())
     response = await live.post(
         CONTROLLER + "/faults/auto/start",
         json={
@@ -206,9 +270,7 @@ async def test_live_ttl_and_automatic_rotation(live):
         return not state["auto_running"] and state["active"] is None
 
     await eventually(finished, 10)
-    journal = [json.loads(line) for line in Path("ground-truth/incidents.jsonl").read_text().splitlines()][
-        before:
-    ]
+    journal = [json.loads(line) for line in JOURNAL.read_text().splitlines()][before:]
     assert [record["scenario"] for record in journal] == [
         "db_connection_exhaustion",
         "payments_errors",

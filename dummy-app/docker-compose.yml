@@ -109,6 +109,10 @@ services:
       TRAFFIC_RPS: ${TRAFFIC_RPS:-4}
       TRAFFIC_CONCURRENCY: ${TRAFFIC_CONCURRENCY:-16}
       TRAFFIC_SEED: ${TRAFFIC_SEED:-42}
+      # legacy (single-item POST /api/orders) or checkout (multi-item carts, replays); live stays legacy.
+      TRAFFIC_FLOW: ${TRAFFIC_FLOW:-legacy}
+      # Optional 0-65535: pins checkout attempt references; empty means random per run.
+      TRAFFIC_RUN_PREFIX: ${TRAFFIC_RUN_PREFIX:-}
       GATEWAY_URL: http://gateway:8000
     healthcheck:
       disable: true

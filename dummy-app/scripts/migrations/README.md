@@ -250,8 +250,29 @@ docker compose start                                  # live project again
 docker volume ls --format '{{.Name}}' | Select-String 'observa-'   # observa-dummy_* must still be listed
 ```
 
+**Alongside the live project (no stop needed):** publish the throwaway project on other host ports and point the tests at them. Every published port is a Compose variable, and the live tests read `TEST_*_URL` and `POSTGRES_PORT`:
+
+```powershell
+$env:COMPOSE_PROJECT_NAME='observa-faulttest'
+$env:GROUND_TRUTH_DIR="$env:TEMP\observa-faulttest-ground-truth"; New-Item -ItemType Directory -Force $env:GROUND_TRUTH_DIR | Out-Null
+$env:GATEWAY_PORT='18000'; $env:ORDERS_PORT='18001'; $env:INVENTORY_PORT='18002'; $env:PAYMENTS_PORT='18003'; $env:CONTROLLER_PORT='18090'
+$env:POSTGRES_PORT='15433'; $env:PROMETHEUS_PORT='19090'; $env:JAEGER_PORT='26686'; $env:LOKI_PORT='13100'
+$env:OTLP_GRPC_PORT='14317'; $env:OTLP_HTTP_PORT='14318'; $env:COLLECTOR_METRICS_PORT='18889'; $env:GRAFANA_PORT='13000'
+$env:TRAFFIC_FLOW='checkout'   # optional: background traffic on the new checkout
+docker compose up --build -d --wait postgres gateway orders inventory payments fault-injector collector prometheus jaeger loki telemetry-health
+# apply step 6 here (throwaway databases), then: docker compose up -d --no-deps traffic-generator
+$env:TEST_GATEWAY_URL='http://localhost:18000'; $env:TEST_ORDERS_URL='http://localhost:18001'; $env:TEST_INVENTORY_URL='http://localhost:18002'
+$env:TEST_PAYMENTS_URL='http://localhost:18003'; $env:TEST_CONTROLLER_URL='http://localhost:18090'
+$env:TEST_PROMETHEUS_URL='http://localhost:19090'; $env:TEST_JAEGER_URL='http://localhost:26686'; $env:TEST_LOKI_URL='http://localhost:13100'
+$env:RUN_LIVE_TESTS='1'; $env:RUN_FAULT_TESTS='1'; $env:TEST_COLLECTOR_OUTAGE='1'
+.venv\Scripts\python.exe -m pytest -q tests/integration tests/scenarios
+docker compose down   # throwaway containers and networks only; COMPOSE_PROJECT_NAME is still set
+```
+
+Both projects build the shared image tag `observa-dummy:local`; running live containers keep the image they were created from until they are recreated.
+
 Notes:
-- The throwaway project uses the same host ports, so the live project must be stopped while it runs.
+- The variant above that reuses the default ports needs the live project stopped while it runs.
 - `GROUND_TRUTH_DIR` sends the throwaway controller's incident journal to a scratch folder, so fault runs never append to the live `ground-truth/incidents.jsonl`.
 - The guard trusts the environment: setting both variables while the live project runs on the same ports would still reach it. Always stop the live project first.
 - Both projects share the image tag `observa-dummy:local`. Build the throwaway from the same commit that is live.

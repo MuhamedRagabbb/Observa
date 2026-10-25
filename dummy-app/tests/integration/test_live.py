@@ -19,6 +19,11 @@ BASE = os.getenv("TEST_GATEWAY_URL", "http://localhost:8000")
 PROM = os.getenv("TEST_PROMETHEUS_URL", "http://localhost:9090")
 JAEGER = os.getenv("TEST_JAEGER_URL", "http://localhost:16686")
 LOKI = os.getenv("TEST_LOKI_URL", "http://localhost:3100")
+# Direct service ports: override them to test a throwaway project published on other host ports.
+ORDERS = os.getenv("TEST_ORDERS_URL", "http://localhost:8001")
+INVENTORY = os.getenv("TEST_INVENTORY_URL", "http://localhost:8002")
+PAYMENTS = os.getenv("TEST_PAYMENTS_URL", "http://localhost:8003")
+CONTROLLER = os.getenv("TEST_CONTROLLER_URL", "http://localhost:8090")
 ORDER = {"product_id": "sku-005", "quantity": 2, "customer_id": "integration-user"}
 
 
@@ -47,8 +52,8 @@ async def successful_order(client):
 
 async def test_live_checkout_and_health():
     async with httpx.AsyncClient(timeout=15) as client:
-        for port in (8000, 8001, 8002, 8003, 8090):
-            assert (await client.get(f"http://localhost:{port}/health")).status_code == 200
+        for service in (BASE, ORDERS, INVENTORY, PAYMENTS, CONTROLLER):
+            assert (await client.get(f"{service}/health")).status_code == 200
         response = await successful_order(client)
         assert response.json()["status"] == "completed"
         assert (
@@ -76,12 +81,12 @@ async def test_real_database_ownership_and_inventory_concurrency():
             database="inventory_db",
         )
     async with httpx.AsyncClient(timeout=15) as client:
-        products = (await client.get("http://localhost:8002/inventory/products")).json()
+        products = (await client.get(INVENTORY + "/inventory/products")).json()
         before = next(p["stock"] for p in products if p["product_id"] == "sku-005")
         order_id = "order-" + str(uuid4())
         body = {"order_id": order_id, "product_id": "sku-005", "quantity": 2}
         reservations = await asyncio.gather(
-            *[client.post("http://localhost:8002/inventory/reservations", json=body) for _ in range(12)]
+            *[client.post(INVENTORY + "/inventory/reservations", json=body) for _ in range(12)]
         )
         try:
             assert all(r.status_code == 201 for r in reservations), [
@@ -89,20 +94,15 @@ async def test_real_database_ownership_and_inventory_concurrency():
             ]
         finally:
             releases = await asyncio.gather(
-                *[
-                    client.post(f"http://localhost:8002/inventory/reservations/{order_id}/release")
-                    for _ in range(12)
-                ]
+                *[client.post(f"{INVENTORY}/inventory/reservations/{order_id}/release") for _ in range(12)]
             )
         assert all(r.status_code == 200 for r in releases)
-        after = (await client.get("http://localhost:8002/inventory/products")).json()
+        after = (await client.get(INVENTORY + "/inventory/products")).json()
         assert next(p["stock"] for p in after if p["product_id"] == "sku-005") == before
         late_order = "order-" + str(uuid4())
-        await client.post(f"http://localhost:8002/inventory/reservations/{late_order}/release")
+        await client.post(f"{INVENTORY}/inventory/reservations/{late_order}/release")
         assert (
-            await client.post(
-                "http://localhost:8002/inventory/reservations", json={**body, "order_id": late_order}
-            )
+            await client.post(INVENTORY + "/inventory/reservations", json={**body, "order_id": late_order})
         ).status_code == 409
 
 
@@ -116,12 +116,10 @@ async def test_real_payment_idempotency():
             "amount_cents": 600,
         }
         responses = await asyncio.gather(
-            *[client.post("http://localhost:8003/payments/charge", json=body) for _ in range(8)]
+            *[client.post(PAYMENTS + "/payments/charge", json=body) for _ in range(8)]
         )
         assert all(r.status_code == 402 for r in responses), [(r.status_code, r.text) for r in responses]
-        changed = await client.post(
-            "http://localhost:8003/payments/charge", json={**body, "amount_cents": 700}
-        )
+        changed = await client.post(PAYMENTS + "/payments/charge", json={**body, "amount_cents": 700})
         assert changed.status_code == 409
 
 

@@ -33,3 +33,8 @@ def test_compose_passes_the_reconciler_switch_to_orders_and_defaults_it_off():
         name for name, svc in services.items() if "RECONCILER_ENABLED" in (svc.get("environment") or {})
     ]
     assert others == ["orders"]
+
+
+def test_the_traffic_generator_keeps_the_legacy_flow_unless_switched():
+    generator = yaml.safe_load(COMPOSE.read_text(encoding="utf-8"))["services"]["traffic-generator"]
+    assert generator["environment"]["TRAFFIC_FLOW"] == "${TRAFFIC_FLOW:-legacy}"
