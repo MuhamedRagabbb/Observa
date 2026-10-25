@@ -101,7 +101,9 @@ def error_response(exc):
     return JSONResponse(status_code=exc.status, content=content)
 
 
-def make_app(service, settings, *, repository_factory=None, telemetry=None):
+def make_app(service, settings, *, repository_factory=None, telemetry=None, background=None):
+    """``background(app)``: optional async context entered once the database is open (for
+    service-owned background work) and exited before it closes."""
     telemetry = telemetry or Telemetry(service, settings)
     runtime = Runtime(telemetry)
 
@@ -113,7 +115,11 @@ def make_app(service, settings, *, repository_factory=None, telemetry=None):
             await db.open()
         telemetry.log("INFO", "service_started", "Service is ready", **runtime.attributes())
         try:
-            yield
+            if background:
+                async with background(app):
+                    yield
+            else:
+                yield
         finally:
             await runtime.close()
             if getattr(app.state, "client", None):

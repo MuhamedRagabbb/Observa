@@ -82,6 +82,7 @@ async def test_orders_migration_adds_attempt_tables_and_keeps_legacy_orders(orde
         assert await apply_migrations(conn, ROOT_MIGRATIONS / "orders") == [
             "001_checkout_attempts",
             "002_checkout_pricing",
+            "003_reconciler",
         ]
         assert await apply_migrations(conn, ROOT_MIGRATIONS / "orders") == []
         assert await conn.fetchval("SELECT status FROM orders WHERE order_id='order-legacy'") == "pending"

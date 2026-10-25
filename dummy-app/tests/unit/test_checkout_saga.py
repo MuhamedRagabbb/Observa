@@ -260,3 +260,14 @@ async def test_unexpected_void_status_stays_unknown(mesh):
     response = await checkout(mesh)
     assert response.status_code == 202 and response.json()["state"] == "payment_unknown"
     assert stock(mesh)["sku-001"] == 998
+
+
+async def test_resolve_of_a_stalled_new_attempt_never_reserves_or_charges(mesh):
+    await stalled(mesh)  # recorded, then the request died before reserving (e.g. F1 pool timeout)
+    calls_before = len(mesh["transport"].requests)
+    settled = await resolve(mesh)
+    assert settled.status_code == 503 and settled.json()["details"]["state"] == "failed"
+    assert settled.json()["details"]["retryable"] is True
+    downstream = [r for r in mesh["transport"].requests[calls_before:] if r[1] in ("inventory", "payments")]
+    assert downstream == []
+    assert stock(mesh)["sku-001"] == 1000 and not payments(mesh)

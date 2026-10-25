@@ -2,7 +2,7 @@ import asyncio
 import copy
 import io
 from contextlib import AsyncExitStack, asynccontextmanager
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import httpx
@@ -15,7 +15,7 @@ from services.inventory.app import create_app as inventory_app
 from services.orders.app import create_app as orders_app
 from services.payments.app import create_app as payments_app
 from services.shared.attempts import check_key
-from services.shared.checkout import InvalidTransition
+from services.shared.checkout import TERMINAL_STATES, InvalidTransition
 from services.shared.checkout import advance as next_state
 from services.shared.client import DependencyClient
 from services.shared.config import Settings
@@ -187,7 +187,8 @@ class MemoryAttempts:
         self.db, self.rows, self.lock, self.sequence = db, {}, asyncio.Lock(), 1000
 
     def _view(self, row, replayed=False):
-        view = {key: value for key, value in row.items() if key not in ("request_hash", "lines")}
+        hidden = ("request_hash", "lines", "next_check_at", "lease_until", "check_count", "trace_parent")
+        view = {key: value for key, value in row.items() if key not in hidden}
         items = [{k: v for k, v in line.items() if v is not None} for line in row["lines"]]
         return {**copy.deepcopy(view), "items": copy.deepcopy(items), "replayed": replayed}
 
@@ -205,11 +206,15 @@ class MemoryAttempts:
             "details": None,
             "updated_at": datetime.now(UTC),
             "lines": [],
+            "next_check_at": None,
+            "lease_until": None,
+            "check_count": 0,
+            "trace_parent": None,
         }
         row.update(fields)
         return row
 
-    async def begin(self, attempt_ref, data):
+    async def begin(self, attempt_ref, data, *, trace_parent=None):
         check_key(data.customer_id, attempt_ref)
         async with self.db.operation("attempt.begin"):
             await self.db.runtime.hold()
@@ -230,6 +235,7 @@ class MemoryAttempts:
                     request_hash=data.request_hash(),
                     order_id=order_id,
                     order_number=f"OBS-{self.sequence}-{order_id[6:10].upper()}",
+                    trace_parent=trace_parent,
                     lines=[
                         {"product_id": i.product_id, "quantity": i.quantity, "unit_price_cents": None}
                         for i in data.items
@@ -270,6 +276,45 @@ class MemoryAttempts:
                 self._new_row(customer_id, attempt_ref, state=next_state(None, "abandon")),
             )
             return self._view(row)
+
+    async def claims_supported(self):
+        return True
+
+    async def claim_stalled(self, policy, *, now=None):
+        now = now or datetime.now(UTC)
+        async with self.db.operation("attempt.claim"), self.lock:
+            due = [
+                row
+                for row in self.rows.values()
+                if row["state"] not in TERMINAL_STATES
+                and row["updated_at"] <= now - timedelta(seconds=policy.stall_seconds)
+                and (row["next_check_at"] is None or row["next_check_at"] <= now)
+                and (row["lease_until"] is None or row["lease_until"] <= now)
+            ]
+            if not due:
+                return None
+            row = min(due, key=lambda r: r["next_check_at"] or r["updated_at"])
+            backoff = min(policy.backoff_seconds * 2 ** row["check_count"], policy.backoff_cap_seconds)
+            row.update(
+                check_count=row["check_count"] + 1,
+                lease_until=now + timedelta(seconds=policy.lease_seconds),
+                next_check_at=now + timedelta(seconds=backoff),
+            )
+            return {**self._view(row), "check_count": row["check_count"], "trace_parent": row["trace_parent"]}
+
+    async def release_claim(self, claimed):
+        async with self.db.operation("attempt.release_claim"), self.lock:
+            row = self.rows.get((claimed["customer_id"], claimed["attempt_ref"]))
+            if row and row["check_count"] == claimed["check_count"]:
+                row["lease_until"] = None
+
+    async def count_stuck(self, after_checks):
+        async with self.db.operation("attempt.count_stuck"):
+            counts = {}
+            for row in self.rows.values():
+                if row["state"] not in TERMINAL_STATES and row["check_count"] >= after_checks:
+                    counts[row["state"]] = counts.get(row["state"], 0) + 1
+            return counts
 
     async def get(self, customer_id, attempt_ref):
         check_key(customer_id, attempt_ref)
@@ -320,13 +365,21 @@ async def mesh():
 
 
 @asynccontextmanager
-async def build_mesh(orders_factory=None, attempts_factory=MemoryAttempts, saga_resume_after=0):
+async def build_mesh(
+    orders_factory=None, attempts_factory=MemoryAttempts, saga_resume_after=0, *, keep=None, **overrides
+):
+    """In-process Gateway/Orders/Inventory/Payments.
+
+    ``keep`` (a dict) carries the in-memory inventory and payments over to the next mesh built
+    with the same dict, so an Orders restart can be simulated. ``overrides`` are Settings fields.
+    """
     settings = Settings(
         otlp_endpoint="",
         baseline_decline_rate=0,
         orders_url="http://orders",
         inventory_url="http://inventory",
         payments_url="http://payments",
+        **overrides,
     )
     exporters, readers, apps = {}, {}, {}
     logs = io.StringIO()
@@ -338,7 +391,15 @@ async def build_mesh(orders_factory=None, attempts_factory=MemoryAttempts, saga_
         return tel
 
     def factory(kind):
-        return lambda runtime, tel: (db := MemoryDatabase(runtime, tel), kind(db))
+        def make(runtime, tel):
+            db = MemoryDatabase(runtime, tel)
+            if keep is None:
+                return db, kind(db)
+            repository = keep.setdefault(kind.__name__, kind(db))
+            repository.db = db
+            return db, repository
+
+        return make
 
     transport = MeshTransport(apps)
     for key, maker, kind in [

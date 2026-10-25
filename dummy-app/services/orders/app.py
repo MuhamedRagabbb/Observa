@@ -1,4 +1,5 @@
 import asyncio
+from contextlib import asynccontextmanager
 from typing import Annotated
 from uuid import uuid4
 
@@ -6,8 +7,9 @@ from fastapi import Header, Request
 from fastapi.responses import JSONResponse
 from opentelemetry.trace import Status, StatusCode
 
+from services.orders.reconciler import Reconciler
 from services.orders.saga import CheckoutSaga
-from services.shared.attempts import AttemptStore
+from services.shared.attempts import AttemptStore, ClaimPolicy
 from services.shared.checkout import TERMINAL_STATES, CheckoutOrder, CheckoutResult, checkout_result
 from services.shared.client import DependencyClient
 from services.shared.config import Settings
@@ -54,29 +56,54 @@ def create_app(
     factory = repository_factory or (
         lambda runtime, tel: (db := Database(settings, tel, runtime), OrderRepository(db))
     )
-    app = make_app("orders-service", settings, repository_factory=factory, telemetry=telemetry)
+
+    @asynccontextmanager
+    async def background(app):
+        # The saga needs the database pool, which only exists once the lifespan has started.
+        state = app.state
+        state.attempts = attempts_factory(state.db)
+        state.saga = CheckoutSaga(
+            state.attempts, state.client, settings, tel, runtime, resume_after=saga_resume_after
+        )
+        worker = await start_reconciler(state)
+        try:
+            yield
+        finally:
+            if worker:
+                await worker.stop()
+
+    async def start_reconciler(state):
+        if not settings.reconciler_enabled:
+            return None
+        if not await state.attempts.claims_supported():
+            tel.log("WARN", "reconciler_disabled", "Reconciler idle: orders migration 003 is not applied")
+            return None
+        resume_after = state.saga.resume_after
+        worker = Reconciler(
+            state.attempts,
+            state.saga,
+            tel,
+            policy=ClaimPolicy(stall_seconds=resume_after, lease_seconds=max(30, 2 * resume_after)),
+            batch_size=settings.reconciler_batch,
+            stuck_after=settings.reconciler_stuck_after,
+        )
+        worker.start(settings.reconciler_interval)
+        return worker
+
+    app = make_app(
+        "orders-service", settings, repository_factory=factory, telemetry=telemetry, background=background
+    )
     tel, runtime = app.state.telemetry, app.state.runtime
     app.state.client = client or DependencyClient(tel, settings)
-
-    def saga(request):
-        # Built on first use: the database pool only exists once the lifespan has started.
-        state = request.app.state
-        if getattr(state, "saga", None) is None:
-            state.attempts = attempts_factory(state.db)
-            state.saga = CheckoutSaga(
-                state.attempts, state.client, settings, tel, runtime, resume_after=saga_resume_after
-            )
-        return state.saga
 
     @app.post("/checkouts", response_model=CheckoutResult, status_code=201)
     async def place_checkout(
         data: CheckoutOrder, request: Request, idempotency_key: Annotated[str, Header(max_length=32)]
     ):
-        return respond(await saga(request).place(idempotency_key, data))
+        return respond(await request.app.state.saga.place(idempotency_key, data))
 
     @app.get("/checkouts/{attempt_ref}", response_model=CheckoutResult)
     async def get_checkout(attempt_ref: str, customer_id: str, request: Request):
-        saga(request)
         view = await request.app.state.attempts.get(customer_id, attempt_ref)
         if view is None:
             # Not found is not proof that nothing was placed; resolve explicitly to fence it.
@@ -85,7 +112,7 @@ def create_app(
 
     @app.post("/checkouts/{attempt_ref}/resolve", response_model=CheckoutResult)
     async def resolve_checkout(attempt_ref: str, customer_id: str, request: Request):
-        return respond(await saga(request).resolve(customer_id, attempt_ref))
+        return respond(await request.app.state.saga.resolve(customer_id, attempt_ref))
 
     @app.get("/orders/{order_id}", response_model=OrderResult)
     async def get_order(order_id: str, request: Request):

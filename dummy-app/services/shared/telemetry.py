@@ -37,6 +37,25 @@ def correlation():
     }
 
 
+def current_traceparent():
+    """W3C traceparent of the current span, or None outside a recorded trace."""
+    context = trace.get_current_span().get_span_context()
+    if not context.is_valid:
+        return None
+    return f"00-{context.trace_id:032x}-{context.span_id:016x}-{context.trace_flags:02x}"
+
+
+def link_to(traceparent):
+    """Span links pointing at a stored traceparent (none when it is missing)."""
+    if not traceparent:
+        return []
+    _, trace_id, span_id, flags = traceparent.split("-")
+    context = trace.SpanContext(
+        int(trace_id, 16), int(span_id, 16), is_remote=True, trace_flags=trace.TraceFlags(int(flags, 16))
+    )
+    return [trace.Link(context)]
+
+
 class JsonFormatter(logging.Formatter):
     def __init__(self, service, environment):
         super().__init__()

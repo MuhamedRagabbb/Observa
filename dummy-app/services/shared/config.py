@@ -19,9 +19,24 @@ class Settings:
     baseline_decline_rate: float = field(
         default_factory=lambda: float(os.getenv("BASELINE_DECLINE_RATE", "0.02"))
     )
+    # Orders background reconciler. Off unless enabled: it needs orders migration 003.
+    reconciler_enabled: bool = field(
+        default_factory=lambda: os.getenv("RECONCILER_ENABLED", "false").lower() in ("1", "true")
+    )
+    reconciler_interval: float = field(default_factory=lambda: float(os.getenv("RECONCILER_INTERVAL", "5")))
+    reconciler_batch: int = field(default_factory=lambda: int(os.getenv("RECONCILER_BATCH", "20")))
+    reconciler_stuck_after: int = field(
+        default_factory=lambda: int(os.getenv("RECONCILER_STUCK_AFTER", "10"))
+    )
 
     def __post_init__(self):
         if not 1 <= self.pool_max <= 16 or not 0 < self.pool_timeout <= 10:
             raise ValueError("Invalid bounded database pool configuration")
         if not 0 <= self.sample_ratio <= 1 or not 0 <= self.baseline_decline_rate <= 1:
             raise ValueError("Rates must be between zero and one")
+        if not (
+            0 < self.reconciler_interval <= 300
+            and 1 <= self.reconciler_batch <= 100
+            and 1 <= self.reconciler_stuck_after <= 1000
+        ):
+            raise ValueError("Invalid bounded reconciler configuration")

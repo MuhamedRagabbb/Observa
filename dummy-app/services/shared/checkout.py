@@ -90,6 +90,7 @@ class CheckoutInput(CheckoutOrder):
 TRANSITIONS = {
     (None, "abandon"): "abandoned",
     ("received", "reserve"): "reserving",
+    ("received", "expire"): "failed",  # nothing was reserved or charged yet
     ("reserving", "reserved"): "reserved",
     ("reserving", "out_of_stock"): "not_placed",
     ("reserving", "reserve_unknown"): "releasing",

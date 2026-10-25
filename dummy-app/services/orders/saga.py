@@ -13,7 +13,7 @@ response. Rules:
   so it never races a request that is still running. A replay re-runs the stalled step (every
   call is idempotent); an explicit resolve instead *settles* it: an unconfirmed reservation is
   released and an unconfirmed charge is voided, so resolving never takes new money.
-- There is no background reconciler yet (P1-D): a stalled attempt waits for a replay or resolve.
+- The background reconciler (``reconciler.py``) settles attempts nobody resumes, via ``settle``.
 """
 
 import asyncio
@@ -23,10 +23,16 @@ from opentelemetry.trace import Status, StatusCode
 
 from services.shared.checkout import TERMINAL_STATES
 from services.shared.errors import AppError
+from services.shared.telemetry import current_traceparent
 
 VOID_EVENTS = {"voided": "voided", "succeeded": "found_succeeded", "declined": "found_declined"}
 # Explicit resolution of an in-flight step: fence it instead of retrying it.
-SETTLE_EVENTS = {"reserving": "reserve_unknown", "reserved": "persist_failed", "charging": "charge_unknown"}
+SETTLE_EVENTS = {
+    "received": "expire",
+    "reserving": "reserve_unknown",
+    "reserved": "persist_failed",
+    "charging": "charge_unknown",
+}
 
 
 class CheckoutSaga:
@@ -51,7 +57,7 @@ class CheckoutSaga:
 
     async def place(self, attempt_ref, order):
         """Start (or idempotently replay) a checkout and drive it as far as it can safely go."""
-        view = await self.attempts.begin(attempt_ref, order)
+        view = await self.attempts.begin(attempt_ref, order, trace_parent=current_traceparent())
         if view["replayed"]:
             return await self._resume(view)
         self.tel.count("orders.created")
@@ -61,6 +67,14 @@ class CheckoutSaga:
     async def resolve(self, customer_id, attempt_ref):
         """Explicit resolution: fence an absent attempt, or settle a stalled one."""
         return await self._resume(await self.attempts.abandon(customer_id, attempt_ref), settle=True)
+
+    async def settle(self, view):
+        """Settle a stalled attempt the caller has already claimed: fence the in-flight step
+        (release an unconfirmed reservation, void an unconfirmed charge) and finish what is
+        already decided. Never takes new money; stops early while an outcome stays unknown."""
+        if view["state"] in TERMINAL_STATES:
+            return view
+        return await self._drive(view, settle=True)
 
     async def _resume(self, view, *, settle=False):
         if view["state"] in TERMINAL_STATES:
