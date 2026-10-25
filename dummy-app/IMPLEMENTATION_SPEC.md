@@ -18,7 +18,9 @@ The application must:
 
 ### Explicitly out of scope
 
-No real purchases, real payment provider, login/authentication, browser UI, shopping cart, message broker, Kubernetes, cloud infrastructure, LLM, RAG, or OBSERVA agents are required. A lightweight CLI/API for controlling faults is enough.
+No real purchases, real payment provider, real shipping, customer accounts, login/authentication, message broker, Kubernetes, cloud infrastructure, LLM, RAG, or OBSERVA agents are required.
+
+> **Scope reconciliation (2026-10-25).** The approved OBSERVA design adds a simulated, English LTR storefront with a **multi-item cart and demo checkout**, a **My Orders** view, and a separate evaluation-only **Operator Dashboard**. These are now **in scope** because they generate realistic, correlated traffic and telemetry. Everything else in this section stays out of scope. See [§12](#12-approved-design-reconciliation) for details. This supersedes the earlier "no browser UI, no shopping cart" wording.
 
 ---
 
@@ -366,3 +368,27 @@ The project is complete when a developer can start it with Docker Compose, obser
 7. Run all available checks, fix failures, and report exact commands, observed telemetry and any limitations.
 
 **Non-negotiable:** Do not invent observed results, do not leak ground-truth labels into OBSERVA-facing data, do not implement OBSERVA agents, and do not silently omit logs/metrics/traces or any of the three fault scenarios. If an existing repository conflicts with the defaults in Section 2, preserve its established conventions while meeting all behavior and acceptance criteria above.
+
+---
+
+## 12. Approved Design Reconciliation
+
+This section records how the approved design (39 artboards, 2026-10-25) changes this spec. It describes target behaviour for later phases. The code in this commit is unchanged.
+
+### 12.1 In scope
+- **Storefront** (English LTR): product collection with availability, multi-item cart with server-computed quote, and a demo checkout. The checkout collects only a demo name and email, which are validated and **not persisted, logged or traced**, plus one simulated payment method. It has these outcomes: processing, success, payment failed (retryable), not placed (unavailable item, not retryable) and status unknown, plus My Orders (list and detail).
+- **Operator Dashboard**, served only by the fault controller: manual F1/F2/F3 configuration, automatic cycle, recovering, controller disconnected and fault-status-unknown states. Service health comes from real probes and Prometheus metrics, never from fault state.
+- **Still out of scope:** real payments, shipping, accounts and authentication.
+
+### 12.2 Checkout correctness requirements
+1. **Persist the attempt before side effects.** A client-generated attempt reference (`Idempotency-Key`) is stored with a request hash, before inventory or payment calls. A replay with the same key returns the same result; the same key with a different request is a conflict.
+2. **No false failures.** A payment 503, a timeout, or a missing record is **never** proof of failure. These move the attempt to an *unknown* state, which is resolved only by a fence:
+   - a payment void tombstone, after which a late charge with the same key is refused;
+   - an attempt "resolve" tombstone, after which a late checkout with the same key is refused.
+3. **Safe compensation.** Inventory is released only after payment is confirmed declined or voided. A confirmed charge always completes the order, never releases it.
+4. **Reconciliation.** A bounded background reconciler resumes non-terminal attempts, including after a restart, with backoff. It logs *stuck* attempts instead of guessing.
+
+### 12.3 Preserved invariants
+- All three signals from every service; the three fault scenarios (F1 Orders DB pool exhaustion, F2 payment errors with no added latency, F3 bad deployment of the Orders service) and their expected evidence.
+- Ground truth stays isolated from customer-facing assets and from OBSERVA-facing telemetry.
+- Metric labels stay low-cardinality: no attempt references, SKUs or contact data.

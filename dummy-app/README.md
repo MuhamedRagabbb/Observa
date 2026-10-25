@@ -4,6 +4,10 @@ A runnable local test bed generating correlated JSON logs, OpenTelemetry metrics
 
 See [VALIDATION.md](VALIDATION.md) for the recorded commands, observed live telemetry, acceptance results and practical limits from the implementation run.
 
+> **Location:** this app lives in `dummy-app/` inside the OBSERVA repository. The project overview is in the [root README](../README.md). Run every command below from `dummy-app/`. The approved English storefront, multi-item cart and operator redesign are specified in [IMPLEMENTATION_SPEC.md §12](IMPLEMENTATION_SPEC.md#12-approved-design-reconciliation) and aren't implemented yet.
+>
+> **Live tests and host ports:** the tests read ports such as `POSTGRES_PORT` from the shell environment, not from `.env`. If you changed a port in `.env`, for example because another PostgreSQL already uses 5432, export the same value before running `pytest`.
+
 ## Start
 
 Install Docker Desktop with its Linux engine running (or Docker Engine + Compose v2+). From this directory:
