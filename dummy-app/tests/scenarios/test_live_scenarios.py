@@ -9,11 +9,29 @@ import pytest
 
 from tests.integration.test_live import BASE, JAEGER, LOKI, PROM, eventually, successful_order
 
+LIVE_PROJECT = "observa-dummy"
+
+
+def fault_target_refusal(env):
+    """Why the fault scenarios must not run against this target, or None when they may.
+
+    They saturate pools and fail payments, which leaves stuck rows in the legacy flow, so they
+    run only against a throwaway Compose project (scripts/migrations/README.md).
+    """
+    if env.get("RUN_FAULT_TESTS") != "1":
+        return "Fault scenarios are opt-in: set RUN_FAULT_TESTS=1 against a throwaway Compose project"
+    if env.get("COMPOSE_PROJECT_NAME", "") in ("", LIVE_PROJECT):
+        return f"Set COMPOSE_PROJECT_NAME to a throwaway project, never the live {LIVE_PROJECT!r}"
+    return None
+
+
+FAULT_REFUSAL = fault_target_refusal(os.environ)
 pytestmark = [
     pytest.mark.live,
     pytest.mark.skipif(
         os.getenv("RUN_LIVE_TESTS") != "1", reason="Set RUN_LIVE_TESTS=1 with Compose running"
     ),
+    pytest.mark.skipif(FAULT_REFUSAL is not None, reason=FAULT_REFUSAL or ""),
 ]
 CONTROLLER = os.getenv("TEST_CONTROLLER_URL", "http://localhost:8090")
 ORDER = {"product_id": "sku-005", "quantity": 2, "customer_id": "scenario-user"}

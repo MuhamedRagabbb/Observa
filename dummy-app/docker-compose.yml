@@ -72,6 +72,8 @@ services:
       DATABASE_URL: postgresql://orders_app:${ORDERS_DB_PASSWORD:-local-orders-only}@postgres:5432/orders_db
       INVENTORY_URL: ${INVENTORY_URL:-http://inventory:8002}
       PAYMENTS_URL: ${PAYMENTS_URL:-http://payments:8003}
+      # Background reconciler: off unless explicitly enabled after orders migrations 001-003.
+      RECONCILER_ENABLED: ${RECONCILER_ENABLED:-false}
     ports: ["127.0.0.1:${ORDERS_PORT:-8001}:8001"]
     networks: [business, control]
     depends_on:
@@ -129,7 +131,8 @@ services:
       PUBLIC_JAEGER_PORT: ${JAEGER_PORT:-16686}
       PUBLIC_PROMETHEUS_PORT: ${PROMETHEUS_PORT:-9090}
     ports: ["127.0.0.1:${CONTROLLER_PORT:-8090}:8090"]
-    volumes: ["./ground-truth:/ground-truth"]
+    # Host folder for the ground-truth journal; a throwaway fault-test project points this elsewhere.
+    volumes: ["${GROUND_TRUTH_DIR:-./ground-truth}:/ground-truth"]
     networks: [control]
     depends_on:
       orders: {condition: service_healthy}

@@ -1,5 +1,8 @@
+import asyncio
+import time
 from pathlib import Path
 
+import asyncpg
 import pytest
 
 from services.shared.migrations import MigrationError, apply_migrations
@@ -71,8 +74,6 @@ ROOT_MIGRATIONS = Path(__file__).resolve().parents[2] / "scripts" / "migrations"
 
 
 async def test_orders_migration_adds_attempt_tables_and_keeps_legacy_orders(orders_db):
-    import asyncpg
-
     conn = await orders_db["connect"]()
     try:
         await conn.execute(
@@ -97,8 +98,6 @@ async def test_orders_migration_adds_attempt_tables_and_keeps_legacy_orders(orde
 
 
 async def test_payments_migration_allows_void_tombstones_only(payments_db):
-    import asyncpg
-
     conn = await payments_db["connect"]()
     try:
         await conn.execute(
@@ -118,5 +117,111 @@ async def test_payments_migration_allows_void_tombstones_only(payments_db):
         assert (
             await conn.fetchval("SELECT amount_cents FROM payments WHERE payment_id='payment-legacy'") == 1200
         )
+    finally:
+        await conn.close()
+
+
+async def test_lock_timeout_in_the_dsn_bounds_a_blocked_migration(payments_db):
+    """The runbook appends ?lock_timeout=... to the service DSN: a blocked step fails fast,
+    rolls back and is not recorded, instead of queueing live traffic behind it."""
+
+    blocker = await payments_db["connect"]()
+    migrator = await asyncpg.connect(payments_db["dsn"] + "?lock_timeout=1s")
+    try:
+        async with blocker.transaction():
+            await blocker.execute("LOCK TABLE payments IN ACCESS SHARE MODE")  # a long-running reader
+            started = time.monotonic()
+            with pytest.raises(MigrationError, match="001_payment_void_fence"):
+                await asyncio.wait_for(apply_migrations(migrator, ROOT_MIGRATIONS / "payments"), 10)
+            assert time.monotonic() - started < 5
+        assert await migrator.fetchval("SELECT count(*) FROM schema_migrations") == 0
+        assert not await migrator.fetchval(
+            "SELECT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='payments_charge_fields')"
+        )
+    finally:
+        await migrator.close()
+        await blocker.close()
+
+
+def rollback_scripts(service):
+    """The runbook's rollback-before-data scripts, newest first."""
+    return sorted((ROOT_MIGRATIONS / service / "rollback").glob("[0-9][0-9][0-9]_*.sql"), reverse=True)
+
+
+async def schema(conn):
+    """Tables, columns, constraints and indexes, ignoring the runner's own schema_migrations."""
+    tables = {
+        r["tablename"] for r in await conn.fetch("SELECT tablename FROM pg_tables WHERE schemaname='public'")
+    }
+    columns = {
+        (r["table_name"], r["column_name"], r["is_nullable"])
+        for r in await conn.fetch(
+            "SELECT table_name, column_name, is_nullable FROM information_schema.columns WHERE table_schema='public'"
+        )
+    }
+    constraints = {
+        (r["table"], r["conname"], r["def"])
+        for r in await conn.fetch(
+            "SELECT conrelid::regclass::text AS table, conname, pg_get_constraintdef(oid) AS def "
+            "FROM pg_constraint WHERE connamespace = 'public'::regnamespace"
+        )
+    }
+    indexes = {
+        (r["tablename"], r["indexname"])
+        for r in await conn.fetch("SELECT tablename, indexname FROM pg_indexes WHERE schemaname='public'")
+    }
+    sequences = {r["relname"] for r in await conn.fetch("SELECT relname FROM pg_class WHERE relkind='S'")}
+    bookkeeping = "schema_migrations"
+    return (
+        tables - {bookkeeping},
+        {c for c in columns if c[0] != bookkeeping},
+        {c for c in constraints if c[0] != bookkeeping},
+        {i for i in indexes if i[0] != bookkeeping},
+        sequences,
+    )
+
+
+@pytest.fixture(params=["inventory", "orders", "payments"])
+def service_db(request):
+    """(service, fresh database). Sync on purpose: database fixtures start outside the test loop."""
+    return request.param, request.getfixturevalue(f"{request.param}_db")
+
+
+async def test_rollback_before_data_restores_the_original_schema(service_db):
+    service, database = service_db
+    conn = await database["connect"]()
+    try:
+        original = await schema(conn)
+        applied = await apply_migrations(conn, ROOT_MIGRATIONS / service)
+        assert [path.stem for path in rollback_scripts(service)] == applied[::-1]
+        for path in rollback_scripts(service):
+            async with conn.transaction():
+                await conn.execute(path.read_text(encoding="utf-8"))
+        assert await schema(conn) == original
+        assert await conn.fetchval("SELECT count(*) FROM schema_migrations") == 0
+        assert await apply_migrations(conn, ROOT_MIGRATIONS / service) == applied  # can re-apply later
+    finally:
+        await conn.close()
+
+
+NEW_DATA = {
+    "inventory": "INSERT INTO cart_reservations (reservation_id, status) VALUES ('order-x', 'released')",
+    "orders": "INSERT INTO checkout_attempts (customer_id, attempt_ref, state) VALUES ('c', 'ATT-0000-0001', 'abandoned')",
+    "payments": "INSERT INTO payments (payment_id, idempotency_key, order_id, status) VALUES ('v', 'k', 'o', 'voided')",
+}
+
+
+async def test_rollback_refuses_once_new_checkout_data_exists(service_db):
+    service, database = service_db
+    conn = await database["connect"]()
+    try:
+        applied = await apply_migrations(conn, ROOT_MIGRATIONS / service)
+        await conn.execute(NEW_DATA[service])
+        with pytest.raises(asyncpg.RaiseError, match="recovery"):
+            async with conn.transaction():
+                await conn.execute(rollback_scripts(service)[0].read_text(encoding="utf-8"))
+        assert [
+            r["version"] for r in await conn.fetch("SELECT version FROM schema_migrations ORDER BY 1")
+        ] == applied
     finally:
         await conn.close()

@@ -211,7 +211,7 @@ node --test tests/ui/client.test.mjs
 
 Those checks cover a single checkout transmission, correlation IDs, translated payment failures, ambiguous network outcomes without automatic checkout retries, and safe rendering of trace metadata. Node is only needed for these optional development checks; the running interfaces require no Node process or frontend build.
 
-With Compose running, use a quiet evaluation window (the traffic generator can remain active because stock assertions use `sku-005`):
+With Compose running, use a quiet evaluation window (the traffic generator can remain active because stock assertions use `sku-005`). Against the live project this runs the non-fault live checks; the F1/F2/F3 fault scenarios are skipped unless `RUN_FAULT_TESTS=1` and `COMPOSE_PROJECT_NAME` names a throwaway project, because they strand legacy orders in the database they hit. See [Fault testing on a throwaway project](scripts/migrations/README.md#fault-testing-on-a-throwaway-project) for the full suite, and the [migration runbook](scripts/migrations/README.md) before applying schema migrations to the live databases:
 
 ```sh
 RUN_LIVE_TESTS=1 TEST_COLLECTOR_OUTAGE=1 python -m pytest -q
@@ -225,7 +225,7 @@ $env:TEST_COLLECTOR_OUTAGE='1'
 python -m pytest -q
 ```
 
-The live suite creates real database rows, checks cross-database access denial and concurrency/idempotency, queries all three backends, tests the three incident signatures and recovery, and validates journal isolation. The optional Collector outage test stops/restarts **this project's Collector**, verifying a checkout still succeeds. Run this suite sequentially; it exclusively controls faults and should not overlap a separate manual/automatic evaluation. Test endpoint defaults use the ports above; `TEST_GATEWAY_URL`, `TEST_CONTROLLER_URL`, `TEST_PROMETHEUS_URL`, `TEST_JAEGER_URL`, `TEST_LOKI_URL` can redirect backend queries. Direct-service database/health assertions use the default 8001–8003/8090 ports, so use default ports for the full acceptance run. Tests read the default mock DB password unless overridden in their environment.
+The live suite creates real database rows, checks cross-database access denial and concurrency/idempotency, queries all three backends, tests the three incident signatures and recovery (throwaway project only), and validates journal isolation. The optional Collector outage test stops/restarts **this project's Collector**, verifying a checkout still succeeds. Run this suite sequentially; it exclusively controls faults and should not overlap a separate manual/automatic evaluation. Test endpoint defaults use the ports above; `TEST_GATEWAY_URL`, `TEST_CONTROLLER_URL`, `TEST_PROMETHEUS_URL`, `TEST_JAEGER_URL`, `TEST_LOKI_URL` can redirect backend queries. Direct-service database/health assertions use the default 8001–8003/8090 ports, so use default ports for the full acceptance run. Tests read the default mock DB password unless overridden in their environment.
 
 ## Configure, stop and reset
 
