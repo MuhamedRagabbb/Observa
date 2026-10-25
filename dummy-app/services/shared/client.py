@@ -21,7 +21,10 @@ class DependencyClient:
             limits=httpx.Limits(max_connections=32, max_keepalive_connections=16),
         )
 
-    async def request(self, dependency, base_url, method, route, *, body=None, template=None, retry=False):
+    async def request(
+        self, dependency, base_url, method, route, *, body=None, template=None, retry=False, headers=None,
+        with_status=False,
+    ):  # fmt: skip
         labels = {"dependency": dependency, "http.method": method, "http.route": template or route}
         for attempt in range(2 if retry else 1):
             start = time.perf_counter()
@@ -30,8 +33,8 @@ class DependencyClient:
                 kind=SpanKind.CLIENT,
                 attributes=labels,
             ) as span:
-                headers = {"x-request-id": request_id_var.get()}
-                PROPAGATOR.inject(headers)
+                outgoing = {**(headers or {}), "x-request-id": request_id_var.get()}
+                PROPAGATOR.inject(outgoing)
                 self.telemetry.log(
                     "INFO",
                     "dependency_request_started",
@@ -40,7 +43,9 @@ class DependencyClient:
                     retry_attempt=attempt,
                 )
                 try:
-                    response = await self.client.request(method, base_url + route, json=body, headers=headers)
+                    response = await self.client.request(
+                        method, base_url + route, json=body, headers=outgoing
+                    )
                     span.set_attribute("http.status_code", response.status_code)
                     self.telemetry.count(
                         "dependency.calls", {**labels, "http.status_code": response.status_code}
@@ -59,11 +64,12 @@ class DependencyClient:
                             retry_attempt=attempt,
                         )
                         try:
-                            code = response.json()["error_code"]
-                        except (ValueError, KeyError, TypeError):
-                            code = "dependency_error"
+                            error = response.json()
+                            code, details = error["error_code"], error.get("details")
+                        except (ValueError, KeyError, TypeError, AttributeError):
+                            code, details = "dependency_error", None
                         raise AppError(
-                            response.status_code, code, "Dependency could not complete the operation"
+                            response.status_code, code, "Dependency could not complete the operation", details
                         )
                     self.telemetry.log(
                         "INFO",
@@ -74,7 +80,7 @@ class DependencyClient:
                         duration_ms=round((time.perf_counter() - start) * 1000),
                         retry_attempt=attempt,
                     )
-                    return response.json()
+                    return (response.status_code, response.json()) if with_status else response.json()
                 except (httpx.TimeoutException, httpx.NetworkError) as exc:
                     timeout = isinstance(exc, httpx.TimeoutException)
                     self.telemetry.count("dependency.calls", {**labels, "http.status_code": 0})

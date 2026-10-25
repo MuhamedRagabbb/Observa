@@ -59,9 +59,11 @@ class CartReservationInput(CartLines):
     order_id: str = Field(pattern=r"^order-[a-f0-9-]{36}$")
 
 
-class CheckoutInput(CartLines):
+class CheckoutOrder(CartLines):
+    """What Orders receives: customer and cart only. Contact details stop at the Gateway."""
+
+    model_config = ConfigDict(extra="forbid")
     customer_id: str = Field(min_length=1, max_length=64, pattern=r"^[a-zA-Z0-9_-]+$")
-    contact: Contact
 
     def request_hash(self):
         """Idempotency fingerprint of customer + normalized lines; contact data is excluded."""
@@ -71,6 +73,15 @@ class CheckoutInput(CartLines):
     @property
     def total_units(self):
         return sum(item.quantity for item in self.items)
+
+
+class CheckoutInput(CheckoutOrder):
+    """What the browser sends to the Gateway; contact is validated there and then dropped."""
+
+    contact: Contact
+
+    def order(self):
+        return CheckoutOrder(customer_id=self.customer_id, items=self.items)
 
 
 # Attempt state contract. Each saga step is persisted before the next remote call.
@@ -186,4 +197,41 @@ def build_quote(cart, products):
         unit_count=sum(line.quantity for line in available),
         unavailable_count=len(lines) - len(available),
         can_checkout=len(available) == len(lines),
+    )
+
+
+class ResultLine(BaseModel):
+    product_id: str
+    quantity: int
+    unit_price_cents: int | None = None
+
+
+class CheckoutResult(BaseModel):
+    """Customer-facing view of one checkout attempt (never includes contact data)."""
+
+    attempt_ref: str
+    order_id: str | None
+    order_number: str | None
+    state: str
+    outcome: Literal["confirmed", "processing", "payment_failed", "unavailable", "failed", "abandoned"]
+    retryable: bool
+    items: list[ResultLine]
+    total_cents: int | None
+    error_code: str | None = None
+    unavailable_items: list[dict] | None = None
+
+
+def checkout_result(view):
+    result_outcome, retryable = outcome(view["state"])
+    return CheckoutResult(
+        attempt_ref=view["attempt_ref"],
+        order_id=view["order_id"],
+        order_number=view["order_number"],
+        state=view["state"],
+        outcome=result_outcome,
+        retryable=retryable,
+        items=view["items"],
+        total_cents=view["total_cents"],
+        error_code=view["error_code"],
+        unavailable_items=(view.get("details") or {}).get("unavailable_items"),
     )

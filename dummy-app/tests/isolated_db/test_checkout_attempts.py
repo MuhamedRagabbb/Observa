@@ -192,3 +192,43 @@ async def test_two_service_processes_racing_on_one_key_agree(orders_db):
             final = await first.get("web-user-1", ref)
             assert final["state"] == resolved["state"]
             assert (begun == "attempt_abandoned") == (final["state"] == "abandoned")
+
+
+async def test_charge_step_persists_server_prices_and_failures_keep_details(attempts):
+    await attempts.begin(REF, checkout())
+    await attempts.advance("web-user-1", REF, "reserve", expected_version=0)
+    await attempts.advance("web-user-1", REF, "reserved", expected_version=1)
+    charging = await attempts.advance(
+        "web-user-1", REF, "charge", expected_version=2, prices={"sku-001": 1200, "sku-002": 1800}
+    )
+    assert charging["total_cents"] == 4200
+    assert charging["items"] == [
+        {"product_id": "sku-001", "quantity": 2, "unit_price_cents": 1200},
+        {"product_id": "sku-002", "quantity": 1, "unit_price_cents": 1800},
+    ]
+    assert charging["updated_at"] is not None
+
+    other = "ATT-2222-3333"
+    await attempts.begin(other, checkout(items=(("sku-004", 1),)))
+    await attempts.advance("web-user-1", other, "reserve", expected_version=0)
+    unavailable = {"unavailable_items": [{"product_id": "sku-004", "requested": 1, "available": 0}]}
+    placed = await attempts.advance(
+        "web-user-1",
+        other,
+        "out_of_stock",
+        expected_version=1,
+        error_code="insufficient_stock",
+        details=unavailable,
+    )
+    assert (placed["state"], placed["details"]) == ("not_placed", unavailable)
+    assert (await attempts.get("web-user-1", other))["details"] == unavailable
+
+
+async def test_prices_must_cover_every_line(attempts):
+    await attempts.begin(REF, checkout())
+    for version, event in enumerate(("reserve", "reserved")):
+        await attempts.advance("web-user-1", REF, event, expected_version=version)
+    with pytest.raises(AppError) as missing:
+        await attempts.advance("web-user-1", REF, "charge", expected_version=2, prices={"sku-001": 1200})
+    assert missing.value.code == "price_unavailable"
+    assert (await attempts.get("web-user-1", REF))["state"] == "reserved"

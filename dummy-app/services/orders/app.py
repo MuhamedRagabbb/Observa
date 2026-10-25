@@ -1,9 +1,14 @@
 import asyncio
+from typing import Annotated
 from uuid import uuid4
 
-from fastapi import Request
+from fastapi import Header, Request
+from fastapi.responses import JSONResponse
 from opentelemetry.trace import Status, StatusCode
 
+from services.orders.saga import CheckoutSaga
+from services.shared.attempts import AttemptStore
+from services.shared.checkout import TERMINAL_STATES, CheckoutOrder, CheckoutResult, checkout_result
 from services.shared.client import DependencyClient
 from services.shared.config import Settings
 from services.shared.database import Database
@@ -12,8 +17,39 @@ from services.shared.models import OrderInput, OrderResult
 from services.shared.repositories import OrderRepository
 from services.shared.web import make_app
 
+FAILURE_HTTP = {
+    "payment_declined": (402, "payment_declined"),
+    "payment_failed": (503, "payment_unavailable"),
+    "not_placed": (409, "insufficient_stock"),
+    "abandoned": (409, "attempt_abandoned"),
+}
 
-def create_app(settings=None, *, repository_factory=None, telemetry=None, client=None):
+
+def respond(view):
+    """Mirror the outcome in the HTTP status so checkout failures stay visible in telemetry."""
+    result = checkout_result(view)
+    if view["state"] == "completed":
+        return JSONResponse(result.model_dump(), status_code=201)
+    if view["state"] not in TERMINAL_STATES:
+        return JSONResponse(result.model_dump(), status_code=202)
+    if view["state"] == "failed":
+        status = 500 if view["error_code"] == "order_persistence_error" else 503
+        code = view["error_code"] or "checkout_failed"
+    else:
+        status, code = FAILURE_HTTP[view["state"]]
+        code = view["error_code"] if view["state"] == "not_placed" and view["error_code"] else code
+    raise AppError(status, code, "Checkout was not completed", result.model_dump())
+
+
+def create_app(
+    settings=None,
+    *,
+    repository_factory=None,
+    telemetry=None,
+    client=None,
+    attempts_factory=AttemptStore,
+    saga_resume_after=None,
+):
     settings = settings or Settings()
     factory = repository_factory or (
         lambda runtime, tel: (db := Database(settings, tel, runtime), OrderRepository(db))
@@ -21,6 +57,35 @@ def create_app(settings=None, *, repository_factory=None, telemetry=None, client
     app = make_app("orders-service", settings, repository_factory=factory, telemetry=telemetry)
     tel, runtime = app.state.telemetry, app.state.runtime
     app.state.client = client or DependencyClient(tel, settings)
+
+    def saga(request):
+        # Built on first use: the database pool only exists once the lifespan has started.
+        state = request.app.state
+        if getattr(state, "saga", None) is None:
+            state.attempts = attempts_factory(state.db)
+            state.saga = CheckoutSaga(
+                state.attempts, state.client, settings, tel, runtime, resume_after=saga_resume_after
+            )
+        return state.saga
+
+    @app.post("/checkouts", response_model=CheckoutResult, status_code=201)
+    async def place_checkout(
+        data: CheckoutOrder, request: Request, idempotency_key: Annotated[str, Header(max_length=32)]
+    ):
+        return respond(await saga(request).place(idempotency_key, data))
+
+    @app.get("/checkouts/{attempt_ref}", response_model=CheckoutResult)
+    async def get_checkout(attempt_ref: str, customer_id: str, request: Request):
+        saga(request)
+        view = await request.app.state.attempts.get(customer_id, attempt_ref)
+        if view is None:
+            # Not found is not proof that nothing was placed; resolve explicitly to fence it.
+            raise AppError(404, "attempt_not_found", "No checkout recorded for this reference yet")
+        return checkout_result(view)
+
+    @app.post("/checkouts/{attempt_ref}/resolve", response_model=CheckoutResult)
+    async def resolve_checkout(attempt_ref: str, customer_id: str, request: Request):
+        return respond(await saga(request).resolve(customer_id, attempt_ref))
 
     @app.get("/orders/{order_id}", response_model=OrderResult)
     async def get_order(order_id: str, request: Request):

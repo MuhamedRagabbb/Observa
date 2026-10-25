@@ -79,7 +79,10 @@ async def test_orders_migration_adds_attempt_tables_and_keeps_legacy_orders(orde
             "INSERT INTO orders (order_id, product_id, quantity, customer_id, status) "
             "VALUES ('order-legacy', 'sku-001', 1, 'legacy', 'pending')"
         )
-        assert await apply_migrations(conn, ROOT_MIGRATIONS / "orders") == ["001_checkout_attempts"]
+        assert await apply_migrations(conn, ROOT_MIGRATIONS / "orders") == [
+            "001_checkout_attempts",
+            "002_checkout_pricing",
+        ]
         assert await apply_migrations(conn, ROOT_MIGRATIONS / "orders") == []
         assert await conn.fetchval("SELECT status FROM orders WHERE order_id='order-legacy'") == "pending"
         tables = {row["tablename"] for row in await conn.fetch("SELECT tablename FROM pg_tables")}

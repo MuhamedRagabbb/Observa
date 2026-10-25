@@ -2,9 +2,10 @@
 
 An attempt is written before any inventory or payment side effect, and every later step is a
 compare-and-set on its version through the state contract in ``checkout.advance``. Contact
-details are never stored. Requires orders migration 001.
+details are never stored. Requires orders migrations 001-002.
 """
 
+import json
 import re
 from uuid import uuid4
 
@@ -21,6 +22,9 @@ FIELDS = (
     "state",
     "version",
     "error_code",
+    "total_cents",
+    "failure_details",
+    "updated_at",
 )
 COLUMNS = ", ".join(FIELDS)
 CUSTOMER_ID = re.compile(r"[a-zA-Z0-9_-]{1,64}")
@@ -40,7 +44,7 @@ class AttemptStore:
         check_key(data.customer_id, attempt_ref)
         order_id, request_hash = f"order-{uuid4()}", data.request_hash()
         order_suffix = order_id[6:10].upper()  # first 4 hex digits of the UUID, e.g. OBS-1042-7F3A
-        async with self.db.connection("attempt.begin") as conn:
+        async with self.db.connection("attempt.begin", hold=True) as conn:
             row = await conn.fetchrow(
                 f"INSERT INTO checkout_attempts (customer_id, attempt_ref, request_hash, order_id, order_number, state) "
                 f"VALUES ($1, $2, $3, $4, 'OBS-' || nextval('order_number_seq') || '-' || $5, 'received') "
@@ -87,12 +91,20 @@ class AttemptStore:
                 conn, row or await self._row(conn, customer_id, attempt_ref), replayed=False
             )
 
-    async def advance(self, customer_id, attempt_ref, event, *, expected_version, error_code=None):
-        """Apply one saga event if the caller saw the latest version; committed before returning."""
+    async def advance(
+        self, customer_id, attempt_ref, event, *, expected_version, error_code=None, prices=None, details=None
+    ):
+        """Apply one saga event if the caller saw the latest version; committed before returning.
+
+        ``prices`` (product_id -> server unit price) stores line prices and the total in the same
+        transaction as the step, so a recovered attempt always charges the persisted amount.
+        ``details`` keeps structured failure data (e.g. unavailable items) for idempotent replays.
+        """
         check_key(customer_id, attempt_ref)
         async with self.db.connection("attempt.advance") as conn:
             row = await conn.fetchrow(
-                "SELECT state, version FROM checkout_attempts WHERE customer_id=$1 AND attempt_ref=$2 FOR UPDATE",
+                "SELECT state, version, order_id FROM checkout_attempts "
+                "WHERE customer_id=$1 AND attempt_ref=$2 FOR UPDATE",
                 customer_id,
                 attempt_ref,
             )
@@ -104,16 +116,31 @@ class AttemptStore:
                 state = next_state(row["state"], event)
             except InvalidTransition:
                 raise AppError(409, "invalid_transition", "Checkout step is not allowed now") from None
+            total = await self._price(conn, row["order_id"], prices) if prices is not None else None
             updated = await conn.fetchrow(
                 f"UPDATE checkout_attempts SET state=$3, version=version+1, "
-                f"error_code=COALESCE($4, error_code), updated_at=now() "
+                f"error_code=COALESCE($4, error_code), total_cents=COALESCE($5, total_cents), "
+                f"failure_details=COALESCE($6::jsonb, failure_details), updated_at=now() "
                 f"WHERE customer_id=$1 AND attempt_ref=$2 RETURNING {COLUMNS}",
                 customer_id,
                 attempt_ref,
                 state,
                 error_code,
+                total,
+                json.dumps(details) if details is not None else None,
             )
             return await self._view(conn, updated, replayed=False)
+
+    @staticmethod
+    async def _price(conn, order_id, prices):
+        lines = await conn.fetch("SELECT product_id, quantity FROM order_items WHERE order_id=$1", order_id)
+        if any(line["product_id"] not in prices for line in lines):
+            raise AppError(502, "price_unavailable", "A line price was not available")
+        await conn.executemany(
+            "UPDATE order_items SET unit_price_cents=$3 WHERE order_id=$1 AND product_id=$2",
+            [(order_id, line["product_id"], prices[line["product_id"]]) for line in lines],
+        )
+        return sum(prices[line["product_id"]] * line["quantity"] for line in lines)
 
     async def get(self, customer_id, attempt_ref):
         check_key(customer_id, attempt_ref)
@@ -132,8 +159,10 @@ class AttemptStore:
     @staticmethod
     async def _view(conn, row, *, replayed):
         items = await conn.fetch(
-            "SELECT product_id, quantity FROM order_items WHERE order_id=$1 ORDER BY product_id",
+            "SELECT product_id, quantity, unit_price_cents FROM order_items WHERE order_id=$1 ORDER BY product_id",
             row["order_id"],
         )
-        view = {key: row[key] for key in FIELDS if key != "request_hash"}
-        return {**view, "items": [dict(item) for item in items], "replayed": replayed}
+        view = {key: row[key] for key in FIELDS if key not in ("request_hash", "failure_details")}
+        details = json.loads(row["failure_details"]) if row["failure_details"] else None
+        lines = [{key: value for key, value in dict(item).items() if value is not None} for item in items]
+        return {**view, "details": details, "items": lines, "replayed": replayed}
