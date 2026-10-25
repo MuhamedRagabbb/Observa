@@ -14,7 +14,7 @@ from services.gateway.app import create_app as gateway_app
 from services.inventory.app import create_app as inventory_app
 from services.orders.app import create_app as orders_app
 from services.payments.app import create_app as payments_app
-from services.shared.attempts import check_key
+from services.shared.attempts import LIST_DEFAULT, check_customer, check_key
 from services.shared.checkout import TERMINAL_STATES, InvalidTransition
 from services.shared.checkout import advance as next_state
 from services.shared.client import DependencyClient
@@ -204,6 +204,7 @@ class MemoryAttempts:
             "error_code": None,
             "total_cents": None,
             "details": None,
+            "created_at": datetime.now(UTC),
             "updated_at": datetime.now(UTC),
             "lines": [],
             "next_check_at": None,
@@ -315,6 +316,15 @@ class MemoryAttempts:
                 if row["state"] not in TERMINAL_STATES and row["check_count"] >= after_checks:
                     counts[row["state"]] = counts.get(row["state"], 0) + 1
             return counts
+
+    async def list_for_customer(self, customer_id, *, limit=LIST_DEFAULT):
+        check_customer(customer_id)
+        async with self.db.operation("attempt.list"):
+            rows = [
+                row for row in self.rows.values() if row["customer_id"] == customer_id and row["order_id"]
+            ]
+            rows.sort(key=lambda row: (row["created_at"], row["attempt_ref"]), reverse=True)
+            return [self._view(row) for row in rows[:limit]]
 
     async def get(self, customer_id, attempt_ref):
         check_key(customer_id, attempt_ref)

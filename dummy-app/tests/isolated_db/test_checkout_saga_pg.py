@@ -135,3 +135,23 @@ async def test_f3_bad_release_signature_in_the_new_flow(orders_db, units, expect
             assert mesh["apps"]["inventory"].state.repository.stock["sku-001"] == 1000
         await runtime.update(None)
         assert all(state in TERMINAL_STATES for state in [(await status(mesh)).json()["state"]])
+
+
+async def test_my_orders_and_details_read_the_durable_checkouts(orders_db):
+    async with pg_mesh(orders_db) as mesh:
+        legacy = {"product_id": "sku-001", "quantity": 1, "customer_id": "web-user-1"}
+        assert (await mesh["client"].post("/api/orders", json=legacy)).status_code == 201
+        first = (await checkout(mesh)).json()
+        second = (await checkout(mesh, "ATT-0001-0002", items=(("sku-002", 3),))).json()
+
+        response = await mesh["client"].get("/api/orders", params={"customer_id": "web-user-1"})
+
+        assert response.status_code == 200
+        listed = response.json()
+        assert [row["order_number"] for row in listed] == [second["order_number"], first["order_number"]]
+        assert listed[1]["items"] == [
+            {"product_id": "sku-001", "quantity": 2, "unit_price_cents": 1200},
+            {"product_id": "sku-002", "quantity": 1, "unit_price_cents": 1200},
+        ]
+        assert [row["created_at"] for row in listed] == [second["created_at"], first["created_at"]]
+        assert [(await status(mesh, row["attempt_ref"])).json() for row in listed] == listed

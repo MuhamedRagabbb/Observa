@@ -6,11 +6,8 @@ The in-memory store runs everywhere; the PostgreSQL store runs with RUN_DB_TESTS
 import asyncio
 from datetime import UTC, datetime, timedelta
 
-import pytest
-
 from services.shared.attempts import ClaimPolicy
 from services.shared.checkout import CheckoutOrder
-from tests.isolated_db.conftest import open_repository
 
 POLICY = ClaimPolicy(stall_seconds=15, lease_seconds=30, backoff_seconds=5, backoff_cap_seconds=60)
 CUSTOMER = "web-user-1"
@@ -18,32 +15,6 @@ CUSTOMER = "web-user-1"
 
 def order(items=(("sku-001", 2),)):
     return CheckoutOrder(customer_id=CUSTOMER, items=[{"product_id": p, "quantity": q} for p, q in items])
-
-
-@pytest.fixture
-async def postgres_attempts(orders_db):
-    from services.shared.attempts import AttemptStore
-
-    async with open_repository(orders_db, AttemptStore, migrate=True) as store:
-        yield store
-
-
-@pytest.fixture
-def memory_attempts():
-    from services.shared.config import Settings
-    from services.shared.runtime import Runtime
-    from services.shared.telemetry import Telemetry
-    from tests.conftest import MemoryAttempts, MemoryDatabase
-
-    telemetry = Telemetry("orders-test", Settings(otlp_endpoint=""))
-    yield MemoryAttempts(MemoryDatabase(Runtime(telemetry), telemetry))
-    telemetry.close()
-
-
-@pytest.fixture(params=["memory", "postgres"])
-def attempts(request):
-    """Sync on purpose: the isolated database must start outside the test's event loop."""
-    return request.getfixturevalue(f"{request.param}_attempts")
 
 
 async def started(attempts, ref, *events):

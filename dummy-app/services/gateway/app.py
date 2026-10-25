@@ -1,9 +1,9 @@
 from typing import Annotated
 
-from fastapi import Header, Request
+from fastapi import Header, Query, Request
 from fastapi.responses import JSONResponse
 
-from services.shared.attempts import check_key
+from services.shared.attempts import LIST_DEFAULT, LIST_MAX, check_customer, check_key
 from services.shared.checkout import CartLines, CartQuote, CheckoutInput, CheckoutResult, build_quote
 from services.shared.client import DependencyClient
 from services.shared.config import Settings
@@ -22,6 +22,21 @@ def create_app(settings=None, *, telemetry=None, client=None):
     async def create_order(data: OrderInput, request: Request):
         return await request.app.state.client.request(
             "orders-service", settings.orders_url, "POST", "/orders", body=data.model_dump()
+        )
+
+    @app.get("/api/orders", response_model=list[CheckoutResult])
+    async def my_orders(
+        customer_id: str, request: Request, limit: Annotated[int, Query(ge=1, le=LIST_MAX)] = LIST_DEFAULT
+    ):
+        """My Orders: the customer's checkouts, newest first (legacy single-item orders are not listed)."""
+        check_customer(customer_id)
+        return await request.app.state.client.request(
+            "orders-service",
+            settings.orders_url,
+            "GET",
+            f"/checkouts?customer_id={customer_id}&limit={limit}",
+            template="/checkouts",
+            retry=True,
         )
 
     @app.get("/api/orders/{order_id}", response_model=OrderResult)

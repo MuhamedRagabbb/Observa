@@ -7,6 +7,7 @@ telemetry-facing data.
 import hashlib
 import json
 import re
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -220,6 +221,7 @@ class CheckoutResult(BaseModel):
     total_cents: int | None
     error_code: str | None = None
     unavailable_items: list[dict] | None = None
+    created_at: datetime | None = None  # when the checkout was first recorded
 
 
 def checkout_result(view):
@@ -235,4 +237,5 @@ def checkout_result(view):
         total_cents=view["total_cents"],
         error_code=view["error_code"],
         unavailable_items=(view.get("details") or {}).get("unavailable_items"),
+        created_at=view.get("created_at"),
     )

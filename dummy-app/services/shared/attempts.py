@@ -25,10 +25,13 @@ FIELDS = (
     "error_code",
     "total_cents",
     "failure_details",
+    "created_at",
     "updated_at",
 )
 COLUMNS = ", ".join(FIELDS)
 CUSTOMER_ID = re.compile(r"[a-zA-Z0-9_-]{1,64}")
+# My Orders page size: newest first, no older pages (enough for the demo storefront).
+LIST_DEFAULT, LIST_MAX = 20, 50
 # Same predicate as the partial index in orders migration 003, so the planner can use it.
 OPEN_STATES = "state NOT IN (" + ", ".join(f"'{state}'" for state in sorted(TERMINAL_STATES)) + ")"
 
@@ -41,6 +44,11 @@ class ClaimPolicy:
     lease_seconds: float  # longer than one drive; another reconciler waits this long
     backoff_seconds: float = 5
     backoff_cap_seconds: float = 60
+
+
+def check_customer(customer_id):
+    if not CUSTOMER_ID.fullmatch(customer_id):
+        raise AppError(422, "invalid_customer_id", "Customer ID is malformed")
 
 
 def check_key(customer_id, attempt_ref):
@@ -222,6 +230,21 @@ class AttemptStore:
                 after_checks,
             )
             return {row["state"]: row["n"] for row in rows}
+
+    async def list_for_customer(self, customer_id, *, limit=LIST_DEFAULT):
+        """My Orders: the customer's recorded checkouts, newest first.
+
+        A resolve fence for a checkout that never arrived has no order, so it is not listed.
+        """
+        check_customer(customer_id)
+        async with self.db.connection("attempt.list") as conn:
+            rows = await conn.fetch(
+                f"SELECT {COLUMNS} FROM checkout_attempts WHERE customer_id=$1 AND order_id IS NOT NULL "
+                f"ORDER BY created_at DESC, attempt_ref DESC LIMIT $2",
+                customer_id,
+                limit,
+            )
+            return [await self._view(conn, row, replayed=False) for row in rows]
 
     async def get(self, customer_id, attempt_ref):
         check_key(customer_id, attempt_ref)

@@ -156,3 +156,30 @@ async def orders_db(postgres_port):
 async def payments_db(postgres_port):
     async with fresh_database(postgres_port, "payments") as database:
         yield database
+
+
+# One AttemptStore contract, two stores: the in-memory one runs everywhere, PostgreSQL with RUN_DB_TESTS=1.
+@pytest.fixture
+async def postgres_attempts(orders_db):
+    from services.shared.attempts import AttemptStore
+
+    async with open_repository(orders_db, AttemptStore, migrate=True) as store:
+        yield store
+
+
+@pytest.fixture
+def memory_attempts():
+    from services.shared.config import Settings
+    from services.shared.runtime import Runtime
+    from services.shared.telemetry import Telemetry
+    from tests.conftest import MemoryAttempts, MemoryDatabase
+
+    telemetry = Telemetry("orders-test", Settings(otlp_endpoint=""))
+    yield MemoryAttempts(MemoryDatabase(Runtime(telemetry), telemetry))
+    telemetry.close()
+
+
+@pytest.fixture(params=["memory", "postgres"])
+def attempts(request):
+    """Sync on purpose: the isolated database must start outside the test's event loop."""
+    return request.getfixturevalue(f"{request.param}_attempts")

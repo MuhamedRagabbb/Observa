@@ -3,13 +3,13 @@ from contextlib import asynccontextmanager
 from typing import Annotated
 from uuid import uuid4
 
-from fastapi import Header, Request
+from fastapi import Header, Query, Request
 from fastapi.responses import JSONResponse
 from opentelemetry.trace import Status, StatusCode
 
 from services.orders.reconciler import Reconciler
 from services.orders.saga import CheckoutSaga
-from services.shared.attempts import AttemptStore, ClaimPolicy
+from services.shared.attempts import LIST_DEFAULT, LIST_MAX, AttemptStore, ClaimPolicy
 from services.shared.checkout import TERMINAL_STATES, CheckoutOrder, CheckoutResult, checkout_result
 from services.shared.client import DependencyClient
 from services.shared.config import Settings
@@ -31,16 +31,16 @@ def respond(view):
     """Mirror the outcome in the HTTP status so checkout failures stay visible in telemetry."""
     result = checkout_result(view)
     if view["state"] == "completed":
-        return JSONResponse(result.model_dump(), status_code=201)
+        return JSONResponse(result.model_dump(mode="json"), status_code=201)
     if view["state"] not in TERMINAL_STATES:
-        return JSONResponse(result.model_dump(), status_code=202)
+        return JSONResponse(result.model_dump(mode="json"), status_code=202)
     if view["state"] == "failed":
         status = 500 if view["error_code"] == "order_persistence_error" else 503
         code = view["error_code"] or "checkout_failed"
     else:
         status, code = FAILURE_HTTP[view["state"]]
         code = view["error_code"] if view["state"] == "not_placed" and view["error_code"] else code
-    raise AppError(status, code, "Checkout was not completed", result.model_dump())
+    raise AppError(status, code, "Checkout was not completed", result.model_dump(mode="json"))
 
 
 def create_app(
@@ -101,6 +101,13 @@ def create_app(
         data: CheckoutOrder, request: Request, idempotency_key: Annotated[str, Header(max_length=32)]
     ):
         return respond(await request.app.state.saga.place(idempotency_key, data))
+
+    @app.get("/checkouts", response_model=list[CheckoutResult])
+    async def list_checkouts(
+        customer_id: str, request: Request, limit: Annotated[int, Query(ge=1, le=LIST_MAX)] = LIST_DEFAULT
+    ):
+        views = await request.app.state.attempts.list_for_customer(customer_id, limit=limit)
+        return [checkout_result(view) for view in views]
 
     @app.get("/checkouts/{attempt_ref}", response_model=CheckoutResult)
     async def get_checkout(attempt_ref: str, customer_id: str, request: Request):
