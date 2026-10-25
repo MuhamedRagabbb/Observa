@@ -1,10 +1,12 @@
-from fastapi import Request
+from typing import Annotated
+
+from fastapi import Path, Request
 
 from services.shared.config import Settings
 from services.shared.database import Database
 from services.shared.errors import AppError
 from services.shared.locking import KeyLocks
-from services.shared.models import PaymentInput, PaymentResult
+from services.shared.models import PaymentInput, PaymentRecord, PaymentResult, VoidInput, VoidResult
 from services.shared.repositories import PaymentRepository, stable_fraction
 from services.shared.web import make_app
 
@@ -22,6 +24,31 @@ def create_app(settings=None, *, repository_factory=None, telemetry=None):
     async def charge(data: PaymentInput, request: Request):
         async with charge_locks.get(data.idempotency_key):
             return await charge_once(data, request)
+
+    @app.get("/payments/by-key/{idempotency_key}", response_model=PaymentRecord)
+    async def lookup(idempotency_key: Annotated[str, Path(min_length=1, max_length=100)], request: Request):
+        # Not found means "no record yet", never "not charged": settle unknown outcomes with void.
+        record = await request.app.state.repository.lookup(idempotency_key)
+        if record is None:
+            raise AppError(404, "payment_not_found", "No payment record for this key")
+        return record
+
+    @app.post("/payments/{idempotency_key}/void", response_model=VoidResult)
+    async def void(
+        idempotency_key: Annotated[str, Path(min_length=1, max_length=100)], data: VoidInput, request: Request
+    ):
+        async with charge_locks.get(idempotency_key):
+            result = await request.app.state.repository.void(idempotency_key, data.order_id)
+        if result["status"] == "voided":
+            tel.log(
+                "INFO",
+                "payment_voided",
+                "Payment key fenced; no charge will be taken",
+                order_id=data.order_id,
+            )
+        else:
+            tel.log("INFO", "payment_void_skipped", "Payment already recorded", order_id=data.order_id)
+        return result
 
     async def charge_once(data: PaymentInput, request: Request):
         tel.log("INFO", "payment_attempted", "Processing simulated payment", order_id=data.order_id)

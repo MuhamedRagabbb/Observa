@@ -209,8 +209,42 @@ class PaymentRepository:
             row = await conn.fetchrow("SELECT * FROM payments WHERE idempotency_key=$1", data.idempotency_key)
         return self.check(row, data) if row else None
 
+    async def lookup(self, idempotency_key):
+        """Current record for a key, or None. None is not proof that no charge is in flight."""
+        async with self.db.connection("payment.select") as conn:
+            row = await conn.fetchrow(
+                "SELECT payment_id, order_id, status FROM payments WHERE idempotency_key=$1", idempotency_key
+            )
+        return dict(row) if row else None
+
+    async def void(self, idempotency_key, order_id):
+        """Fence a key: insert a voided tombstone, or return the charge that already exists.
+
+        Shares the idempotency_key unique constraint with charge(), so exactly one of a racing
+        charge and void wins, and a late charge on a voided key is refused. Requires payments
+        migration 001.
+        """
+        async with self.db.connection("payment.void") as conn:
+            if not await conn.fetchval(
+                "SELECT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='payments_charge_fields')"
+            ):
+                raise AppError(503, "payment_void_unavailable", "Payment voids are not available yet")
+            await conn.execute(
+                "INSERT INTO payments (payment_id, idempotency_key, order_id, status) "
+                "VALUES ($1, $2, $3, 'voided') ON CONFLICT (idempotency_key) DO NOTHING",
+                f"void-{uuid4()}",
+                idempotency_key,
+                order_id,
+            )
+            row = await conn.fetchrow("SELECT * FROM payments WHERE idempotency_key=$1", idempotency_key)
+        if row["order_id"] != order_id:
+            raise AppError(409, "idempotency_conflict", "Payment key belongs to different input")
+        return {"payment_id": row["payment_id"], "status": row["status"]}
+
     @staticmethod
     def check(row, data):
+        if row["status"] == "voided":
+            raise AppError(409, "payment_voided", "Payment key was voided; no charge will be taken")
         if any(row[key] != getattr(data, key) for key in ("order_id", "customer_id", "amount_cents")):
             raise AppError(409, "idempotency_conflict", "Payment key belongs to different input")
         return {"payment_id": row["payment_id"], "status": row["status"]}

@@ -8,14 +8,21 @@ import asyncio
 import os
 import subprocess
 import uuid
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import asyncpg
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
+MIGRATIONS = ROOT / "scripts" / "migrations"
 IMAGE = "postgres:16.6-bookworm"
-PASSWORDS = {"postgres": "iso-admin", "inventory_app": "iso-inventory"}
+PASSWORDS = {
+    "postgres": "iso-admin",
+    "orders_app": "iso-orders",
+    "inventory_app": "iso-inventory",
+    "payments_app": "iso-payments",
+}
 
 pytestmark = pytest.mark.skipif(os.getenv("RUN_DB_TESTS") != "1", reason="Set RUN_DB_TESTS=1 (uses Docker)")
 
@@ -31,8 +38,10 @@ def postgres_port():
     name = f"observa-isolated-test-{uuid.uuid4().hex[:8]}"
     docker(
         "run", "-d", "--rm", "--name", name, "--tmpfs", "/var/lib/postgresql/data", "-p", "127.0.0.1::5432",
-        "-e", f"POSTGRES_PASSWORD={PASSWORDS['postgres']}", "-e", "ORDERS_DB_PASSWORD=iso-orders",
-        "-e", f"INVENTORY_DB_PASSWORD={PASSWORDS['inventory_app']}", "-e", "PAYMENTS_DB_PASSWORD=iso-payments",
+        "-e", f"POSTGRES_PASSWORD={PASSWORDS['postgres']}",
+        "-e", f"ORDERS_DB_PASSWORD={PASSWORDS['orders_app']}",
+        "-e", f"INVENTORY_DB_PASSWORD={PASSWORDS['inventory_app']}",
+        "-e", f"PAYMENTS_DB_PASSWORD={PASSWORDS['payments_app']}",
         "-v", f"{ROOT / 'scripts' / 'init-db.sh'}:/docker-entrypoint-initdb.d/01-init-db.sh:ro",
         "-v", f"{ROOT / 'scripts' / 'init-db.sql'}:/opt/init-db.sql:ro",
         IMAGE,
@@ -50,8 +59,8 @@ async def wait_ready(port):
     successes = 0
     for _ in range(120):
         try:
-            conn = await connect(port, "inventory_db", "inventory_app")
-            await conn.fetchval("SELECT count(*) FROM products")
+            conn = await connect(port, "payments_db", "payments_app")
+            await conn.fetchval("SELECT count(*) FROM payments")
             await conn.close()
             successes += 1
             if successes == 2:
@@ -68,54 +77,82 @@ def connect(port, database, user):
     )
 
 
+@asynccontextmanager
+async def fresh_database(port, service):
+    """A fresh copy of one base (unmigrated) service database, owned by its service role."""
+    template, role, name = f"{service}_db", f"{service}_app", f"{service}_{uuid.uuid4().hex[:10]}"
+    admin = await connect(port, "postgres", "postgres")
+    await admin.execute(f'CREATE DATABASE "{name}" TEMPLATE {template} OWNER {role}')
+    await admin.close()
+    try:
+        yield {
+            "port": port,
+            "name": name,
+            "service": service,
+            "dsn": f"postgresql://{role}:{PASSWORDS[role]}@127.0.0.1:{port}/{name}",
+            "connect": lambda: connect(port, name, role),
+        }
+    finally:
+        admin = await connect(port, "postgres", "postgres")
+        await admin.execute(f'DROP DATABASE "{name}" WITH (FORCE)')
+        await admin.close()
+
+
+@asynccontextmanager
+async def open_repository(database, repository_class, *, migrate):
+    """The real repository over a real Database pool; reopen it to simulate a service restart."""
+    from services.shared.config import Settings
+    from services.shared.database import Database
+    from services.shared.migrations import apply_migrations
+    from services.shared.runtime import Runtime
+    from services.shared.telemetry import Telemetry
+
+    if migrate:
+        conn = await database["connect"]()
+        await apply_migrations(conn, MIGRATIONS / database["service"])
+        await conn.close()
+    settings = Settings(dsn=database["dsn"], otlp_endpoint="", pool_max=8, pool_timeout=5)
+    telemetry = Telemetry(f"{database['service']}-test", settings)
+    db = Database(settings, telemetry, Runtime(telemetry))
+    await db.open()
+    try:
+        yield repository_class(db)
+    finally:
+        await db.close()
+        telemetry.close()
+
+
 @pytest.fixture
 async def inventory_db(postgres_port):
-    """A fresh copy of the base (unmigrated) inventory database, owned by inventory_app."""
-    name = f"inv_{uuid.uuid4().hex[:10]}"
-    admin = await connect(postgres_port, "postgres", "postgres")
-    await admin.execute(f'CREATE DATABASE "{name}" TEMPLATE inventory_db OWNER inventory_app')
-    await admin.close()
-    yield {
-        "port": postgres_port,
-        "name": name,
-        "dsn": f"postgresql://inventory_app:{PASSWORDS['inventory_app']}@127.0.0.1:{postgres_port}/{name}",
-        "connect": lambda: connect(postgres_port, name, "inventory_app"),
-    }
-    admin = await connect(postgres_port, "postgres", "postgres")
-    await admin.execute(f'DROP DATABASE "{name}" WITH (FORCE)')
-    await admin.close()
+    async with fresh_database(postgres_port, "inventory") as database:
+        yield database
 
 
 @pytest.fixture
 async def inventory(inventory_db):
     """The real InventoryRepository over a migrated isolated database."""
-    async for repository in _repository(inventory_db, migrate=True):
+    from services.shared.repositories import InventoryRepository
+
+    async with open_repository(inventory_db, InventoryRepository, migrate=True) as repository:
         yield repository
 
 
 @pytest.fixture
 async def unmigrated_inventory(inventory_db):
     """The real InventoryRepository over the base schema, like the current live database."""
-    async for repository in _repository(inventory_db, migrate=False):
+    from services.shared.repositories import InventoryRepository
+
+    async with open_repository(inventory_db, InventoryRepository, migrate=False) as repository:
         yield repository
 
 
-async def _repository(inventory_db, migrate):
-    from services.shared.config import Settings
-    from services.shared.database import Database
-    from services.shared.migrations import apply_migrations
-    from services.shared.repositories import InventoryRepository
-    from services.shared.runtime import Runtime
-    from services.shared.telemetry import Telemetry
+@pytest.fixture
+async def orders_db(postgres_port):
+    async with fresh_database(postgres_port, "orders") as database:
+        yield database
 
-    if migrate:
-        conn = await inventory_db["connect"]()
-        await apply_migrations(conn, ROOT / "scripts" / "migrations" / "inventory")
-        await conn.close()
-    settings = Settings(dsn=inventory_db["dsn"], otlp_endpoint="", pool_max=8, pool_timeout=5)
-    telemetry = Telemetry("inventory-test", settings)
-    db = Database(settings, telemetry, Runtime(telemetry))
-    await db.open()
-    yield InventoryRepository(db)
-    await db.close()
-    telemetry.close()
+
+@pytest.fixture
+async def payments_db(postgres_port):
+    async with fresh_database(postgres_port, "payments") as database:
+        yield database

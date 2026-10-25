@@ -67,6 +67,21 @@ class PaymentResult(BaseModel):
     status: Literal["succeeded", "declined"]
 
 
+class VoidInput(BaseModel):
+    order_id: str = Field(pattern=r"^order-[a-f0-9-]{36}$")
+
+
+class PaymentRecord(BaseModel):
+    payment_id: str
+    order_id: str
+    status: Literal["succeeded", "declined", "voided"]
+
+
+class VoidResult(BaseModel):
+    payment_id: str
+    status: Literal["succeeded", "declined", "voided"]
+
+
 class RuntimeUpdate(BaseModel):
     expires_at: float = Field(gt=0)
     db_hold_seconds: float = Field(default=0, ge=0, le=15)

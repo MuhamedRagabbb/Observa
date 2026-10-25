@@ -141,9 +141,25 @@ class MemoryPayments:
     def __init__(self, db):
         self.db, self.rows = db, {}
 
+    async def lookup(self, key):
+        old = self.rows.get(key)
+        if old:
+            return {"payment_id": old[1]["payment_id"], "order_id": old[2], "status": old[1]["status"]}
+
+    async def void(self, key, order_id):
+        async with self.db.operation("payment.void"):
+            old = self.rows.setdefault(
+                key, (None, {"payment_id": "void-" + order_id, "status": "voided"}, order_id)
+            )
+            if old[2] != order_id:
+                raise AppError(409, "idempotency_conflict", "Conflict")
+            return old[1]
+
     async def existing(self, data):
         old = self.rows.get(data.idempotency_key)
         if old:
+            if old[1]["status"] == "voided":
+                raise AppError(409, "payment_voided", "Voided")
             if old[0] != data:
                 raise AppError(409, "idempotency_conflict", "Conflict")
             return old[1]
@@ -154,7 +170,7 @@ class MemoryPayments:
                 "payment_id": "payment-" + data.order_id,
                 "status": "declined" if decline else "succeeded",
             }
-            self.rows.setdefault(data.idempotency_key, (data, result))
+            self.rows.setdefault(data.idempotency_key, (data, result, data.order_id))
             return await self.existing(data)
 
 
