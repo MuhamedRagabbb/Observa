@@ -1,0 +1,75 @@
+# Isolated storefront preview (P4). Only ever used on top of docker-compose.yml:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.preview.yml <command>
+#
+# It cannot touch the live project:
+# - its own project name, so containers, networks and volumes are all observa-p4-preview_*;
+# - its own image tag, so a build never retags observa-dummy:local (which the live stack uses);
+# - its own host ports (P4_* variables, never the GATEWAY_PORT-style ones .env sets for live);
+# - its own ground-truth journal folder, .preview/ground-truth (git-ignored).
+# Background traffic starts only with `--profile traffic`, after the checkout migrations, and no
+# preview container restarts by itself (for example after Docker Desktop restarts).
+# `-p` or COMPOSE_PROJECT_NAME would override the name below, so never pass either with this file.
+# Checked by tests/unit/test_preview_compose.py. Full steps: README "Storefront preview".
+name: observa-p4-preview
+
+x-preview-image: &preview-image observa-dummy:p4-preview
+x-public-ports: &public-ports
+  PUBLIC_GATEWAY_PORT: ${P4_GATEWAY_PORT:-18000}
+  PUBLIC_CONTROLLER_PORT: ${P4_CONTROLLER_PORT:-18090}
+  PUBLIC_GRAFANA_PORT: ${P4_GRAFANA_PORT:-13000}
+  PUBLIC_JAEGER_PORT: ${P4_JAEGER_PORT:-26686}
+  PUBLIC_PROMETHEUS_PORT: ${P4_PROMETHEUS_PORT:-19090}
+
+services:
+  gateway:
+    image: *preview-image
+    restart: "no"
+    ports: !override ["127.0.0.1:${P4_GATEWAY_PORT:-18000}:8000"]
+    environment: *public-ports
+  orders:
+    image: *preview-image
+    restart: "no"
+    ports: !reset []
+  inventory:
+    image: *preview-image
+    restart: "no"
+    ports: !reset []
+  payments:
+    image: *preview-image
+    restart: "no"
+    ports: !reset []
+  traffic-generator:
+    image: *preview-image
+    restart: "no"
+    profiles: [traffic]
+    environment:
+      # The preview exercises the new multi-item checkout, so start it only after the migrations.
+      TRAFFIC_FLOW: ${P4_TRAFFIC_FLOW:-checkout}
+  fault-injector:
+    image: *preview-image
+    restart: "no"
+    ports: !override ["127.0.0.1:${P4_CONTROLLER_PORT:-18090}:8090"]
+    environment: *public-ports
+    volumes: !override ["./.preview/ground-truth:/ground-truth"]
+  telemetry-health:
+    image: *preview-image
+    restart: "no"
+  postgres:
+    restart: "no"
+    ports: !reset []
+  collector:
+    restart: "no"
+    ports: !reset []
+  loki:
+    restart: "no"
+    ports: !reset []
+  prometheus:
+    restart: "no"
+    ports: !override ["127.0.0.1:${P4_PROMETHEUS_PORT:-19090}:9090"]
+  jaeger:
+    restart: "no"
+    ports: !override ["127.0.0.1:${P4_JAEGER_PORT:-26686}:16686"]
+  grafana:
+    restart: "no"
+    ports: !override ["127.0.0.1:${P4_GRAFANA_PORT:-13000}:3000"]

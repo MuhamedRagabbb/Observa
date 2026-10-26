@@ -69,6 +69,32 @@ RUN_IMAGE_TESTS=1 python -m pytest -q tests/image   # IMAGE_UNDER_TEST overrides
 
 Without Docker, build in `web/` (`npm ci`, then `npm run build`) and run the Gateway or controller from the repository with `UI_BUNDLE_DIR` set to the absolute path of `web/dist`. The default is `services/ui/dist`. `web/` has its own checks: `npm run verify` runs the typecheck, the generated API type check and the tests. After an API change, run `python -m scripts.export_openapi`, then `npm run gen:api` in `web/`.
 
+### Storefront preview (isolated from the live stack)
+
+Use one of these while the new storefront is built. None of them touches the live `observa-dummy` project or the `observa-dummy:local` image.
+
+1. **Mocked browser tests and visual review:** in `web/`, run `npm run e2e`, then `npm run e2e:review`. Screenshots at 1440, 390 and 375 sit beside the approved artboards. Details: `web/e2e/README.md`.
+2. **A throwaway preview project:** `docker-compose.preview.yml` is used on top of `docker-compose.yml`. It sets:
+   - its own project name, `observa-p4-preview`;
+   - its own image tag, `observa-dummy:p4-preview`;
+   - its own host ports: Gateway 18000, controller 18090, Prometheus 19090, Jaeger 26686, Grafana 13000;
+   - its own journal folder, `.preview/ground-truth`.
+
+   Background traffic starts only with `--profile traffic`, and no preview container restarts by itself. `tests/unit/test_preview_compose.py` checks all of this. Never add `-p` or `COMPOSE_PROJECT_NAME`.
+
+   ```powershell
+   Remove-Item Env:COMPOSE_PROJECT_NAME -ErrorAction SilentlyContinue
+   $f = '-f','docker-compose.yml','-f','docker-compose.preview.yml'
+   docker compose @f up --build -d --wait postgres gateway orders inventory payments fault-injector collector prometheus jaeger loki telemetry-health
+   foreach ($svc in 'inventory','payments','orders') {   # the checkout migrations, as in runbook step 6
+     docker compose @f exec -T $svc sh -c "set -f; python -m services.shared.migrations --dsn `${DATABASE_URL}?lock_timeout=5s --dir scripts/migrations/$svc"
+   }
+   docker compose @f --profile traffic up -d --no-deps traffic-generator   # optional background checkout traffic
+   # Storefront: http://127.0.0.1:18000/ui/next/   Operator: http://127.0.0.1:18090/ui/next/
+   docker compose @f down   # containers and networks only; remove observa-p4-preview_* volumes by exact name
+   ```
+3. **Hot reload:** in `web/`, `npm run dev:store` (http://127.0.0.1:5180/ui/next/) or `npm run dev:operator` (:5181). These proxy to the preview project. `OBSERVA_GATEWAY_URL` and `OBSERVA_CONTROLLER_URL` change the target, and the live ports 8000 and 8090 are refused.
+
 ```sh
 curl http://localhost:8000/health
 curl http://localhost:8000/api/products

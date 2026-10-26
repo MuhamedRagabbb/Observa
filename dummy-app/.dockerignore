@@ -13,3 +13,5 @@ web/node_modules
 web/dist
 **/node_modules
 services/ui/dist
+web/e2e-output
+.preview

@@ -8,6 +8,10 @@ __pycache__/
 test-results/
 node_modules/
 dist/
+# Playwright screenshots, traces and the visual review page; the preview project's journal
+e2e-output/
+.playwright-mcp/
+.preview/
 
 # Local secrets (keep .env.example tracked)
 .env

@@ -18,5 +18,5 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["src", "test", "scripts", "vite.bundle.ts", "vite.store.config.ts", "vite.operator.config.ts", "vitest.config.ts"]
+  "include": ["src", "test", "scripts", "e2e", "playwright.config.ts", "preview-guard.ts", "vite.bundle.ts", "vite.store.config.ts", "vite.operator.config.ts", "vitest.config.ts"]
 }
