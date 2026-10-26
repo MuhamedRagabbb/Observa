@@ -1,0 +1,20 @@
+/* Artboard: Operator header "Storefront ↗", underlined small text. */
+.link {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  color: var(--color-ink-soft);
+  font-size: var(--text-small);
+  text-decoration: underline;
+  text-decoration-color: var(--color-line-strong);
+  text-underline-offset: 4px;
+  transition: text-decoration-color var(--motion-duration-fast) var(--motion-ease);
+}
+
+.link:hover {
+  text-decoration-color: currentColor;
+}
+
+.arrow {
+  font-size: var(--text-caption);
+}

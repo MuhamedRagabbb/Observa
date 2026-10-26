@@ -56,6 +56,12 @@ The operator interface at `http://localhost:8090/` calls the controller on its o
 
 HTML, CSS, JavaScript and SVG assets ship inside the existing image under `services/ui/`; no Node build, CDN, added service, or extra container is required. Storefront and operator pages use separate origins, and the storefront does not proxy fault-control calls through Gateway. Static UI requests and `/ui/config` are excluded from application telemetry, while shopping API requests retain normal instrumentation. Public navigation links follow the Compose port settings through a non-sensitive UI config endpoint. All mock-credential and loopback-only boundaries still apply.
 
+### New English UI preview (`/ui/next/`)
+
+The redesigned React interface is being built in `web/` and is served beside the current UI until it replaces it. For now it is only a header shell. The Gateway serves the storefront build at `http://localhost:8000/ui/next/` and the controller serves the operator build at `http://localhost:8090/ui/next/`. Each origin serves only its own build, and these pages are excluded from application telemetry like the rest of `/ui/`.
+
+The images do not contain the builds yet, so `/ui/next/` returns 404 under Compose. To try it locally, build in `web/` (`npm ci`, then `npm run build`) and run the Gateway or controller from the repository with `UI_BUNDLE_DIR` set to the absolute path of `web/dist`. The default is `services/ui/dist`. `web/` has its own checks: `npm run verify` runs the typecheck, the generated API type check and the tests. After an API change, run `python -m scripts.export_openapi`, then `npm run gen:api` in `web/`.
+
 ```sh
 curl http://localhost:8000/health
 curl http://localhost:8000/api/products

@@ -4,8 +4,8 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
 import { defineConfig, type Plugin, type UserConfig } from "vite";
+import { BUNDLE_PATH } from "./src/shared/bundle-path.ts";
 
-export const BASE = "/ui/next/";
 export const BUNDLES = ["store", "operator"] as const;
 export type Bundle = (typeof BUNDLES)[number];
 
@@ -37,7 +37,7 @@ function fontLicences(): Plugin {
 export function bundleConfig(name: Bundle): UserConfig {
   return defineConfig({
     root: here(`./src/${name}`),
-    base: BASE,
+    base: BUNDLE_PATH,
     publicDir: false,
     plugins: [react(), fontLicences()],
     build: {

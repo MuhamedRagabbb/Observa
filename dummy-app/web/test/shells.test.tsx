@@ -1,13 +1,21 @@
 import { render, screen, within } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup } from "@testing-library/react";
 import { operatorRoutes } from "../src/operator/routes.tsx";
 import { storeRoutes } from "../src/store/routes.tsx";
 import { AppProviders } from "../src/shared/AppProviders.tsx";
 import type { RouteObject } from "react-router";
 
-afterEach(cleanup);
+// The shells ask their own origin for /ui/config; these tests never reach a network.
+beforeEach(() => {
+  vi.stubGlobal("fetch", async () => new Response("unavailable in tests", { status: 503 }));
+});
+
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 function renderShell(routes: RouteObject[]) {
   const router = createMemoryRouter(routes, { initialEntries: ["/"] });

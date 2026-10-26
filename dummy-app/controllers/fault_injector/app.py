@@ -20,7 +20,7 @@ from controllers.fault_injector.health import HealthSnapshot, default_health
 from services.shared.errors import AppError
 from services.shared.models import ERRORS
 from services.shared.telemetry import utcnow
-from services.shared.ui import register_ui
+from services.shared.ui import register_bundle, register_ui
 
 Scenario = Literal["db_connection_exhaustion", "payments_errors", "bad_deployment"]
 SCENARIO_NAMES = typing.get_args(Scenario)
@@ -640,6 +640,7 @@ def create_app(*, path=None, client=None, health=None, health_interval=None):
 
     app = FastAPI(title="Evaluation-only fault controller", lifespan=lifespan, responses=ERRORS)
     register_ui(app, "control")
+    register_bundle(app, "operator")
     app.state.controller = controller
 
     @app.exception_handler(AppError)

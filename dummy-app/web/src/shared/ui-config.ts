@@ -1,3 +1,5 @@
+import { APP_PATHS } from "./bundle-path.ts";
+
 // GET /ui/config, served by both the Gateway and the controller (services/shared/ui.py).
 // It is deliberately left out of OpenAPI, so this type is written by hand. The shared
 // contract in contracts/ui-config.json is checked against the backend by pytest and
@@ -32,4 +34,29 @@ export function parseUiConfig(value: unknown): UiConfig {
     parsed[name] = port;
   }
   return { mode, ports: parsed };
+}
+
+/** GET /ui/config from the page's own origin (absolute path, so it works under /ui/next/). */
+export async function fetchUiConfig(): Promise<UiConfig> {
+  const response = await fetch("/ui/config", { headers: { Accept: "application/json" } });
+  if (!response.ok) throw new Error(`Unexpected /ui/config response: HTTP ${response.status}`);
+  return parseUiConfig(await response.json());
+}
+
+/**
+ * The URL of the other app on the same host: the page's scheme and host name, the target
+ * app's public port from /ui/config, and that app's path. Never a hard-coded host.
+ */
+export function crossAppUrl(
+  config: UiConfig,
+  target: "store" | "control",
+  page: URL | Location = window.location,
+  path: string = APP_PATHS[target],
+): string {
+  const url = new URL(page.href);
+  url.port = String(config.ports[target]);
+  url.pathname = path;
+  url.search = "";
+  url.hash = "";
+  return url.href;
 }

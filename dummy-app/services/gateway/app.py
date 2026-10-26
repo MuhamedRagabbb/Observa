@@ -8,7 +8,7 @@ from services.shared.checkout import CartLines, CartQuote, CheckoutInput, Checko
 from services.shared.client import DependencyClient
 from services.shared.config import Settings
 from services.shared.models import OrderInput, OrderResult, Product
-from services.shared.ui import register_ui
+from services.shared.ui import register_bundle, register_ui
 from services.shared.web import make_app
 
 
@@ -16,6 +16,7 @@ def create_app(settings=None, *, telemetry=None, client=None):
     settings = settings or Settings()
     app = make_app("api-gateway", settings, telemetry=telemetry)
     register_ui(app, "store")
+    register_bundle(app, "store")
     app.state.client = client or DependencyClient(app.state.telemetry, settings)
 
     @app.post("/api/orders", response_model=OrderResult, status_code=201)
