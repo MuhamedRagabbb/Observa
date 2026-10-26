@@ -113,7 +113,8 @@ async def test_controller_api_contract_and_defaults(tmp_path):
         assert (await client.post("/faults/activate", json={"scenario": "unknown"})).status_code == 422
         result = await client.post("/faults/activate", json={"scenario": "payments_errors"})
         assert result.status_code == 200
-        assert result.json()["active"]["root_cause_service"] == "payments-service"
+        assert result.json()["active"]["scenario"] == "payments_errors"
+        assert "root_cause_service" not in result.json()["active"]  # ground truth stays in the journal
         assert (await client.post("/faults/activate", json={"scenario": "bad_deployment"})).status_code == 409
         assert (
             await client.post("/faults/deactivate", json={"scenario": "payments_errors"})

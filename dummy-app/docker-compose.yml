@@ -60,6 +60,8 @@ services:
       ORDERS_URL: ${ORDERS_URL:-http://orders:8001}
       INVENTORY_URL: ${INVENTORY_URL:-http://inventory:8002}
     ports: ["127.0.0.1:${GATEWAY_PORT:-8000}:8000"]
+    # control: only so the fault controller can probe /health for the operator view.
+    networks: [business, control]
     depends_on:
       orders: {condition: service_healthy}
       inventory: {condition: service_healthy}
@@ -88,6 +90,8 @@ services:
       PORT: 8002
       DATABASE_URL: postgresql://inventory_app:${INVENTORY_DB_PASSWORD:-local-inventory-only}@postgres:5432/inventory_db
     ports: ["127.0.0.1:${INVENTORY_PORT:-8002}:8002"]
+    # control: only so the fault controller can probe /health for the operator view.
+    networks: [business, control]
     depends_on:
       postgres: {condition: service_healthy}
   payments:
@@ -134,10 +138,13 @@ services:
       PUBLIC_GRAFANA_PORT: ${GRAFANA_PORT:-3000}
       PUBLIC_JAEGER_PORT: ${JAEGER_PORT:-16686}
       PUBLIC_PROMETHEUS_PORT: ${PROMETHEUS_PORT:-9090}
+      # Operator health view: probes plus Prometheus request metrics (read-only queries).
+      PROMETHEUS_URL: http://prometheus:9090
     ports: ["127.0.0.1:${CONTROLLER_PORT:-8090}:8090"]
     # Host folder for the ground-truth journal; a throwaway fault-test project points this elsewhere.
     volumes: ["${GROUND_TRUTH_DIR:-./ground-truth}:/ground-truth"]
-    networks: [control]
+    # observability: read-only Prometheus queries. With no OTEL_* settings it exports nothing.
+    networks: [control, observability]
     depends_on:
       orders: {condition: service_healthy}
       payments: {condition: service_healthy}

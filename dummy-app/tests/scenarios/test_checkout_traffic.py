@@ -37,8 +37,9 @@ async def connect(service):
 
 
 async def test_concurrent_checkout_traffic_never_charges_twice_or_charges_a_failed_order():
-    """Pool pressure may refuse some requests (503) and, with the reconciler off, leave a few attempts
-    open; neither may ever produce a second charge or a charge on an order that ended unpaid."""
+    """Pool pressure may refuse some requests (503) and, with the reconciler off, leave those attempts
+    open; that may never produce a second charge or a charge on an order that ended unpaid, and no
+    attempt may be left open without the client having seen a non-final answer."""
     prefix = random.randrange(0x10000)
     env = {**TRAFFIC, "TRAFFIC_RUN_PREFIX": str(prefix)}
     counts = await run(env, max_requests=400)
@@ -71,7 +72,9 @@ async def test_concurrent_checkout_traffic_never_charges_twice_or_charges_a_fail
         elif row["state"] in TERMINAL_STATES:
             assert row["order_id"] not in charges, row  # failed, declined or not placed: never charged
     still_open = [row for row in rows if row["state"] not in TERMINAL_STATES]
-    assert len(still_open) <= len(rows) * 0.05, still_open
+    # With the reconciler off, an attempt may stay open only after a visible non-final answer.
+    unsettled = sum(counts.get(status, 0) for status in ("202", "503", "504", "transport_error"))
+    assert len(still_open) <= unsettled, (len(still_open), counts)
     async with httpx.AsyncClient(timeout=10) as client:
         assert (
             await client.get(BASE + "/api/orders", params={"customer_id": "load-user-1"})

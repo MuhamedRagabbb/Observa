@@ -146,6 +146,25 @@ curl -X POST http://localhost:8090/faults/auto/stop
 
 Auto mode is exclusive: a controller lock protects activation/deactivation and active schedules reject manual changes. `repeat` accepts 1–1000 cycles, order lists accept 1–30 entries, warmup/recovery 0–3600s, duration 0.1–1800s. Seeded shuffling is optional. Stop/shutdown cancels the schedule and best-effort clears the active target. A failed/unacknowledged activation keeps the controller locked until cleanup or target lease expiry. Restart clears both targets before accepting commands and marks unfinished journal sessions as interrupted; restart cleanup timestamps are not claimed to be the exact crash time.
 
+## Operator API (controller)
+
+Evaluation-only, served by the controller on `:8090`. Operator-facing responses never include the journal's ground truth (`root_cause`, `root_cause_service`, `expected_signals`); those stay in the incident journal.
+
+```sh
+curl http://localhost:8090/faults/status       # state, active fault, cycle phase, safe controls
+curl http://localhost:8090/services/health     # probes + Prometheus per business service
+curl "http://localhost:8090/activity?limit=20" # this controller session's activity, newest first
+```
+
+- `/faults/status` keeps `active` and `auto_running` and adds:
+  - `state`: `idle`, `manual`, `automatic`, `recovering` or `unknown`. `unknown` means a control was not acknowledged by its target (`activation_unconfirmed` / `deactivation_unconfirmed`); the target's lease still ends the fault, and retrying the stop is the safe action.
+  - `auto`: `phase` (`warmup`, `fault`, `recovery`, `stopping`), `repeat`/`repeats`, `step`/`steps`, `scenario`, `phase_started_at`, `phase_ends_at`, `seed`, `shuffle` and the cycle config.
+  - `active.expires_at`, `last_fault` (`scenario`, `ended_at`, `end_reason`), and `now` (server clock, for countdowns).
+  - `controls`: for `activate`, `deactivate`, `auto_start` and `auto_stop`, whether it is safe now and why not. After a fault the controller reports `recovering` until a health check taken after the fault finds every service healthy (at most 180 s). These flags are advisory; the server still enforces its existing locks.
+- `/services/health` checks every 5 s (`HEALTH_INTERVAL_SECONDS`): each business service's `/health` probe plus its 5xx share and mean latency over the last minute from Prometheus. States: `unavailable` (probe failed), `unknown` (ready, but Prometheus is unreachable or has no metrics for it), `degraded` (5xx share >= 5% or mean latency >= 1 s) or `healthy`. It is never derived from fault state. Mean latency is used because the duration histogram's bucket bounds do not match its units, so percentiles from it are not meaningful.
+- `/activity` keeps the last 200 entries in memory: requested, acknowledged, unconfirmed and stopped faults, rejected controls, cycle start/phase/stop/finish, and controller start.
+- Network access: the controller joins `control` (to reach every service's `/health` and the Orders/Payments control endpoints) and `observability` (Prometheus). It is not on `business` and still has no OTLP exporter.
+
 ## Observe all three signals
 
 ```sh
@@ -229,7 +248,7 @@ $env:TEST_COLLECTOR_OUTAGE='1'
 python -m pytest -q
 ```
 
-The live suite creates real database rows, checks cross-database access denial and concurrency/idempotency, queries all three backends, tests the three incident signatures and recovery (throwaway project only), and validates journal isolation. The optional Collector outage test stops/restarts **this project's Collector**, verifying a checkout still succeeds. Run this suite sequentially; it exclusively controls faults and should not overlap a separate manual/automatic evaluation. Test endpoint defaults use the ports above; `TEST_GATEWAY_URL`, `TEST_CONTROLLER_URL`, `TEST_PROMETHEUS_URL`, `TEST_JAEGER_URL`, `TEST_LOKI_URL` can redirect backend queries. Direct-service database/health assertions use the default 8001–8003/8090 ports, so use default ports for the full acceptance run. Tests read the default mock DB password unless overridden in their environment.
+The live suite creates real database rows, checks cross-database access denial and concurrency/idempotency, queries all three backends, tests the three incident signatures and recovery (throwaway project only), and validates journal isolation. The optional Collector outage test stops/restarts **this project's Collector**, verifying a checkout still succeeds. Run this suite sequentially; it exclusively controls faults and should not overlap a separate manual/automatic evaluation. Test endpoint defaults use the ports above; `TEST_GATEWAY_URL`, `TEST_ORDERS_URL`, `TEST_INVENTORY_URL`, `TEST_PAYMENTS_URL`, `TEST_CONTROLLER_URL`, `TEST_PROMETHEUS_URL`, `TEST_JAEGER_URL`, `TEST_LOKI_URL` and `POSTGRES_PORT` redirect them, so a throwaway project can run on other host ports alongside the live one (see the migration runbook). Tests read the default mock DB password unless overridden in their environment.
 
 ## Configure, stop and reset
 

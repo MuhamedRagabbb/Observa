@@ -38,3 +38,13 @@ def test_compose_passes_the_reconciler_switch_to_orders_and_defaults_it_off():
 def test_the_traffic_generator_keeps_the_legacy_flow_unless_switched():
     generator = yaml.safe_load(COMPOSE.read_text(encoding="utf-8"))["services"]["traffic-generator"]
     assert generator["environment"]["TRAFFIC_FLOW"] == "${TRAFFIC_FLOW:-legacy}"
+
+
+def test_the_controller_reaches_probes_and_prometheus_but_not_the_business_network():
+    services = yaml.safe_load(COMPOSE.read_text(encoding="utf-8"))["services"]
+    controller = services["fault-injector"]
+    assert sorted(controller["networks"]) == ["control", "observability"]
+    assert controller["environment"]["PROMETHEUS_URL"] == "http://prometheus:9090"
+    assert not any(key.startswith("OTEL_") for key in controller["environment"])  # still no exporter
+    for probed in ("gateway", "orders", "inventory", "payments"):
+        assert "control" in services[probed]["networks"], probed
