@@ -1,11 +1,14 @@
 // @vitest-environment node
-// The store and operator bundles stay isolated at the source level: neither may import
-// the other, and shared code may import neither. (P3-B adds the API-client rules.)
-import { readdirSync, readFileSync } from "node:fs";
+// The store and operator bundles stay isolated at the source level. Imports are followed
+// transitively, so an indirect path (store -> shared -> controller client) is caught too.
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const SRC = join(import.meta.dirname, "..", "src");
+const CONTROLLER_API = ["api/controller-client.ts", "api/generated/controller.ts"];
+
+const rel = (file: string) => relative(SRC, file).split(sep).join("/");
 
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -15,40 +18,63 @@ function sourceFiles(dir: string): string[] {
   });
 }
 
-/** Every relative import in `area`, as the top-level src folder it resolves into. */
-function importedAreas(area: string) {
-  return sourceFiles(join(SRC, area)).flatMap((file) => {
-    const text = readFileSync(file, "utf8");
-    const specs = [
-      ...text.matchAll(/(?:import|export)[^"']*?from\s*["']([^"']+)["']/g),
-      ...text.matchAll(/import\s*\(?\s*["']([^"']+)["']/g),
-      ...text.matchAll(/@import\s+["']([^"']+)["']/g),
-      ...text.matchAll(/src="([^"]+)"/g),
-    ].map((match) => match[1] ?? "");
-    return specs
-      .filter((spec) => spec.startsWith("."))
-      .map((spec) => ({
-        file: relative(SRC, file),
-        spec,
-        area: relative(SRC, resolve(dirname(file), spec)).split(sep)[0],
-      }));
-  });
+/** Relative imports of one file, resolved to files under src/. */
+function imports(file: string): string[] {
+  const text = readFileSync(file, "utf8");
+  const specs = [
+    ...text.matchAll(/(?:import|export)[^"';]*?from\s*["']([^"']+)["']/g),
+    ...text.matchAll(/import\s*\(?\s*["']([^"']+)["']/g),
+    ...text.matchAll(/@import\s+["']([^"']+)["']/g),
+    ...text.matchAll(/src="([^"]+)"/g),
+  ].map((match) => match[1] ?? "");
+  return specs
+    .filter((spec) => spec.startsWith("."))
+    .map((spec) => resolve(dirname(file), spec))
+    .map((path) => {
+      if (!existsSync(path)) throw new Error(`${rel(file)} imports a missing file: ${path}`);
+      return path;
+    });
 }
 
+/** Every file reachable from `roots` through relative imports, as src-relative paths. */
+function reachable(roots: string[]): Set<string> {
+  const seen = new Set<string>();
+  const queue = [...roots];
+  while (queue.length > 0) {
+    const file = queue.pop() as string;
+    if (seen.has(rel(file))) continue;
+    seen.add(rel(file));
+    queue.push(...imports(file));
+  }
+  return seen;
+}
+
+const from = (...parts: string[]) => reachable(sourceFiles(join(SRC, ...parts)));
+const inside = (files: Set<string>, prefix: string) => [...files].filter((file) => file.startsWith(prefix));
+
 describe("bundle boundary", () => {
-  it.each([
-    ["store", "operator"],
-    ["operator", "store"],
-  ])("%s code never imports %s code", (area, forbidden) => {
-    expect(importedAreas(area).filter((link) => link.area === forbidden)).toEqual([]);
+  it("store code never reaches operator code or the controller API", () => {
+    const files = from("store");
+    expect(inside(files, "operator/")).toEqual([]);
+    expect(CONTROLLER_API.filter((file) => files.has(file))).toEqual([]);
   });
 
-  it("shared code imports neither bundle", () => {
-    const links = importedAreas("shared").filter((link) => link.area === "store" || link.area === "operator");
-    expect(links).toEqual([]);
+  it("the Gateway client never reaches the controller API", () => {
+    const files = reachable([join(SRC, "api", "gateway-client.ts")]);
+    expect(files.has("api/generated/gateway.ts")).toBe(true);
+    expect(CONTROLLER_API.filter((file) => files.has(file))).toEqual([]);
   });
 
-  it("finds the imports it checks", () => {
-    expect(importedAreas("store").some((link) => link.area === "shared")).toBe(true);
+  it("operator code never reaches store code", () => {
+    expect(inside(from("operator"), "store/")).toEqual([]);
+  });
+
+  it("shared code reaches neither bundle nor any API client", () => {
+    const files = from("shared");
+    expect([...inside(files, "store/"), ...inside(files, "operator/"), ...inside(files, "api/")]).toEqual([]);
+  });
+
+  it("follows imports through to the shared shell", () => {
+    expect(from("store").has("shared/Shell.tsx")).toBe(true);
   });
 });

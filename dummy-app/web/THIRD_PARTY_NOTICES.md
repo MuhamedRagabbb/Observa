@@ -12,4 +12,4 @@ copied into each build. Each build also ships the licence text at
 
 The fonts are used unmodified and are not sold on their own. The npm packages' own
 JavaScript and CSS are not shipped: `src/shared/fonts.css` declares the font faces itself.
-Other runtime dependencies (React, React Router, TanStack Query) are MIT-licensed.
+Other runtime dependencies (React, React Router, TanStack Query, openapi-fetch) are MIT-licensed.

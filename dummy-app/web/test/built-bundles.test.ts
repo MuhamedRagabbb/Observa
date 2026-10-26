@@ -100,4 +100,11 @@ describe("bundle isolation in the built output", () => {
     expect(scripts("operator")).toMatch(operatorLabel);
     expect(scripts("store")).not.toMatch(operatorLabel);
   });
+
+  it("never puts a controller API path in the store bundle", () => {
+    const store = [scripts("store"), read("store", "index.html")].join("\n");
+    for (const path of ["/faults/", "/services/health", "/activity", "/_control"]) {
+      expect(store).not.toContain(path);
+    }
+  });
 });
