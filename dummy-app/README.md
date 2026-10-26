@@ -54,13 +54,20 @@ The **My orders** view stores up to 100 recent orders/attempts in that browser's
 
 The operator interface at `http://localhost:8090/` calls the controller on its own origin. It includes all three manual scenarios with duration/parameter inputs, live state and expiry countdown, stop controls, and automatic warmup/duration/recovery/repeat/seed/scenario settings. Its session activity list contains actions from that page only. It is evaluation infrastructure and must not be scraped or ingested by the investigating agent.
 
-HTML, CSS, JavaScript and SVG assets ship inside the existing image under `services/ui/`; no Node build, CDN, added service, or extra container is required. Storefront and operator pages use separate origins, and the storefront does not proxy fault-control calls through Gateway. Static UI requests and `/ui/config` are excluded from application telemetry, while shopping API requests retain normal instrumentation. Public navigation links follow the Compose port settings through a non-sensitive UI config endpoint. All mock-credential and loopback-only boundaries still apply.
+The current UI's HTML, CSS, JavaScript and SVG assets ship inside the image under `services/ui/`. They need no Node build, CDN, added service, or extra container. Storefront and operator pages use separate origins, and the storefront does not proxy fault-control calls through Gateway. Static UI requests and `/ui/config` are excluded from application telemetry, while shopping API requests retain normal instrumentation. Public navigation links follow the Compose port settings through a non-sensitive UI config endpoint. All mock-credential and loopback-only boundaries still apply.
 
 ### New English UI preview (`/ui/next/`)
 
 The redesigned React interface is being built in `web/` and is served beside the current UI until it replaces it. For now it is only a header shell. The Gateway serves the storefront build at `http://localhost:8000/ui/next/` and the controller serves the operator build at `http://localhost:8090/ui/next/`. Each origin serves only its own build, and these pages are excluded from application telemetry like the rest of `/ui/`.
 
-The images do not contain the builds yet, so `/ui/next/` returns 404 under Compose. To try it locally, build in `web/` (`npm ci`, then `npm run build`) and run the Gateway or controller from the repository with `UI_BUNDLE_DIR` set to the absolute path of `web/dist`. The default is `services/ui/dist`. `web/` has its own checks: `npm run verify` runs the typecheck, the generated API type check and the tests. After an API change, run `python -m scripts.export_openapi`, then `npm run gen:api` in `web/`.
+The Dockerfile builds both bundles in a Node stage (`npm ci`, typecheck, `npm run build`) and copies only `web/dist` into `services/ui/dist` of the Python runtime image; Node does not ship. A running stack serves `/ui/next/` only after its image is rebuilt from this code. Image builds, including `docker compose build` and `up --build`, now pull `node:24` and reach the npm registry, so the first build is slower and needs network access. Compose builds every app service as `observa-dummy:local`, so a Compose build replaces the image a running stack uses, and recreating the stack deploys it. To check an image without touching a running stack, build it under its own tag and run the opt-in image tests. They use throwaway containers with no network:
+
+```bash
+docker build -t observa-dummy:p3-verify .
+RUN_IMAGE_TESTS=1 python -m pytest -q tests/image   # IMAGE_UNDER_TEST overrides the tag
+```
+
+Without Docker, build in `web/` (`npm ci`, then `npm run build`) and run the Gateway or controller from the repository with `UI_BUNDLE_DIR` set to the absolute path of `web/dist`. The default is `services/ui/dist`. `web/` has its own checks: `npm run verify` runs the typecheck, the generated API type check and the tests. After an API change, run `python -m scripts.export_openapi`, then `npm run gen:api` in `web/`.
 
 ```sh
 curl http://localhost:8000/health
