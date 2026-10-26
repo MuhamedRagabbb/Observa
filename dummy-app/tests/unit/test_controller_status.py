@@ -444,3 +444,154 @@ async def test_a_restart_reports_only_the_incidents_it_interrupted(tmp_path):
         assert started["event"] == "controller_started" and started["interrupted_incidents"] == 1
     finally:
         await ctl.close()
+
+
+async def refused(call):
+    with pytest.raises(AppError) as error:
+        await call
+    return error.value.status, error.value.code
+
+
+async def test_while_recovering_the_server_refuses_new_faults_but_still_allows_stops(tmp_path):
+    health = ScriptedHealth("degraded")
+    ctl = await make(tmp_path, health, recovery_limit=30)
+    try:
+        await ctl.activate(Activation(scenario="payments_errors", duration_seconds=30))
+        assert (await ctl.deactivate("payments_errors"))["state"] == "recovering"
+
+        assert await refused(ctl.activate(Activation(scenario="bad_deployment"))) == (409, "recovering")
+        assert await refused(ctl.start_auto(AutoConfig(warmup_seconds=0))) == (409, "recovering")
+        assert (await ctl.deactivate("payments_errors"))["state"] == "recovering"  # a stop is always allowed
+        assert (await ctl.stop_auto())["state"] == "recovering"
+        rejected = [e for e in ctl.activity()["entries"] if e["event"] == "control_rejected"]
+        assert [(e["action"], e["error_code"]) for e in rejected] == [
+            ("auto_start", "recovering"),
+            ("activate", "recovering"),
+        ]
+
+        health.rounds, health.checks = ["healthy"], 0
+        for _ in range(50):
+            if ctl.status()["state"] == "idle":
+                break
+            await asyncio.sleep(0.02)
+        assert (await ctl.activate(Activation(scenario="bad_deployment", duration_seconds=30)))[
+            "state"
+        ] == "manual"
+    finally:
+        await ctl.close()
+
+
+async def test_recovery_stops_refusing_once_its_time_limit_passes(tmp_path):
+    ctl = await make(tmp_path, ScriptedHealth("unknown"), recovery_limit=0.1)
+    try:
+        await ctl.activate(Activation(scenario="payments_errors", duration_seconds=30))
+        await ctl.deactivate("payments_errors")
+        assert await refused(ctl.activate(Activation(scenario="payments_errors"))) == (409, "recovering")
+        await asyncio.sleep(0.15)
+        assert (await ctl.activate(Activation(scenario="payments_errors", duration_seconds=30)))[
+            "state"
+        ] == "manual"
+    finally:
+        await ctl.close()
+
+
+async def test_with_the_fault_status_unknown_only_stopping_is_allowed(controller):
+    ctl, targets = controller
+    await ctl.activate(Activation(scenario="payments_errors", duration_seconds=30))
+    targets.up = False
+    await refused(ctl.deactivate("payments_errors"))
+    assert ctl.status()["state"] == "unknown"
+
+    assert await refused(ctl.activate(Activation(scenario="bad_deployment"))) == (409, "status_unknown")
+    assert await refused(ctl.start_auto(AutoConfig(warmup_seconds=0))) == (409, "status_unknown")
+    assert await refused(ctl.deactivate("payments_errors")) == (503, "target_unavailable")  # retry allowed
+    # stop_auto also stops a manual fault (existing behaviour): it is attempted, still unconfirmed
+    assert await refused(ctl.stop_auto()) == (503, "target_unavailable")
+    assert ctl.status()["state"] == "unknown"
+    targets.up = True
+    assert (await ctl.deactivate("payments_errors"))["state"] == "idle"
+
+
+async def test_the_automatic_cycle_is_not_held_back_by_health_between_its_own_faults(tmp_path):
+    ctl = await make(tmp_path, ScriptedHealth("degraded"), recovery_limit=30)
+    try:
+        config = AutoConfig(
+            scenarios=["payments_errors", "bad_deployment"],
+            warmup_seconds=0,
+            duration_seconds=0.1,
+            recovery_seconds=0.05,
+        )
+        await ctl.start_auto(config)
+        await asyncio.wait_for(ctl.auto_task, 3)
+        assert [r["scenario"] for r in ctl.journal.records] == ["payments_errors", "bad_deployment"]
+        assert "cycle_finished" in [e["event"] for e in ctl.activity()["entries"]]
+    finally:
+        await ctl.close()
+
+
+async def test_an_unconfirmed_stop_never_reveals_the_fault_cause(tmp_path):
+    targets = Targets()
+    app = create_app(
+        path=tmp_path / "incidents.jsonl", client=httpx.AsyncClient(transport=httpx.MockTransport(targets))
+    )
+    async with (
+        app.router.lifespan_context(app),
+        httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url="http://controller") as client,
+    ):
+        activated = await client.post(
+            "/faults/activate", json={"scenario": "bad_deployment", "parameters": {"delay_seconds": 1.5}}
+        )
+        targets.up = False
+        stop = await client.post("/faults/deactivate", json={"scenario": "bad_deployment"})
+        retry_block = await client.post("/faults/activate", json={"scenario": "payments_errors"})
+        status = await client.get("/faults/status")
+        activity = await client.get("/activity")
+        journal = [json.loads(line) for line in (tmp_path / "incidents.jsonl").read_text().splitlines()]
+        targets.up = True
+
+    assert (stop.status_code, stop.json()["error_code"]) == (503, "target_unavailable")
+    assert retry_block.json()["error_code"] == "status_unknown"
+    assert status.json()["active"]["status"] == "deactivation_unconfirmed"
+    text = json.dumps([activated.json(), stop.json(), retry_block.json(), status.json(), activity.json()])
+    for secret in ("root_cause", "expected_signals", "OrderPersistenceCompatibilityError", "v2-buggy",
+                   "release_version", "persistence_delay_seconds", "orders-service"):  # fmt: skip
+        assert secret not in text, secret
+    record = journal[-1]  # read while the stop was still unconfirmed
+    assert record["status"] == "deactivation_unconfirmed"
+    assert record["root_cause_service"] == "orders-service" and record["expected_signals"]
+
+
+async def test_concurrent_controls_while_unknown_refuse_every_new_fault_and_let_one_stop_through(controller):
+    ctl, targets = controller
+    await ctl.activate(Activation(scenario="payments_errors", duration_seconds=30))
+    targets.up = False
+    await refused(ctl.deactivate("payments_errors"))
+    targets.up = True
+    results = await outcomes(
+        ctl.activate(Activation(scenario="bad_deployment")),
+        ctl.deactivate("payments_errors"),
+        ctl.start_auto(AutoConfig(warmup_seconds=0)),
+        ctl.activate(Activation(scenario="db_connection_exhaustion")),
+    )
+    # The lock serves them in arrival order: refused while unknown, the stop confirms, and only then
+    # (no health monitor here, so no recovery wait) a new cycle may start, which locks out the rest.
+    assert results == ["status_unknown", "ok", "ok", "auto_running"]
+    assert sum(1 for r in ctl.journal.records if r["ended_at"] is None) <= 1
+    await ctl.stop_auto()
+
+
+async def test_concurrent_new_faults_while_recovering_are_all_refused(tmp_path):
+    ctl = await make(tmp_path, ScriptedHealth("degraded"), recovery_limit=30)
+    try:
+        await ctl.activate(Activation(scenario="payments_errors", duration_seconds=30))
+        await ctl.deactivate("payments_errors")
+        results = await outcomes(
+            *(ctl.activate(Activation(scenario=s)) for s in ("payments_errors", "bad_deployment") * 3),
+            ctl.start_auto(AutoConfig(warmup_seconds=0)),
+            ctl.stop_auto(),
+            ctl.deactivate("payments_errors"),
+        )
+        assert results[:7] == ["recovering"] * 7 and results[7:] == ["ok", "ok"]
+        assert ctl.status()["state"] == "recovering" and len(ctl.journal.records) == 1
+    finally:
+        await ctl.close()

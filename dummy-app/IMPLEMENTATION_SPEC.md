@@ -377,7 +377,7 @@ This section records how the approved design (39 artboards, 2026-10-25) changes 
 
 ### 12.1 In scope
 - **Storefront** (English LTR): product collection with availability, multi-item cart with server-computed quote, and a demo checkout. The checkout collects only a demo name and email, which are validated and **not persisted, logged or traced**, plus one simulated payment method. It has these outcomes: processing, success, payment failed (retryable), not placed (unavailable item, not retryable) and status unknown, plus My Orders (list and detail).
-- **Operator Dashboard**, served only by the fault controller: manual F1/F2/F3 configuration, automatic cycle, recovering, controller disconnected and fault-status-unknown states. Service health comes from real probes and Prometheus metrics, never from fault state.
+- **Operator Dashboard**, served only by the fault controller: manual F1/F2/F3 configuration, automatic cycle, recovering, controller disconnected and fault-status-unknown states. Service health comes from real probes (for the services the controller shares a network with: Orders and Payments) and Prometheus metrics (all services; missing or stale evidence is `unknown`, never healthy), never from fault state.
 - **Still out of scope:** real payments, shipping, accounts and authentication.
 
 ### 12.2 Checkout correctness requirements

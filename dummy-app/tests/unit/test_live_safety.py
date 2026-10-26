@@ -1,4 +1,5 @@
-"""Guards that keep fault scenarios and the reconciler away from the live stack by default."""
+"""Guards for the live stack: fault scenarios and the reconciler stay away from it by default, and
+the fault controller only shares networks with its targets and Prometheus."""
 
 from pathlib import Path
 
@@ -46,5 +47,20 @@ def test_the_controller_reaches_probes_and_prometheus_but_not_the_business_netwo
     assert sorted(controller["networks"]) == ["control", "observability"]
     assert controller["environment"]["PROMETHEUS_URL"] == "http://prometheus:9090"
     assert not any(key.startswith("OTEL_") for key in controller["environment"])  # still no exporter
-    for probed in ("gateway", "orders", "inventory", "payments"):
-        assert "control" in services[probed]["networks"], probed
+    # Only the fault targets share the control network; the storefront side stays off it.
+    assert [name for name, svc in services.items() if "control" in (svc.get("networks") or [])] == [
+        "orders",
+        "payments",
+        "fault-injector",
+    ]
+
+
+def test_the_controller_only_probes_services_it_shares_a_network_with():
+    from urllib.parse import urlparse
+
+    from controllers.fault_injector.health import HEALTH_SERVICES
+
+    services = yaml.safe_load(COMPOSE.read_text(encoding="utf-8"))["services"]
+    reachable = {name for name, svc in services.items() if "control" in (svc.get("networks") or [])}
+    probed = {urlparse(url).hostname for url in HEALTH_SERVICES.values() if url}
+    assert probed and probed <= reachable

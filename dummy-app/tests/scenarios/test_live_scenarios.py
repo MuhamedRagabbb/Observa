@@ -59,7 +59,17 @@ async def live():
         assert result.status_code == 200
 
 
+async def settled(client, seconds=200):
+    """Wait until the controller accepts new faults: it refuses them while services recover."""
+
+    async def idle():
+        return (await client.get(CONTROLLER + "/faults/status")).json()["state"] == "idle"
+
+    await eventually(idle, seconds)
+
+
 async def activate(client, scenario, parameters, duration=25):
+    await settled(client)
     response = await client.post(
         CONTROLLER + "/faults/activate",
         json={
@@ -249,6 +259,7 @@ async def test_live_ttl_and_automatic_rotation(live):
     await eventually(expired, 5)
     await successful_order(live)
     before = len(JOURNAL.read_text().splitlines())
+    await settled(live)
     response = await live.post(
         CONTROLLER + "/faults/auto/start",
         json={

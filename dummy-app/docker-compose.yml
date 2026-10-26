@@ -60,8 +60,6 @@ services:
       ORDERS_URL: ${ORDERS_URL:-http://orders:8001}
       INVENTORY_URL: ${INVENTORY_URL:-http://inventory:8002}
     ports: ["127.0.0.1:${GATEWAY_PORT:-8000}:8000"]
-    # control: only so the fault controller can probe /health for the operator view.
-    networks: [business, control]
     depends_on:
       orders: {condition: service_healthy}
       inventory: {condition: service_healthy}
@@ -90,8 +88,6 @@ services:
       PORT: 8002
       DATABASE_URL: postgresql://inventory_app:${INVENTORY_DB_PASSWORD:-local-inventory-only}@postgres:5432/inventory_db
     ports: ["127.0.0.1:${INVENTORY_PORT:-8002}:8002"]
-    # control: only so the fault controller can probe /health for the operator view.
-    networks: [business, control]
     depends_on:
       postgres: {condition: service_healthy}
   payments:

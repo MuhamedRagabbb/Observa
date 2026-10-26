@@ -13,7 +13,10 @@ import httpx
 import pytest
 
 from tests.integration.test_live import BASE, CONTROLLER, eventually
-from tests.scenarios.test_live_scenarios import pytestmark  # noqa: F401  (live + throwaway-only guard)
+from tests.scenarios.test_live_scenarios import (  # noqa: F401  (live + throwaway-only guard)
+    pytestmark,
+    settled,
+)
 
 PROJECT = os.getenv("COMPOSE_PROJECT_NAME", "")
 GROUND_TRUTH_ONLY = ('"root_cause"', '"root_cause_service"', '"expected_signals"')
@@ -29,6 +32,7 @@ def compose(*args):
 async def client():
     async with httpx.AsyncClient(timeout=20) as http:
         await http.post(CONTROLLER + "/faults/auto/stop")
+        await settled(http)
         yield http
         await http.post(CONTROLLER + "/faults/auto/stop")
 
@@ -50,7 +54,12 @@ async def test_service_health_comes_from_real_probes_and_prometheus(client):
     assert set(states) == {"api-gateway", "orders-service", "inventory-service", "payments-service"}
     snapshot = (await client.get(CONTROLLER + "/services/health")).json()
     assert snapshot["metrics"] == "available"
-    assert all(row["probe"]["ok"] and row["error_ratio"] is not None for row in snapshot["services"])
+    probed = {row["service"]: row["probe"] for row in snapshot["services"]}
+    assert probed["orders-service"]["ok"] and probed["payments-service"]["ok"]
+    assert (
+        probed["api-gateway"] is None and probed["inventory-service"] is None
+    )  # not reachable: metrics only
+    assert all(row["error_ratio"] is not None for row in snapshot["services"])
 
 
 async def test_f2_degrades_payments_then_the_controller_waits_for_recovery(client):
@@ -77,20 +86,15 @@ async def test_f2_degrades_payments_then_the_controller_waits_for_recovery(clien
         stopped = await client.post(CONTROLLER + "/faults/deactivate", json={"scenario": "payments_errors"})
     assert stopped.json()["state"] == "recovering"
     assert stopped.json()["controls"]["activate"] == {"enabled": False, "reason": "recovering"}
+    early = await client.post(CONTROLLER + "/faults/activate", json={"scenario": "bad_deployment"})
+    assert (early.status_code, early.json()["error_code"]) == (409, "recovering")  # enforced, not advisory
 
-    async def idle():
-        return (await client.get(CONTROLLER + "/faults/status")).json()["state"] == "idle"
-
-    await eventually(idle, 150)  # the 5xx share is measured over the last minute
+    await settled(client, 150)  # until a health check after the fault finds every service healthy
     entries = (await client.get(CONTROLLER + "/activity")).json()["entries"]
     events = [e["event"] for e in entries if e["event"] != "service_health_changed"]
-    assert events[:5] == [
-        "services_recovered",
-        "fault_stopped",
-        "stop_requested",
-        "fault_active",
-        "fault_requested",
-    ]
+    assert events[:6] == [
+        "services_recovered", "control_rejected", "fault_stopped", "stop_requested", "fault_active", "fault_requested",
+    ]  # fmt: skip
     assert any(e["event"] == "service_health_changed" and e["state"] == "degraded" for e in entries)
     bodies = json.dumps([stopped.json(), (await client.get(CONTROLLER + "/activity")).json()])
     assert not any(key in bodies for key in GROUND_TRUTH_ONLY)
@@ -123,6 +127,8 @@ async def test_an_unreachable_target_makes_the_stop_unconfirmed_until_it_is_back
         status = (await client.get(CONTROLLER + "/faults/status")).json()
         assert status["state"] == "unknown" and status["active"]["status"] == "deactivation_unconfirmed"
         assert {name for name, c in status["controls"].items() if c["enabled"]} == {"deactivate"}
+        blocked = await client.post(CONTROLLER + "/faults/activate", json={"scenario": "bad_deployment"})
+        assert (blocked.status_code, blocked.json()["error_code"]) == (409, "status_unknown")
 
         async def payments_unavailable():
             return (await health(client)).get("payments-service") == "unavailable"
@@ -138,3 +144,23 @@ async def test_an_unreachable_target_makes_the_stop_unconfirmed_until_it_is_back
     await eventually(stop_confirmed, 60)
     entries = (await client.get(CONTROLLER + "/activity")).json()["entries"]
     assert "stop_unconfirmed" in [e["event"] for e in entries]
+
+
+def reachable(service, host, port):
+    """Whether ``service``'s container can open a TCP connection to host:port (2 s timeout)."""
+    code = f"import socket; socket.create_connection(({host!r}, {port}), 2)"
+    result = subprocess.run(
+        ["docker", "compose", "-p", PROJECT, "exec", "-T", service, "python", "-c", code],
+        capture_output=True,
+    )
+    return result.returncode == 0
+
+
+def test_the_controller_and_the_storefront_side_cannot_reach_each_other():
+    assert PROJECT and PROJECT != "observa-dummy"
+    allowed = [("orders", 8001), ("payments", 8003), ("prometheus", 9090)]
+    denied = [("gateway", 8000), ("inventory", 8002), ("postgres", 5432)]
+    assert all(reachable("fault-injector", host, port) for host, port in allowed)
+    assert not any(reachable("fault-injector", host, port) for host, port in denied)
+    assert not reachable("gateway", "fault-injector", 8090)
+    assert not reachable("inventory", "fault-injector", 8090)

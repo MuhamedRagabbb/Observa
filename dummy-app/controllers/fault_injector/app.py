@@ -125,10 +125,15 @@ assert not GROUND_TRUTH_FIELDS & set(OPERATOR_INCIDENT_FIELDS)
 
 
 UNCONFIRMED = frozenset({"activation_unconfirmed", "deactivation_unconfirmed"})
-# Why a control is not safe in a given state (the UI shows these; the server enforces its own locks).
+# Why a control is not safe in a given state (advertised in ``controls``).
 BLOCKED_BY = {
     "manual": "fault_active", "automatic": "auto_running", "unknown": "status_unknown", "recovering": "recovering",
 }  # fmt: skip
+# States in which the server itself refuses a new fault (manual or a new cycle); stops are never refused.
+UNSAFE_FOR_NEW_FAULTS = {
+    "unknown": "Confirm the current fault has stopped first: retry the stop",
+    "recovering": "Services are still recovering from the last fault",
+}
 
 
 class Control(BaseModel):
@@ -383,12 +388,21 @@ class Controller:
         self.log.record("control_rejected", action=action, error_code=code)
         raise AppError(409, code, message)
 
+    def _refuse_new_fault_while_unsafe(self, action):
+        """Starting a fault (manual or a new cycle) needs a confirmed, recovered system. Stops,
+        retried stops, cycle stops, lease expiry and restart cleanup never pass through here."""
+        state = self.status()["state"]
+        if state in UNSAFE_FOR_NEW_FAULTS:
+            self._reject(action, BLOCKED_BY[state], UNSAFE_FOR_NEW_FAULTS[state])
+
     async def activate(self, config, *, automatic=False):
         async with self.lock:
             if not automatic and self.status()["auto_running"]:
                 self._reject(
                     "activate", "auto_running", "Stop the automatic schedule before manual activation"
                 )
+            if not automatic:
+                self._refuse_new_fault_while_unsafe("activate")
             if self.active:
                 self._reject(
                     "activate", "fault_conflict", "Deactivate the current incident before activating another"
@@ -468,6 +482,7 @@ class Controller:
 
     async def start_auto(self, config):
         async with self.lock:
+            self._refuse_new_fault_while_unsafe("auto_start")
             if self.active or self.status()["auto_running"]:
                 self._reject("auto_start", "controller_busy", "Stop the current schedule or incident first")
             self.log.record(
