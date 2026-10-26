@@ -14,8 +14,9 @@ from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExport
 from opentelemetry.metrics import Observation
 from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
 from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
-from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.sdk.metrics import Histogram, MeterProvider
 from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+from opentelemetry.sdk.metrics.view import ExplicitBucketHistogramAggregation, View
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
@@ -87,6 +88,35 @@ class JsonOTLPHandler(LoggingHandler):
         }
 
 
+# Durations are recorded in seconds (unit "s"). The SDK's default bounds (0, 5, 10 ... 10000) suit
+# milliseconds and put every request in the first bucket, so percentiles were meaningless. These
+# are the OpenTelemetry HTTP semantic-convention bounds, plus 15 and 30 s so timeouts up to the
+# gateway's 12 s dependency limit stay measurable.
+DURATION_BUCKETS_SECONDS = (
+    0.005,
+    0.01,
+    0.025,
+    0.05,
+    0.075,
+    0.1,
+    0.25,
+    0.5,
+    0.75,
+    1.0,
+    2.5,
+    5.0,
+    7.5,
+    10.0,
+    15.0,
+    30.0,
+)
+DURATION_VIEW = View(
+    instrument_type=Histogram,
+    instrument_name="*.duration",
+    aggregation=ExplicitBucketHistogramAggregation(DURATION_BUCKETS_SECONDS),
+)
+
+
 class Telemetry:
     def __init__(self, service, settings, *, span_exporter=None, metric_reader=None, log_exporter=None):
         self.service = service
@@ -131,7 +161,7 @@ class Telemetry:
                     schedule_delay_millis=500,
                 )
             )
-        self.metrics = MeterProvider(resource=self.resource, metric_readers=readers)
+        self.metrics = MeterProvider(resource=self.resource, metric_readers=readers, views=[DURATION_VIEW])
         self.tracer = self.traces.get_tracer("observa.app")
         self.meter = self.metrics.get_meter("observa.app")
         self.logger = logging.getLogger(f"observa.{service}.{uuid4()}")

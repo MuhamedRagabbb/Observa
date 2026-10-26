@@ -24,6 +24,8 @@ def prometheus(rates, *, scrape_up=1):
     def answer(query):
         if query.startswith("up{"):
             return [] if scrape_up is None else [{"metric": {}, "value": [0, str(scrape_up)]}]
+        if query.startswith("histogram_quantile"):
+            return []  # no p95 unless a test provides one
         index = (
             1
             if 'http_status_code=~"5.."' in query
@@ -132,3 +134,26 @@ async def test_without_recent_requests_only_a_probed_service_can_be_healthy():
     snapshot = await check(metrics=prometheus({"api-gateway": (0, 0, 0, 0), "orders-service": (0, 0, 0, 0)}))
     assert states(snapshot) == {"api-gateway": "unknown", "orders-service": "healthy"}
     assert row(snapshot, "api-gateway")["reasons"] == ["stale_metrics"]
+
+
+async def test_a_slow_tail_degrades_a_service_even_when_its_mean_looks_fine():
+    def with_p95(seconds):
+        base = prometheus(HEALTHY)
+
+        def answer(query):
+            if query.startswith("histogram_quantile"):
+                return [{"metric": {"service_name": "orders-service"}, "value": [0, str(seconds)]}]
+            return base(query)
+
+        return answer
+
+    slow = await check(metrics=with_p95(1.4))  # mean 50 ms, but 1 request in 20 takes 1.4 s
+    orders = row(slow, "orders-service")
+    assert (orders["state"], orders["reasons"], orders["p95_latency_ms"]) == (
+        "degraded",
+        ["high_latency"],
+        1400.0,
+    )
+    assert row(slow, "api-gateway")["p95_latency_ms"] is None  # no histogram data: not invented
+    fast = await check(metrics=with_p95(0.2))
+    assert row(fast, "orders-service")["state"] == "healthy"

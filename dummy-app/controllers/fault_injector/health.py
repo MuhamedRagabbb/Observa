@@ -11,6 +11,7 @@ Health is never derived from fault state, and missing evidence is never reported
 """
 
 import asyncio
+import math
 import os
 import time
 from typing import Literal
@@ -22,14 +23,14 @@ from services.shared.telemetry import utcnow
 
 WINDOW = "30s"  # Prometheus scrapes every 3 s and services export every 3 s
 DEGRADED_ERROR_RATIO = 0.05  # share of requests answered with 5xx
-DEGRADED_MEAN_LATENCY_SECONDS = 1.0
-# Mean latency, not a percentile: the duration histogram's bucket bounds are milliseconds while
-# its values are seconds, so its quantiles are meaningless (tracked for P2-C).
+DEGRADED_LATENCY_SECONDS = 1.0
+# Latency is judged on p95 (second-scale histogram buckets) and on the mean.
 QUERIES = {
     "requests": f"sum by (service_name) (rate(http_server_requests_total[{WINDOW}]))",
     "errors": f'sum by (service_name) (rate(http_server_requests_total{{http_status_code=~"5.."}}[{WINDOW}]))',
     "seconds": f"sum by (service_name) (rate(http_server_duration_seconds_sum[{WINDOW}]))",
     "observations": f"sum by (service_name) (rate(http_server_duration_seconds_count[{WINDOW}]))",
+    "p95": f"histogram_quantile(0.95, sum by (le, service_name) (rate(http_server_duration_seconds_bucket[{WINDOW}])))",
 }
 SCRAPE_UP = 'up{job="application-otel"}'  # Prometheus scraping the Collector's metrics endpoint
 
@@ -47,6 +48,7 @@ class ServiceHealth(BaseModel):
     probe: Probe | None  # None: not reachable from the controller, judged from metrics
     error_ratio: float | None  # share of 5xx answers in the window
     mean_latency_ms: float | None
+    p95_latency_ms: float | None = None  # None when the window holds no requests
     reasons: list[str]
 
 
@@ -121,7 +123,9 @@ class HealthMonitor:
             values = {}
             for name, query in QUERIES.items():
                 for row in await self._query(query):
-                    values.setdefault(row["metric"]["service_name"], {})[name] = float(row["value"][1])
+                    value = float(row["value"][1])
+                    if not math.isnan(value):  # histogram_quantile answers NaN for an empty window
+                        values.setdefault(row["metric"]["service_name"], {})[name] = value
         except (httpx.HTTPError, ValueError, KeyError):
             return None, "metrics_unavailable"
         return values, None
@@ -134,6 +138,7 @@ class HealthMonitor:
             "probe": probe,
             "error_ratio": None,
             "mean_latency_ms": None,
+            "p95_latency_ms": None,
         }
         rates = (metrics or {}).get(name)
         if rates is not None:
@@ -141,6 +146,8 @@ class HealthMonitor:
             row["error_ratio"] = round(rates.get("errors", 0) / requests, 4) if requests else 0.0
             mean = rates.get("seconds", 0) / observations if observations else 0.0
             row["mean_latency_ms"] = round(mean * 1000, 1)
+            if "p95" in rates:
+                row["p95_latency_ms"] = round(rates["p95"] * 1000, 1)
         if probe is not None and not probe["ok"]:
             return {**row, "state": "unavailable", "reasons": ["probe_failed"]}
         if trouble:
@@ -152,6 +159,7 @@ class HealthMonitor:
         reasons = []
         if row["error_ratio"] >= DEGRADED_ERROR_RATIO:
             reasons.append("high_error_ratio")
-        if row["mean_latency_ms"] >= DEGRADED_MEAN_LATENCY_SECONDS * 1000:
+        slowest = max(row["mean_latency_ms"], row["p95_latency_ms"] or 0)
+        if slowest >= DEGRADED_LATENCY_SECONDS * 1000:
             reasons.append("high_latency")
         return {**row, "state": "degraded" if reasons else "healthy", "reasons": reasons}

@@ -3,6 +3,7 @@ import json
 import os
 import random
 import time
+import typing
 from collections import deque
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -22,6 +23,7 @@ from services.shared.telemetry import utcnow
 from services.shared.ui import register_ui
 
 Scenario = Literal["db_connection_exhaustion", "payments_errors", "bad_deployment"]
+SCENARIO_NAMES = typing.get_args(Scenario)
 TARGETS = {
     "db_connection_exhaustion": "orders-service",
     "payments_errors": "payments-service",
