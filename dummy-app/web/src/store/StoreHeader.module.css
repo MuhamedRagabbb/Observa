@@ -151,11 +151,12 @@
 
 @media (max-width: 59.99rem) {
   .header[data-tools] {
-    grid-template-columns: 1fr auto auto auto;
+    grid-template-columns: 1fr auto auto;
     grid-template-areas:
-      "exp exp exp exp"
-      "brand orders search cart";
+      "orders exp exp"
+      "brand search cart";
     column-gap: var(--space-5);
+    align-items: center;
     row-gap: var(--space-3);
     padding-block-start: var(--space-3);
   }
@@ -177,17 +178,24 @@
     display: none;
   }
 
+  /* Icon only on phones: a full 44px touch target. */
   .header[data-tools] .search {
     grid-area: search;
+    justify-content: center;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
   }
 
   .header[data-tools] .cart {
     grid-area: cart;
   }
 
+  /* The main navigation is hidden on phones: My Orders sits in the top row, opposite Experiments. */
   .header[data-tools] .phoneLink {
     display: inline-flex;
     grid-area: orders;
+    justify-self: start;
+    font-size: var(--text-small);
   }
 
   .searchLabel {

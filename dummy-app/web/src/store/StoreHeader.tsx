@@ -1,3 +1,4 @@
+import type { Ref } from "react";
 import { Link, NavLink } from "react-router";
 import { CrossAppLink } from "../shared/CrossAppLink.tsx";
 import { Wordmark } from "../shared/ui/Brand.tsx";
@@ -21,8 +22,8 @@ type StoreHeaderProps =
       links: HeaderLink[];
       /** Phones hide the main navigation: one link that stays reachable there (My Orders). */
       phoneLink?: { to: string; label: string };
-      /** Present only once search works (P4-G). */
-      search?: { onOpen: () => void };
+      /** The Search button: it controls the field named by `controls` while that is open. */
+      search?: { onOpen: () => void; expanded?: boolean; controls?: string; buttonRef?: Ref<HTMLButtonElement> };
       /** Present only once the cart works (P4-C). */
       cart?: { count: number; onOpen: () => void };
       back?: never;
@@ -75,17 +76,25 @@ export function StoreHeader(props: StoreHeaderProps) {
             </ul>
           </nav>
           <div className={styles.utilities}>
-            <CrossAppLink target="control" className={styles.experiments}>
-              Experiments
-            </CrossAppLink>
-            {props.search || props.cart ? <span className={styles.divider} aria-hidden="true" /> : null}
             {props.phoneLink ? (
+              // Before Experiments: on phones it sits to its left, so the tab order follows the screen.
               <NavLink to={props.phoneLink.to} className={`${styles.utility} ${styles.phoneLink}`}>
                 {props.phoneLink.label}
               </NavLink>
             ) : null}
+            <CrossAppLink target="control" className={styles.experiments}>
+              Experiments
+            </CrossAppLink>
+            {props.search || props.cart ? <span className={styles.divider} aria-hidden="true" /> : null}
             {props.search ? (
-              <button type="button" className={`${styles.utility} ${styles.search}`} onClick={props.search.onOpen}>
+              <button
+                ref={props.search.buttonRef}
+                type="button"
+                className={`${styles.utility} ${styles.search}`}
+                aria-expanded={props.search.expanded}
+                aria-controls={props.search.expanded ? props.search.controls : undefined}
+                onClick={props.search.onOpen}
+              >
                 <Icon name="search" className={styles.searchIcon} />
                 <span className={styles.searchLabel}>Search</span>
               </button>

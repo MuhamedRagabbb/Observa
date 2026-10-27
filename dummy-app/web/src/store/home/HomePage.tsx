@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useLocation } from "react-router";
-import { COLLECTION_ID } from "./anchors.ts";
+import { COLLECTION_ID, scrollToCollection } from "./anchors.ts";
 import { Collection } from "./Collection.tsx";
 import { Hero } from "./Hero.tsx";
 
@@ -13,11 +13,9 @@ function useCollectionAnchor() {
   const location = useLocation();
   useEffect(() => {
     if (location.hash !== `#${COLLECTION_ID}`) return;
-    const section = document.getElementById(COLLECTION_ID);
     const heading = document.getElementById(`${COLLECTION_ID}-title`);
-    if (!section || !heading) return;
-    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
-    section.scrollIntoView?.({ behavior: reduce ? "auto" : "smooth", block: "start" });
+    if (!heading) return;
+    scrollToCollection();
     heading.focus({ preventScroll: true });
   }, [location.key, location.hash]);
 }

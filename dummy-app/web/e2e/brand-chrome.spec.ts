@@ -37,9 +37,8 @@ test.describe("storefront header as shipped", () => {
       "http://127.0.0.1:18090/ui/next/",
     );
     await expect(banner.getByRole("button", { name: "Cart, 0 items" })).toBeVisible();
-    // Search arrives in P4-G.
-    await expect(banner.getByRole("link", { name: /Search/ })).toHaveCount(0);
-    await expect(banner.getByRole("button", { name: /Search/ })).toHaveCount(0);
+    // Search (P4-G) is a button: it opens a field above the collection.
+    await expect(banner.getByRole("button", { name: "Search" })).toHaveAttribute("aria-expanded", "false");
     // My Orders (P4-F): in the main navigation on wide screens, beside the cart on phones.
     await expect(banner.getByRole("link", { name: "My Orders" })).toHaveCount(1);
     await expect(banner.getByRole("link", { name: "My Orders" })).toHaveAttribute("href", "/ui/next/orders");
@@ -62,8 +61,8 @@ test.describe("storefront header as shipped", () => {
     await page.goto(STORE_URL);
     await expect(page.getByRole("link", { name: "Experiments" })).toBeVisible();
     const expected = isDesktop(info.project.name)
-      ? ["OBSERVA", "Home", "Products", "My Orders", "Experiments", "Cart, 0 items"]
-      : ["OBSERVA", "Experiments", "My Orders", "Cart, 0 items"];
+      ? ["OBSERVA", "Home", "Products", "My Orders", "Experiments", "Search", "Cart, 0 items"]
+      : ["OBSERVA", "My Orders", "Experiments", "Search", "Cart, 0 items"];
     const seen = [];
     for (let i = 0; i < expected.length; i += 1) {
       await page.keyboard.press("Tab");

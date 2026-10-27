@@ -80,6 +80,21 @@
   }
 }
 
+/*
+ * Search results: a plain grid in API order. The artboards' asymmetric offsets belong to the
+ * full collection; with a few matches they would only look like gaps.
+ */
+.grid[data-filtered] .item:nth-child(n) {
+  grid-column: span 1;
+  margin-block-start: 0;
+}
+
+@media (min-width: 60rem) {
+  .grid[data-filtered] .item:nth-child(n) {
+    grid-column: span 5;
+  }
+}
+
 /* Loading: the same frames, empty, so nothing moves when the products arrive. */
 .skeletonImage {
   aspect-ratio: 4 / 5;
@@ -110,6 +125,7 @@
 
 .messageTitle {
   margin: 0;
+  overflow-wrap: anywhere; /* a long search term is echoed here */
   color: var(--color-ink);
   font-family: var(--font-display);
   font-size: var(--text-heading-2);
