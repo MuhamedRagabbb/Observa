@@ -20,7 +20,7 @@ import type { ClientSetup } from "../../api/same-origin-client.ts";
 import type { CartLine, CartStore } from "../cart/cart-store.ts";
 import { beginAttempt, customerId, type AttemptRecord, type AttemptStore } from "./attempts.ts";
 import type { Contact } from "./contact.ts";
-import { classifyCheckout, type Classification, type CheckoutResponse } from "./outcome.ts";
+import { classifyCheckout, isCheckoutResult, type Classification, type CheckoutResponse } from "./outcome.ts";
 import { classifyStatus } from "./status.ts";
 
 export const CHECKOUT_TIMEOUT_MS = 30_000;
@@ -110,6 +110,7 @@ export function createCheckoutFlow({ cart, attempts, fetch, storage, sleep = rea
   let lastContact: Contact | null = null;
   const listeners = new Set<() => void>();
   const checking = new Set<string>();
+  const reconciling = new Set<string>();
   const following = new Map<string, { stop: () => void; done: Promise<FollowEnd>; signal: AbortSignal }>();
   /** References whose polling gave up: the next Check again may resolve. */
   const exhausted = new Set<string>();
@@ -144,8 +145,9 @@ export function createCheckoutFlow({ cart, attempts, fetch, storage, sleep = rea
   /** Records what an answer means for the attempt and the cart. Only definite answers settle. */
   async function apply(record: Pick<AttemptRecord, "attempt_ref" | "status">, classification: Classification) {
     if (classification.kind === "unknown") {
-      // Never downgrade: a processing attempt is known to be recorded on the server.
-      if (record.status !== "processing") await attempts.mark(record.attempt_ref, "unknown");
+      // Never downgrade: a processing attempt is known to be recorded on the server (checked in
+      // the gate's own transaction, so another tab's processing mark is never overwritten).
+      if (record.status !== "processing") await attempts.mark(record.attempt_ref, "unknown", "processing");
       return;
     }
     const { outcome } = classification.result;
@@ -191,7 +193,7 @@ export function createCheckoutFlow({ cart, attempts, fetch, storage, sleep = rea
         if (answer.kind === "not_found") {
           // 202 proved the server recorded it: a 404 now is inconsistent. Leave it to a person.
           const unknown: Classification = { kind: "unknown", reason: "no_result" };
-          await apply({ ...record, status: "unknown" }, unknown);
+          await attempts.mark(record.attempt_ref, "unknown");
           show(record, unknown, { notice: "check_failed" });
           return "unknown";
         }
@@ -265,13 +267,14 @@ export function createCheckoutFlow({ cart, attempts, fetch, storage, sleep = rea
     },
 
     /** Check status / Check again, for an attempt this tab is not itself still sending. */
-    async check(record: AttemptRecord): Promise<CheckResult> {
+    async check(record: AttemptRecord, { quiet = false }: { quiet?: boolean } = {}): Promise<CheckResult> {
       const ref = record.attempt_ref;
       if (checking.has(ref) || (session.phase === "submitting" && session.attemptRef === ref)) return { kind: "busy" };
       checking.add(ref);
       following.get(ref)?.stop();
       const previous = shown(ref) && session.phase === "done" ? session.classification : ({ kind: "unknown", reason: "no_result" } as Classification);
-      show(record, previous, { activity: "checking" });
+      // Quiet (My Orders): the answer settles the attempt but is never shown on the checkout page.
+      if (!quiet) show(record, previous, { activity: "checking" });
       try {
         const status = classifyStatus(await getStatus(record), ref);
         // Explicitly asked for, and only after a clear GET: fence or settle on the server.
@@ -281,7 +284,7 @@ export function createCheckoutFlow({ cart, attempts, fetch, storage, sleep = rea
             : (status as Classification);
         await apply(record, classification);
         exhausted.delete(ref);
-        show(record, classification.kind === "unknown" ? previous : classification, classification.kind === "unknown" ? { notice: "check_failed" } : {});
+        if (!quiet) show(record, classification.kind === "unknown" ? previous : classification, classification.kind === "unknown" ? { notice: "check_failed" } : {});
         return classification;
       } finally {
         checking.delete(ref);
@@ -290,6 +293,29 @@ export function createCheckoutFlow({ cart, attempts, fetch, storage, sleep = rea
 
     /** Polls a processing attempt (GET only) until it is definite or about 60 s have passed. */
     follow,
+
+    /**
+     * My Orders: the server's list already has an answer for an attempt this browser still
+     * holds. A valid result for the same reference, listed for the customer ID the attempt was
+     * sent with, settles it exactly as a Check status answer would (a confirmed order's cart
+     * effect once, through the gate). Sends nothing and never resolves. True if it changed the attempt.
+     */
+    async reconcile(record: AttemptRecord, entry: unknown, listedFor: string): Promise<boolean> {
+      const ref = record.attempt_ref;
+      if (record.customer_id !== listedFor || !isCheckoutResult(entry) || entry.attempt_ref !== ref) return false;
+      if (checking.has(ref) || reconciling.has(ref) || (session.phase === "submitting" && session.attemptRef === ref)) return false;
+      reconciling.add(ref);
+      try {
+        await attempts.sync();
+        const current = attempts.unconfirmed().find((a) => a.attempt_ref === ref);
+        if (!current) return false;
+        if (entry.outcome === "processing" && current.status === "processing") return false;
+        await apply(current, { kind: "definite", result: entry });
+        return true;
+      } finally {
+        reconciling.delete(ref);
+      }
+    },
 
     /** R4: shows a confirmed order again by its reference. Read-only: never resolves, never settles. */
     async restore(attemptRef: string): Promise<boolean> {

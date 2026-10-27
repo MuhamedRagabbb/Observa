@@ -173,8 +173,8 @@ export function createAttemptStore(storage: Storage = window.localStorage) {
         if (listeners.size === 0) window.removeEventListener("storage", onStorage);
       };
     },
-    /** Records a status that is not yet a definite outcome (processing or unknown). */
-    mark: (attemptRef: string, status: AttemptStatus) => withGate(false, (db) => gateMark(db, attemptRef, status)),
+    /** Records a status that is not yet a definite outcome (processing or unknown); never over `unless`. */
+    mark: (attemptRef: string, status: AttemptStatus, unless?: AttemptStatus) => withGate(false, (db) => gateMark(db, attemptRef, status, unless)),
     /** A definite outcome other than a confirmed order: the attempt is removed. True once committed. */
     settle: (attemptRef: string) => withGate(false, (db) => gateSettle(db, attemptRef)),
     /** A confirmed order: removes the attempt and journals its cart effect in one transaction. */

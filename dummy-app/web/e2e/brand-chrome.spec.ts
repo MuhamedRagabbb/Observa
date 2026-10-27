@@ -27,7 +27,7 @@ test.describe("storefront header as shipped", () => {
     api.onGateway("GET", "/api/products", () => ({ status: 200, body: PRODUCTS }));
   });
 
-  test("shows the wordmark, Home, Products, Experiments and Cart, and nothing that does not work yet", async ({ page }, info) => {
+  test("shows the wordmark, Home, Products, My Orders, Experiments and Cart, and nothing that does not work yet", async ({ page }, info) => {
     await page.goto(STORE_URL);
     const banner = page.getByRole("banner");
     const home = banner.getByRole("link", { name: "OBSERVA" });
@@ -37,10 +37,12 @@ test.describe("storefront header as shipped", () => {
       "http://127.0.0.1:18090/ui/next/",
     );
     await expect(banner.getByRole("button", { name: "Cart, 0 items" })).toBeVisible();
-    for (const name of [/My Orders/, /Search/]) {
-      await expect(banner.getByRole("link", { name })).toHaveCount(0);
-      await expect(banner.getByRole("button", { name })).toHaveCount(0);
-    }
+    // Search arrives in P4-G.
+    await expect(banner.getByRole("link", { name: /Search/ })).toHaveCount(0);
+    await expect(banner.getByRole("button", { name: /Search/ })).toHaveCount(0);
+    // My Orders (P4-F): in the main navigation on wide screens, beside the cart on phones.
+    await expect(banner.getByRole("link", { name: "My Orders" })).toHaveCount(1);
+    await expect(banner.getByRole("link", { name: "My Orders" })).toHaveAttribute("href", "/ui/next/orders");
     const nav = page.getByRole("navigation", { name: "Main" });
     if (isDesktop(info.project.name)) {
       await expect(nav.getByRole("link", { name: "Home" })).toHaveAttribute("aria-current", "page");
@@ -60,8 +62,8 @@ test.describe("storefront header as shipped", () => {
     await page.goto(STORE_URL);
     await expect(page.getByRole("link", { name: "Experiments" })).toBeVisible();
     const expected = isDesktop(info.project.name)
-      ? ["OBSERVA", "Home", "Products", "Experiments", "Cart, 0 items"]
-      : ["OBSERVA", "Experiments", "Cart, 0 items"];
+      ? ["OBSERVA", "Home", "Products", "My Orders", "Experiments", "Cart, 0 items"]
+      : ["OBSERVA", "Experiments", "My Orders", "Cart, 0 items"];
     const seen = [];
     for (let i = 0; i < expected.length; i += 1) {
       await page.keyboard.press("Tab");

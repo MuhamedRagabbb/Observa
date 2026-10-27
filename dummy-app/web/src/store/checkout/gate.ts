@@ -146,13 +146,16 @@ export function gateBegin(
   });
 }
 
-/** Updates a stored attempt's status; false if it is not stored (already settled) or the write failed. */
-export function gateMark(db: IDBDatabase, attemptRef: string, status: AttemptStatus): Promise<boolean> {
+/**
+ * Updates a stored attempt's status; false if it is not stored (already settled), already has
+ * the status `unless` names (checked in the same transaction), or the write failed.
+ */
+export function gateMark(db: IDBDatabase, attemptRef: string, status: AttemptStatus, unless?: AttemptStatus): Promise<boolean> {
   return transact(db, [ATTEMPTS], false, (tx, done) => {
     const store = tx.objectStore(ATTEMPTS);
     const read = store.get(attemptRef);
     read.onsuccess = () => {
-      if (!read.result) return;
+      if (!read.result || (unless && (read.result as GateRecord).status === unless)) return;
       store.put({ ...(read.result as GateRecord), status });
       done(true);
     };

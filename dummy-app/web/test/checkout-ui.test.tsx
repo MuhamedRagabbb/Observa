@@ -288,7 +288,7 @@ describe("definite outcomes", () => {
     expect(screen.getByText("OBS-1042-7F3A")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Copy order ID" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Continue shopping" })).toBeTruthy();
-    expect(screen.queryByRole("link", { name: /My Orders/ })).toBeNull();
+    expect(screen.getByRole("link", { name: "View My Orders" }).getAttribute("href")).toBe("/orders");
     expect(JSON.parse(localStorage.getItem(CART_STORAGE_KEY) ?? "").lines).toEqual([]);
     expect(JSON.parse(localStorage.getItem(ATTEMPTS_KEY) ?? "").attempts).toEqual([]);
   });

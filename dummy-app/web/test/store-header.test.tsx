@@ -64,7 +64,8 @@ describe("storefront header, as shipped in P4-A", () => {
         el.querySelector("svg[aria-label]")?.getAttribute("aria-label") ??
         el.textContent?.replace("↗", "").trim(),
     );
-    expect(names).toEqual(["OBSERVA", "Home", "Products", "Experiments", "Cart, 0 items"]);
+    // My Orders twice: in the main navigation (wide screens) and beside the cart (phones only, by CSS).
+    expect(names).toEqual(["OBSERVA", "Home", "Products", "My Orders", "Experiments", "My Orders", "Cart, 0 items"]);
   });
 });
 

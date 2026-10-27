@@ -362,9 +362,12 @@ function OutcomeScreen({ result }: { result: CheckoutResult }) {
         </>
       ),
       actions: (
-        <ButtonLink to="/" icon="arrow-right" size="large">
-          Continue shopping
-        </ButtonLink>
+        <>
+          <ButtonLink to="/" icon="arrow-right" size="large">
+            Continue shopping
+          </ButtonLink>
+          <TextLink to="/orders">View My Orders</TextLink>
+        </>
       ),
     };
   } else if (result.outcome === "payment_failed") {

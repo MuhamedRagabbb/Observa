@@ -9,7 +9,7 @@
 // - R4: a confirmed result is re-read, read-only, by reference.
 import "fake-indexeddb/auto";
 import { IDBFactory } from "fake-indexeddb";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CART_STORAGE_KEY, createCartStore } from "../src/store/cart/cart-store.ts";
 import { ATTEMPTS_KEY, beginAttempt, createAttemptStore, CUSTOMER_KEY, type AttemptRecord } from "../src/store/checkout/attempts.ts";
 import { createCheckoutFlow, POLL_BUDGET_MS } from "../src/store/checkout/flow.ts";
@@ -506,5 +506,100 @@ describe("privacy", () => {
     });
     for (const secret of [contact.name, contact.email, "Demo", "example.com"]) expect(everything).not.toContain(secret);
     expect(localStorage.getItem(ATTEMPTS_KEY)).toBe(JSON.stringify({ version: 1, attempts: [] }));
+  });
+});
+
+describe("reconciling with My Orders (P4-F)", () => {
+  it("a quiet check (from My Orders) settles the attempt but leaves the checkout session alone", async () => {
+    const record = await unknownAttempt();
+    const { flow } = tab(gateway({ GET: () => json(200, result(record.attempt_ref, "payment_failed")) }).fetch);
+    expect(await flow.check(record, { quiet: true })).toMatchObject({ kind: "definite" });
+    expect(flow.getSession()).toEqual({ phase: "idle" });
+    expect(await held()).toEqual([]);
+  });
+
+  it("a POST that times out never downgrades an attempt another tab already knows is processing", async () => {
+    localStorage.setItem(CART_STORAGE_KEY, JSON.stringify({ version: 1, lines: ORDERED }));
+    let fail: (error: Error) => void = () => undefined;
+    const api = gateway({ POST: () => new Promise<Response>((_, reject) => (fail = reject)) });
+    const a = tab(api.fetch);
+    const placing = a.flow.place(ORDERED, contact);
+    await vi.waitFor(() => expect(api.count("POST")).toBe(1));
+    const record = (await held())[0] as unknown as AttemptRecord;
+    // Tab B reads the list: the server already has it, processing.
+    expect(await tab(gateway({}).fetch).flow.reconcile(record, result(record.attempt_ref, "processing"), CUSTOMER)).toBe(true);
+    fail(new TypeError("Failed to fetch"));
+    expect(await placing).toMatchObject({ kind: "unknown" });
+    expect((await held()).map((a) => a.status)).toEqual(["processing"]);
+  });
+
+  it("a held unknown attempt the server lists as confirmed is settled and its cart effect applied once, sending nothing", async () => {
+    const record = await unknownAttempt();
+    const api = gateway({});
+    const { flow, cart } = tab(api.fetch);
+    cart.add("sku-003"); // added while the outcome was unknown: stays
+    expect(await flow.reconcile(record, result(record.attempt_ref, "confirmed"), CUSTOMER)).toBe(true);
+    expect(await held()).toEqual([]);
+    expect(cart.getLines()).toEqual([{ product_id: "sku-003", quantity: 1 }]);
+    // Again, and then a Check status answer for the same order: nothing more comes out.
+    cart.add("sku-001");
+    expect(await flow.reconcile(record, result(record.attempt_ref, "confirmed"), CUSTOMER)).toBe(false);
+    await tab(gateway({ GET: () => json(200, result(record.attempt_ref, "confirmed")) }).fetch).flow.check(record);
+    expect(JSON.parse(localStorage.getItem(CART_STORAGE_KEY) ?? "").lines).toEqual([
+      { product_id: "sku-003", quantity: 1 },
+      { product_id: "sku-001", quantity: 1 },
+    ]);
+    expect(api.calls).toEqual([]);
+  });
+
+  it("two tabs reconciling and checking the same confirmed order at once take the units out once", async () => {
+    const record = await unknownAttempt();
+    const a = tab(gateway({}).fetch);
+    const b = tab(gateway({ GET: () => json(200, result(record.attempt_ref, "confirmed")) }).fetch);
+    a.cart.add("sku-001");
+    await Promise.all([a.flow.reconcile(record, result(record.attempt_ref, "confirmed"), CUSTOMER), b.flow.check(record)]);
+    expect(JSON.parse(localStorage.getItem(CART_STORAGE_KEY) ?? "").lines).toEqual([{ product_id: "sku-001", quantity: 1 }]);
+  });
+
+  it("a declined result settles the attempt and keeps the cart; processing only marks it", async () => {
+    const record = await unknownAttempt();
+    const { flow, cart } = tab(gateway({}).fetch);
+    expect(await flow.reconcile(record, result(record.attempt_ref, "processing"), CUSTOMER)).toBe(true);
+    expect((await held()).map((a) => a.status)).toEqual(["processing"]);
+    expect(await flow.reconcile(record, result(record.attempt_ref, "payment_failed", { error_code: "payment_declined" }), CUSTOMER)).toBe(true);
+    expect(await held()).toEqual([]);
+    expect(cart.getLines()).toEqual(ORDERED);
+  });
+
+  it.each([
+    ["listed for another customer ID", (ref: string) => result(ref, "confirmed"), "web-zzzzzzzzzzzzzzzzzzzzzz"],
+    ["for another reference", () => result("ATT-FFFF-0001", "confirmed"), CUSTOMER],
+    ["malformed (confirmed without an order number)", (ref: string) => result(ref, "confirmed", { order_number: null }), CUSTOMER],
+    ["not a result at all", () => ({ error_code: "x" }), CUSTOMER],
+  ])("a list entry %s changes nothing", async (_name, entry, listedFor) => {
+    const record = await unknownAttempt();
+    const { flow, cart } = tab(gateway({}).fetch);
+    expect(await flow.reconcile(record, entry(record.attempt_ref), listedFor)).toBe(false);
+    expect((await held()).map((a) => a.status)).toEqual(["unknown"]);
+    expect(cart.getLines()).toEqual(ORDERED);
+  });
+
+  it("a confirmed order this browser no longer holds takes nothing from the cart", async () => {
+    localStorage.setItem(CART_STORAGE_KEY, JSON.stringify({ version: 1, lines: ORDERED }));
+    const { flow, cart } = tab(gateway({}).fetch);
+    const gone: AttemptRecord = { attempt_ref: "ATT-1A2B-0099", customer_id: CUSTOMER, lines: ORDERED, created_at: "", status: "unknown" };
+    expect(await flow.reconcile(gone, result("ATT-1A2B-0099", "confirmed"), CUSTOMER)).toBe(false);
+    expect(cart.getLines()).toEqual(ORDERED);
+  });
+
+  it("a very old unknown attempt confirmed today is journalled today: a crash replay still applies it, once (U8)", async () => {
+    const record = await unknownAttempt();
+    const old = { ...record, created_at: "2025-01-01T00:00:00.000Z" };
+    // The gate step commits; the cart write is lost (crash) — simulated by confirming directly.
+    await createAttemptStore().confirm(old.attempt_ref, "2026-10-27T10:05:00.000Z");
+    const next = tab(gateway({}).fetch);
+    await next.flow.replayEffects();
+    await next.flow.replayEffects();
+    expect(next.cart.getLines()).toEqual([]);
   });
 });

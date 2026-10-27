@@ -136,12 +136,25 @@
  * Narrow screens with Search or Cart (derived; no artboard): the row cannot hold Experiments too,
  * so it moves to a slim row above, and Search shows its icon only.
  */
+/* Phones only: the main navigation is hidden there (derived; no phone header artboard). */
+.phoneLink {
+  display: none;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.phoneLink[aria-current="page"] {
+  color: var(--color-ink);
+  text-decoration: underline;
+  text-underline-offset: 0.3em;
+}
+
 @media (max-width: 59.99rem) {
   .header[data-tools] {
-    grid-template-columns: 1fr auto auto;
+    grid-template-columns: 1fr auto auto auto;
     grid-template-areas:
-      "exp exp exp"
-      "brand search cart";
+      "exp exp exp exp"
+      "brand orders search cart";
     column-gap: var(--space-5);
     row-gap: var(--space-3);
     padding-block-start: var(--space-3);
@@ -170,6 +183,11 @@
 
   .header[data-tools] .cart {
     grid-area: cart;
+  }
+
+  .header[data-tools] .phoneLink {
+    display: inline-flex;
+    grid-area: orders;
   }
 
   .searchLabel {

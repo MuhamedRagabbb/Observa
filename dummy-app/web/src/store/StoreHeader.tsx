@@ -19,6 +19,8 @@ type StoreHeaderProps =
   | {
       /** Main navigation, in order. Pass only links whose page exists. */
       links: HeaderLink[];
+      /** Phones hide the main navigation: one link that stays reachable there (My Orders). */
+      phoneLink?: { to: string; label: string };
       /** Present only once search works (P4-G). */
       search?: { onOpen: () => void };
       /** Present only once the cart works (P4-C). */
@@ -29,6 +31,7 @@ type StoreHeaderProps =
       /** Focused pages (checkout, outcomes): the wordmark and one way back, no navigation. */
       back: { to: string; label: string; state?: unknown };
       links?: never;
+      phoneLink?: never;
       search?: never;
       cart?: never;
     };
@@ -76,6 +79,11 @@ export function StoreHeader(props: StoreHeaderProps) {
               Experiments
             </CrossAppLink>
             {props.search || props.cart ? <span className={styles.divider} aria-hidden="true" /> : null}
+            {props.phoneLink ? (
+              <NavLink to={props.phoneLink.to} className={`${styles.utility} ${styles.phoneLink}`}>
+                {props.phoneLink.label}
+              </NavLink>
+            ) : null}
             {props.search ? (
               <button type="button" className={`${styles.utility} ${styles.search}`} onClick={props.search.onOpen}>
                 <Icon name="search" className={styles.searchIcon} />

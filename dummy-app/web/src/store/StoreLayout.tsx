@@ -9,12 +9,13 @@ import { StoreHeader, type HeaderLink } from "./StoreHeader.tsx";
 import styles from "./StoreLayout.module.css";
 
 /**
- * What the header offers today, besides the Cart. My Orders (P4-F) and Search (P4-G) join it in
+ * What the header offers today, besides the Cart. Search (P4-G) joins it in
  * the slices that make them work.
  */
 const LINKS: HeaderLink[] = [
   { to: "/", label: "Home", end: true },
   { to: `/#${COLLECTION_ID}`, label: "Products", section: true },
+  { to: "/orders", label: "My Orders" },
 ];
 
 export function StoreLayout() {
@@ -46,7 +47,7 @@ function Page() {
       {checkout ? (
         <StoreHeader back={{ to: "/", label: "Return to cart", state: OPEN_CART }} />
       ) : (
-        <StoreHeader links={LINKS} cart={{ count: cart.units, onOpen: cart.open }} />
+        <StoreHeader links={LINKS} phoneLink={{ to: "/orders", label: "My Orders" }} cart={{ count: cart.units, onOpen: cart.open }} />
       )}
       <main className={styles.main} aria-label="Storefront">
         <Outlet />
