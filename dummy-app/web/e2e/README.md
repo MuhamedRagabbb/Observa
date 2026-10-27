@@ -4,7 +4,7 @@ Playwright 1.64.0 (exact pin). Chromium only. Every state is captured at **1440,
 
 | Command (in `web/`) | What it does |
 |---|---|
-| `npm run e2e` | Builds both bundles, serves them with `vite preview` on 4380 (store) and 4381 (operator), and runs the mocked-mode tests. Screenshots go to `e2e-output/screens/<width>/<state>.png`. |
+| `npm run e2e` | Builds both bundles and the test-only component gallery, serves them with `vite preview` on 4380 (store), 4381 (operator) and 4382 (gallery), and runs the mocked-mode tests. Screenshots go to `e2e-output/screens/<width>/<state>.png`. |
 | `npm run e2e:review` | Writes `e2e-output/review/index.html`: each capture beside its approved artboard, per width. Artboards are read from `docs/design/artboards/` (local only; `ARTBOARDS_DIR` overrides). |
 | `E2E_STACK_URL=http://127.0.0.1:18000/ui/next/ npx playwright test` | Stack mode: runs only `*.stack.spec.ts` against a running preview project, without mocks. Never point it at the live stack. |
 | `npm run dev:store` / `npm run dev:operator` | Hot-reload dev servers on 127.0.0.1:5180 / 5181, proxying API calls to the preview project (`OBSERVA_GATEWAY_URL`, default `http://127.0.0.1:18000`; `OBSERVA_CONTROLLER_URL`, default `:18090`). Live ports 8000/8090 are refused. |
@@ -20,7 +20,8 @@ All output (`e2e-output/`) is git-ignored and kept out of the Docker build conte
   Routing covers the whole browser context, popups included. A test fails at teardown if a violation is left, unless it takes them with `api.takeViolations()`. A test with `test.fail` proves that rule.
 - **No proxy behind the mocks:** `vite preview` runs with an empty proxy, so a request that slipped through could not reach any stack. Stack mode refuses a live `E2E_STACK_URL`.
 - **Fixtures come from the system, not the artboards (audit item 5):** `fixtures/gateway.ts` is the seeded catalogue (checked against `scripts/init-db.sql`), typed by the generated API types.
-- **Captures:** `capture(stateId)` accepts only ids from `coverage.ts` (or the two harness shells), waits for fonts, disables animations and takes a full-page screenshot.
+- **Component gallery (test-only):** `gallery/` is built by `vite.gallery.config.ts` into `e2e-output/gallery-dist` and never ships (the Docker image copies only `dist/`). It shows each shared component in every state (`GALLERY_URL`) and the full and focused store headers (`?view=headers`), including items that later slices enable. Its origin serves only its own files and `/ui/config`; it has no API.
+- **Captures:** `capture(stateId)` accepts only ids from `coverage.ts` or `HARNESS_STATES` (the two shells, `gallery-components`, `gallery-headers`), waits for fonts, disables animations and takes a full-page screenshot.
 - **Diagnostics:** a failing test, or one with leftover violations, gets a `browser-diagnostics` attachment: console errors, failed requests, violations and the per-request routing log. Non-JSON request bodies reach handlers as text. An exception in a handler is recorded as a violation instead of crashing the run.
 - **Two workers:** more parallel browsers starved the preview servers on a workstation and caused timeouts. 54 of 54 passed across 3 repeats with 2 workers.
 

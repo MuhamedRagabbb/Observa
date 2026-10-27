@@ -30,7 +30,7 @@ describe("bundle shells", () => {
   it("the storefront shell shows the OBSERVA wordmark and an empty storefront region", () => {
     renderShell(storeRoutes);
     const banner = screen.getByRole("banner");
-    expect(within(banner).getByText("OBSERVA")).toBeTruthy();
+    expect(within(banner).getByRole("img", { name: "OBSERVA" })).toBeTruthy();
     expect(within(banner).queryByText("Operator")).toBeNull();
     expect(screen.getByRole("main", { name: "Storefront" })).toBeTruthy();
   });
@@ -38,7 +38,7 @@ describe("bundle shells", () => {
   it("the operator shell is labelled as the operator surface", () => {
     renderShell(operatorRoutes);
     const banner = screen.getByRole("banner");
-    expect(within(banner).getByText("OBSERVA")).toBeTruthy();
+    expect(within(banner).getByRole("img", { name: "OBSERVA" })).toBeTruthy();
     expect(within(banner).getByText("Operator")).toBeTruthy();
     expect(screen.getByRole("main", { name: "Operator" })).toBeTruthy();
   });

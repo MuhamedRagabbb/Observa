@@ -1,0 +1,140 @@
+/*
+ * Directional-fill button. Artboards: Hero "Shop the collection" and Checkout "Place Order"
+ * (60px, large), Product Collection "Add to cart" and "Sold out" (48px, medium), Cart empty
+ * "Shop the collection" (secondary). The icon block's colour sweeps across the label on hover
+ * and keyboard focus (audit: "subtle, reversible directional fills"); reduced motion makes the
+ * sweep instant.
+ */
+.button {
+  --button-height: var(--control-height-medium);
+  --icon-block: var(--control-height-medium);
+
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  align-items: stretch;
+  min-height: var(--button-height);
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  font: inherit;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  user-select: none;
+}
+
+.medium {
+  font-size: var(--text-control);
+}
+
+.large {
+  --button-height: var(--control-height-large);
+  --icon-block: var(--control-height-large);
+
+  font-size: var(--text-body-large);
+}
+
+.block {
+  display: flex;
+  width: 100%;
+}
+
+.fill {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  z-index: -1;
+  width: var(--icon-block);
+  transition: width var(--motion-duration-base) var(--motion-ease);
+}
+
+.iconBlock {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--icon-block);
+  font-size: 1.125rem;
+}
+
+.label {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  padding-inline: var(--space-5) var(--space-6);
+  white-space: nowrap;
+}
+
+.large .label {
+  padding-inline: var(--space-8);
+}
+
+/* Primary: ink label area, softer ink icon block (sampled #151614 / #40413c). */
+.button[data-variant="primary"] {
+  background: var(--color-ink);
+  color: var(--color-on-ink);
+  box-shadow: var(--shadow-button);
+}
+
+.button[data-variant="primary"] .fill {
+  background: var(--color-ink-accent);
+}
+
+/* Secondary: light label area with a hairline, grey icon block (Cart drawer, empty). */
+.button[data-variant="secondary"] {
+  border-color: var(--color-line-control);
+  background: var(--color-field);
+  color: var(--color-ink);
+}
+
+.button[data-variant="secondary"] .fill {
+  background: var(--color-control-disabled);
+}
+
+@media (hover: hover) {
+  .button:not(:disabled, [aria-disabled="true"]):hover .fill {
+    width: 100%;
+  }
+}
+
+.button:not(:disabled, [aria-disabled="true"]):focus-visible .fill {
+  width: 100%;
+}
+
+/* Disabled (Sold out; Proceed to Checkout with an unavailable item): flat grey, no shadow. */
+.button:disabled {
+  border-color: transparent;
+  background: var(--color-control-disabled);
+  color: var(--color-text-disabled-label);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.button:disabled .fill {
+  background: transparent;
+}
+
+.button:disabled .iconBlock {
+  color: var(--color-text-subtle);
+}
+
+.button[aria-busy="true"] {
+  cursor: progress;
+}
+
+.spinner {
+  width: 1em;
+  height: 1em;
+  border: 1.5px solid currentColor;
+  border-inline-end-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(1turn);
+  }
+}

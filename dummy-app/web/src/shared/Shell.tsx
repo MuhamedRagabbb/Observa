@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import styles from "./Shell.module.css";
+import { Wordmark } from "./ui/Brand.tsx";
 
 type ShellProps = {
   /** Accessible name of the page's main region. */
@@ -15,7 +16,7 @@ export function Shell({ regionLabel, surface, nav, children }: ShellProps) {
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <span className={styles.wordmark}>OBSERVA</span>
+        <Wordmark className={styles.wordmark} />
         {surface ? <span className={styles.surface}>{surface}</span> : null}
         {nav ? <nav className={styles.nav}>{nav}</nav> : null}
       </header>

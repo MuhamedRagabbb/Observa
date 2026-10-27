@@ -1,0 +1,9 @@
+.page {
+  min-height: 100vh;
+  width: min(var(--layout-max), 100% - 2 * var(--layout-gutter));
+  margin-inline: auto;
+}
+
+.main {
+  padding-block: var(--space-12);
+}

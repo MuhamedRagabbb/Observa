@@ -1,0 +1,46 @@
+/* Artboards: Product Collection "In stock" (green dot) and "Out of stock" (ring); My Orders statuses. */
+.marker {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--text-small);
+}
+
+.marker[data-tone="ink"] {
+  color: var(--color-ink);
+}
+
+.marker[data-tone="fault"] {
+  color: var(--color-fault);
+}
+
+.dot {
+  --dot: var(--color-text-muted);
+
+  flex: none;
+  width: 0.4375rem;
+  height: 0.4375rem;
+  border: 1.5px solid var(--dot);
+  border-radius: 50%;
+}
+
+.dot[data-tone="success"] {
+  --dot: var(--color-success);
+}
+
+.dot[data-tone="ink"] {
+  --dot: var(--color-ink);
+}
+
+.dot[data-tone="fault"] {
+  --dot: var(--color-fault);
+}
+
+.dot[data-shape="filled"] {
+  background: var(--dot);
+}
+
+.dot[data-shape="half"] {
+  background: linear-gradient(90deg, var(--dot) 50%, transparent 50%);
+}

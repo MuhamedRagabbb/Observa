@@ -69,7 +69,7 @@ describe("cross-app links", () => {
     renderShell(storeRoutes);
     await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
     await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(screen.queryByRole("link")).toBeNull();
+    expect(screen.queryByRole("link", { name: "Experiments" })).toBeNull();
     expect(screen.getByRole("main", { name: "Storefront" })).toBeTruthy();
   });
 
@@ -78,6 +78,6 @@ describe("cross-app links", () => {
     renderShell(storeRoutes);
     await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
     await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(screen.queryByRole("link")).toBeNull();
+    expect(screen.queryByRole("link", { name: "Experiments" })).toBeNull();
   });
 });

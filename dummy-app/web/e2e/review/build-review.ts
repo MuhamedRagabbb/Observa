@@ -116,8 +116,33 @@ const isCli = process.argv[1] !== undefined && resolve(process.argv[1]) === file
 if (isCli) {
   const web = join(import.meta.dirname, "..", "..");
   const harness: ReviewState[] = [
-    { id: "shell-store", slice: "P4-0", screen: "Storefront shell (harness check)", approved: {}, derived: VIEWPORT_ORDER },
+    {
+      id: "shell-store",
+      slice: "P4-A",
+      screen: "Storefront header as shipped: Home and Experiments only",
+      approved: {},
+      derived: VIEWPORT_ORDER,
+      reference: { "desktop-1440": "Hero background — 16 9 desktop.png", "mobile-390": "Mobile — Status unknown.png", "mobile-375": "Mobile — Status unknown.png" },
+    },
     { id: "shell-operator", slice: "P4-0", screen: "Operator shell (harness check)", approved: {}, derived: VIEWPORT_ORDER },
+    {
+      id: "gallery-components",
+      slice: "P4-A",
+      screen: "Shared components (test-only gallery)",
+      approved: {},
+      derived: VIEWPORT_ORDER,
+      reference: { "desktop-1440": "Product Collection — 1440 desktop.png", "mobile-390": "Product Collection — 390 mobile.png", "mobile-375": "Cart sheet — 375 mobile.png" },
+      note: "Buttons, links, status markers, notices, steppers and placeholder images in every state.",
+    },
+    {
+      id: "gallery-headers",
+      slice: "P4-A",
+      screen: "Full and focused storefront headers (test-only gallery)",
+      approved: {},
+      derived: VIEWPORT_ORDER,
+      reference: { "desktop-1440": "My Orders — list, 1440 desktop.png", "mobile-390": "Mobile — Status unknown.png", "mobile-375": "Mobile — Status unknown.png" },
+      note: "Every header item, including those that later slices enable. The shipped store header shows only working items (shell-store).",
+    },
   ];
   const summary = buildReview({
     states: [...harness, ...COVERAGE],

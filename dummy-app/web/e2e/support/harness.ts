@@ -18,9 +18,12 @@ export const STORE_ORIGIN = `http://127.0.0.1:${PREVIEW_PORTS.store}`;
 export const OPERATOR_ORIGIN = `http://127.0.0.1:${PREVIEW_PORTS.operator}`;
 export const STORE_URL = `${STORE_ORIGIN}/ui/next/`;
 export const OPERATOR_URL = `${OPERATOR_ORIGIN}/ui/next/`;
+/** The test-only component gallery (e2e/gallery). It has no API: only its files and /ui/config. */
+export const GALLERY_ORIGIN = `http://127.0.0.1:${PREVIEW_PORTS.gallery}`;
+export const GALLERY_URL = `${GALLERY_ORIGIN}/ui/next/`;
 
 /** States that exist only to check the harness itself (not storefront artboards). */
-export const HARNESS_STATES = ["shell-store", "shell-operator"] as const;
+export const HARNESS_STATES = ["shell-store", "shell-operator", "gallery-components", "gallery-headers"] as const;
 
 export const SCREENS_DIR = join(import.meta.dirname, "..", "..", "e2e-output", "screens");
 
@@ -114,12 +117,12 @@ export class MockApi {
     const request = route.request();
     const url = new URL(request.url());
     const method = request.method() as Method;
-    if (url.origin !== STORE_ORIGIN && url.origin !== OPERATOR_ORIGIN) {
+    if (url.origin !== STORE_ORIGIN && url.origin !== OPERATOR_ORIGIN && url.origin !== GALLERY_ORIGIN) {
       this.violations.push(`cross-origin ${method} ${url.origin}${url.pathname}`);
       return route.abort("blockedbyclient");
     }
     if (url.pathname === "/ui/config") {
-      const config = url.origin === STORE_ORIGIN ? STORE_UI_CONFIG : OPERATOR_UI_CONFIG;
+      const config = url.origin === OPERATOR_ORIGIN ? OPERATOR_UI_CONFIG : STORE_UI_CONFIG;
       return route.fulfill({ status: 200, json: config });
     }
     if (passesThrough(url.pathname)) return route.continue();

@@ -1,0 +1,7 @@
+/* Height drives size; width follows the viewBox. Artboards: about 200px wide at 1440, 148px at 375 [measured]. */
+.wordmark {
+  display: block;
+  height: var(--wordmark-height, 1.5rem);
+  width: auto;
+  color: var(--color-ink);
+}

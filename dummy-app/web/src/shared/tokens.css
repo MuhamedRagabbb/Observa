@@ -22,6 +22,14 @@
   --color-line-strong: #e4e4df; /* field and card borders */
   --color-line-soft: #ecece8; /* table rows */
 
+  /* Colour: controls and imagery [sampled] Product Collection 1440, Cart drawer (empty, unavailable), My Orders 1440 */
+  --color-tile: #edede9; /* product image tiles and placeholders */
+  --color-control-disabled: #e6e6e1; /* "Sold out", disabled "Proceed to Checkout", secondary icon block */
+  --color-line-control: #cfcfc9; /* secondary button outline */
+  --color-divider: #d6d6d1; /* header rule between Experiments and Search */
+  --color-text-disabled-label: #5e5f5b; /* "Sold out" label */
+  --color-glyph-disabled: #b5b5af; /* stepper minus at the minimum */
+
   /* Colour: ink and text [sampled] same artboards */
   --color-ink: #151614; /* headings, primary button */
   --color-ink-soft: #1b1c1a; /* body text on light */
@@ -51,11 +59,9 @@
   --text-body: 1rem;
   --text-small: 0.875rem;
   --text-caption: 0.75rem; /* uppercase eyebrows and table headers */
-  --text-wordmark: 1.375rem;
   --leading-tight: 1.1;
   --leading-body: 1.5;
   --tracking-caps: 0.08em; /* [inferred] "EXPERIMENT", "OPERATOR" */
-  --tracking-wordmark: 0.18em; /* [inferred] interim text wordmark */
 
   /* Space: 4px base [inferred]; gutter [measured] 20px at 375 and 390, 80px at 1440 */
   --space-1: 0.25rem;
@@ -70,6 +76,12 @@
   --space-16: 4rem;
   --layout-max: 80rem; /* [measured] Operator 1440: 80px gutters around 1280px */
   --layout-gutter: clamp(1.25rem, 5.56vw, 5rem);
+
+  /* Controls [measured] Hero and Checkout buttons 60px, collection buttons 48px, stepper 44px; label size [inferred] */
+  --control-height-large: 3.75rem;
+  --control-height-medium: 3rem;
+  --control-height-small: 2.75rem;
+  --text-control: 0.9375rem;
 
   /* Shape and depth [inferred] Checkout summary card, primary button */
   --radius-control: 4px;

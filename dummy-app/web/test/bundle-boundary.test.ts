@@ -65,6 +65,10 @@ describe("bundle boundary", () => {
     expect(CONTROLLER_API.filter((file) => files.has(file))).toEqual([]);
   });
 
+  it("neither bundle reaches test-only code (the gallery, fixtures) outside src/", () => {
+    expect([...from("store"), ...from("operator")].filter((file) => file.startsWith("../"))).toEqual([]);
+  });
+
   it("operator code never reaches store code", () => {
     expect(inside(from("operator"), "store/")).toEqual([]);
   });
@@ -74,7 +78,10 @@ describe("bundle boundary", () => {
     expect([...inside(files, "store/"), ...inside(files, "operator/"), ...inside(files, "api/")]).toEqual([]);
   });
 
-  it("follows imports through to the shared shell", () => {
-    expect(from("store").has("shared/Shell.tsx")).toBe(true);
+  it("follows imports through several files to shared code", () => {
+    // store/routes -> store/StoreLayout -> store/StoreHeader -> shared/ui/Brand
+    expect(from("store").has("shared/ui/Brand.tsx")).toBe(true);
+    // operator/routes -> shared/Shell -> shared/ui/Brand
+    expect(from("operator").has("shared/ui/Brand.tsx")).toBe(true);
   });
 });

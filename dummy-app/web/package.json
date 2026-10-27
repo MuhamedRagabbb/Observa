@@ -13,7 +13,8 @@
     "check:api": "node scripts/gen-api.ts --check",
     "test": "vitest run",
     "verify": "npm run typecheck && npm run check:api && npm run test",
-    "e2e": "npm run build && playwright test",
+    "e2e": "npm run build && npm run build:gallery && playwright test",
+    "build:gallery": "vite build --config vite.gallery.config.ts",
     "e2e:review": "node e2e/review/build-review.ts",
     "dev:store": "vite --config vite.store.config.ts",
     "dev:operator": "vite --config vite.operator.config.ts"

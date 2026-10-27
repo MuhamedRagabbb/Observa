@@ -35,5 +35,10 @@ export default defineConfig({
   })),
   webServer: stackUrl
     ? undefined
-    : [preview("vite.store.config.ts", PREVIEW_PORTS.store), preview("vite.operator.config.ts", PREVIEW_PORTS.operator)],
+    : [
+        preview("vite.store.config.ts", PREVIEW_PORTS.store),
+        preview("vite.operator.config.ts", PREVIEW_PORTS.operator),
+        // The test-only component gallery (e2e/gallery), built into e2e-output/ and never shipped.
+        preview("vite.gallery.config.ts", PREVIEW_PORTS.gallery),
+      ],
 });

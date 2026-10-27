@@ -1,0 +1,12 @@
+/* Artboards: collection, cart and checkout tiles share one warm-grey ground (#edede9 [sampled]). */
+.frame {
+  overflow: hidden;
+  background: var(--color-tile);
+}
+
+.image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
