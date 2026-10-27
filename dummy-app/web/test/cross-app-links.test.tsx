@@ -52,7 +52,7 @@ describe("crossAppUrl", () => {
     const page = new URL("http://192.168.1.20:8000/ui/next/orders?x=1#top");
     expect(crossAppUrl(config("store"), "control", page)).toBe("http://192.168.1.20:18090/ui/next/");
     expect(crossAppUrl(config("control"), "store", new URL("https://demo.test:18090/ui/next/"))).toBe(
-      "https://demo.test:18000/ui/next/",
+      "https://demo.test:18000/",
     );
     expect(crossAppUrl(config("store"), "control", new URL("http://[::1]:8000/ui/next/"))).toBe(
       "http://[::1]:18090/ui/next/",
@@ -73,7 +73,8 @@ describe("cross-app links", () => {
     stubFetch(async () => Response.json(config("control")));
     renderShell(operatorRoutes);
     const link = await screen.findByRole("link", { name: "Storefront" });
-    expect(link.getAttribute("href")).toBe("http://192.168.1.20:18000/ui/next/");
+    // The storefront is at / on the Gateway since P4-H.
+    expect(link.getAttribute("href")).toBe("http://192.168.1.20:18000/");
   });
 
   it("shows no link rather than a guessed one when /ui/config fails", async () => {

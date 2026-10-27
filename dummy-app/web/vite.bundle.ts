@@ -52,11 +52,17 @@ function devTarget(name: Bundle, env: Record<string, string | undefined>) {
   return refuseLive(DEV[name].env, env[DEV[name].env] ?? DEV[name].target);
 }
 
-export function bundleConfig(name: Bundle, env: Record<string, string | undefined> = process.env): UserConfig {
+export function bundleConfig(
+  name: Bundle,
+  env: Record<string, string | undefined> = process.env,
+  command: "build" | "serve" = "build",
+): UserConfig {
   const target = devTarget(name, env);
   return defineConfig({
     root: here(`./src/${name}`),
-    base: BUNDLE_PATH,
+    // Built files always live under /ui/next/. The store's pages are at / (P4-H), so its dev
+    // server serves from / for direct links such as /checkout to work with hot reload.
+    base: name === "store" && command === "serve" ? "/" : BUNDLE_PATH,
     publicDir: false,
     plugins: [react(), fontLicences()],
     build: {

@@ -90,12 +90,16 @@ def test_gateway_serves_only_the_store_build(probe):
         probe["scripts"]["store"],
         probe["scripts"]["operator"],
     )
-    for path in ("/ui/next/", "/ui/next/orders/ATT-1"):
+    # P4-H: the store's pages are at /; old /ui/next/ page links redirect; non-pages are 404.
+    for path in ("/", "/checkout", "/orders", "/orders/ATT-5A0E-0001"):
         assert (gateway[path]["status"], gateway[path]["title"], gateway[path]["cache"]) == (
             200,
             "OBSERVA",
             "no-cache",
-        )
+        ), path
+    for path in ("/orders/ATT-1", "/unavailable", "/ui/next/orders/ATT-1"):
+        assert gateway[path]["status"] == 404, path
+    assert gateway["/ui/next/"]["status"] == 308
     asset = gateway[f"/ui/next/assets/{store_js}"]
     assert (asset["status"], asset["cache"]) == (200, IMMUTABLE)
     assert asset["type"].startswith("text/javascript")

@@ -446,3 +446,25 @@ async def build_mesh(
             "transport": transport,
             "logs": logs,
         }
+
+
+# Fake React builds for the serving tests, in a folder named by UI_BUNDLE_DIR.
+def write_build(root, name):
+    build = root / name
+    (build / "assets").mkdir(parents=True)
+    (build / "licenses").mkdir()
+    (build / "index.html").write_text(f'<!doctype html><html lang="en"><title>{name}</title>', "utf-8")
+    (build / "assets" / f"{name}-Ab12.js").write_text(f"console.log('{name}')", "utf-8")
+    (build / "assets" / f"{name}-Cd34.css").write_text("body{margin:0}", "utf-8")
+    (build / "assets" / "inter-latin-Ef56.woff2").write_bytes(b"wOF2font")
+    (build / "licenses" / "inter-OFL.txt").write_text("SIL Open Font License, Version 1.1", "utf-8")
+    return build
+
+
+@pytest.fixture
+def builds(tmp_path, monkeypatch):
+    root = tmp_path / "dist"
+    write_build(root, "store")
+    write_build(root, "operator")
+    monkeypatch.setenv("UI_BUNDLE_DIR", str(root))
+    return root

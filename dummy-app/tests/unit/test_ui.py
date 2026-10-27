@@ -3,21 +3,17 @@ import httpx
 from controllers.fault_injector.app import create_app
 
 
-async def test_store_ui_static_requests_are_not_application_telemetry(mesh):
+async def test_store_ui_config_requests_are_not_application_telemetry(mesh):
+    """The Gateway's /ui/config (the React store reads it for cross-app links). The legacy
+    Arabic store page and its files were removed in P4-H (see test_store_cutover.py)."""
     before = mesh["logs"].getvalue()
     client = mesh["client"]
-    response = await client.get("/")
-    assert response.status_code == 200
-    assert 'lang="ar" dir="rtl"' in response.text
-    assert 'id="checkout-dialog"' in response.text
-    assert "faults/activate" not in response.text
+    response = await client.get("/ui/config")
     assert "x-trace-id" not in response.headers
-    config = (await client.get("/ui/config")).json()
+    config = response.json()
     assert config["mode"] == "store"
     assert config["ports"]["control"] == 8090
     assert "local-control-only" not in str(config)
-    for name in ("style.css", "app.js", "store.js", "common.js", "products.svg", "mark.svg"):
-        assert (await client.get("/ui/assets/" + name)).status_code == 200
     assert (await client.get("/ui/assets/control.html")).status_code == 404
     assert mesh["logs"].getvalue() == before
     # Actual shopping API calls continue to produce correlated telemetry.

@@ -64,7 +64,9 @@ async def main():
     store_js, operator_js = scripts("store"), scripts("operator")
     fonts = sorted(p.name for p in (DIST / "store" / "assets").glob("*.woff2"))
     common = ["/", "/ui/next", "/ui/next/", "/ui/next/orders/ATT-1", "/ui/next/missing.js"]
-    gateway_paths = common + [f"/ui/next/assets/{n}" for n in store_js + operator_js + fonts[:1]]
+    # P4-H: the store's pages are at / on the Gateway (an allowlist, not a catch-all).
+    pages = ["/checkout", "/orders", "/orders/ATT-5A0E-0001", "/orders/ATT-1", "/unavailable"]
+    gateway_paths = common + pages + [f"/ui/next/assets/{n}" for n in store_js + operator_js + fonts[:1]]
     gateway_paths += ["/ui/next/licenses/inter-OFL.txt", "/api/products"]
     controller_paths = common + [f"/ui/next/assets/{n}" for n in operator_js + store_js]
 

@@ -6,7 +6,7 @@ Playwright 1.64.0 (exact pin). Chromium only. Every state is captured at **1440,
 |---|---|
 | `npm run e2e` | Builds both bundles and the test-only component gallery, serves them with `vite preview` on 4380 (store), 4381 (operator) and 4382 (gallery), and runs the mocked-mode tests. Screenshots go to `e2e-output/screens/<width>/<state>.png`. |
 | `npm run e2e:review` | Writes `e2e-output/review/index.html`: each capture beside its approved artboard, per width. Artboards are read from `docs/design/artboards/` (local only; `ARTBOARDS_DIR` overrides). |
-| `E2E_STACK_URL=http://127.0.0.1:18000/ui/next/ npx playwright test` | Stack mode: runs only `*.stack.spec.ts` against a running preview project, without mocks. Never point it at the live stack. |
+| `E2E_STACK_URL=http://127.0.0.1:18000 npx playwright test` | Stack mode: runs only `*.stack.spec.ts` against a running preview project, without mocks. Never point it at the live stack. |
 | `npm run dev:store` / `npm run dev:operator` | Hot-reload dev servers on 127.0.0.1:5180 / 5181, proxying API calls to the preview project (`OBSERVA_GATEWAY_URL`, default `http://127.0.0.1:18000`; `OBSERVA_CONTROLLER_URL`, default `:18090`). Live ports 8000/8090 are refused. |
 
 All output (`e2e-output/`) is git-ignored and kept out of the Docker build context.
@@ -118,4 +118,8 @@ These follow the approved outcome rules:
 - From another page (My Orders), Search navigates to `/` with the field open (the request is spent on arrival; Back, Forward and reload do not reopen it). Leaving the home page ends the search. The checkout header has no Search.
 - Phone header (derived, no artboard): My Orders sits in the top row opposite Experiments, Search is a 44px icon button beside the cart; the DOM order matches the screen order.
 - Deviations/limitations: no search artboards exist (coverage ids `search-results`, `search-no-results` are derived, referenced to the hero and collection artboards); clearing or closing the search is not announced (the visible count changes); no Search on the checkout page by design.
+
+### Status after P4-H (cutover to `/`)
+- The store's pages are served at `/` on the Gateway from an explicit allowlist (`/`, `/checkout`, `/orders`, `/orders/<OBS-… or ATT-…>`, GET/HEAD); its files stay at `/ui/next/assets/`; `/ui/next/<page>` redirects (308). The mocked harness mirrors this (`STORE_PAGE_PATTERN`, kept equal to `services/shared/ui.py` `STORE_PAGE` by a pytest). Any other same-origin path still needs a mock, so an unexpected request from the app is still caught.
+- `STORE_URL` is now the origin root. The operator bundle stays at `/ui/next/` until P5.
 

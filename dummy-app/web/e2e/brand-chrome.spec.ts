@@ -31,7 +31,7 @@ test.describe("storefront header as shipped", () => {
     await page.goto(STORE_URL);
     const banner = page.getByRole("banner");
     const home = banner.getByRole("link", { name: "OBSERVA" });
-    await expect(home).toHaveAttribute("href", "/ui/next"); // the server redirects to /ui/next/
+    await expect(home).toHaveAttribute("href", "/"); // the storefront is at / since P4-H
     await expect(banner.getByRole("link", { name: "Experiments" })).toHaveAttribute(
       "href",
       "http://127.0.0.1:18090/ui/next/",
@@ -41,7 +41,7 @@ test.describe("storefront header as shipped", () => {
     await expect(banner.getByRole("button", { name: "Search" })).toHaveAttribute("aria-expanded", "false");
     // My Orders (P4-F): in the main navigation on wide screens, beside the cart on phones.
     await expect(banner.getByRole("link", { name: "My Orders" })).toHaveCount(1);
-    await expect(banner.getByRole("link", { name: "My Orders" })).toHaveAttribute("href", "/ui/next/orders");
+    await expect(banner.getByRole("link", { name: "My Orders" })).toHaveAttribute("href", "/orders");
     const nav = page.getByRole("navigation", { name: "Main" });
     if (isDesktop(info.project.name)) {
       await expect(nav.getByRole("link", { name: "Home" })).toHaveAttribute("aria-current", "page");

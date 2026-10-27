@@ -1,7 +1,7 @@
 // Browser tests for the web bundles.
 // - Mocked mode (default): the production builds served by vite preview, every API call
 //   answered by typed mocks (e2e/support/harness.ts). Run with `npm run e2e`.
-// - Stack mode: E2E_STACK_URL=http://127.0.0.1:18000/ui/next/ runs only *.stack.spec.ts against
+// - Stack mode: E2E_STACK_URL=http://127.0.0.1:18000 runs only *.stack.spec.ts against
 //   a running throwaway preview project, never the live stack.
 import { defineConfig, devices } from "@playwright/test";
 import { VIEWPORTS } from "./e2e/coverage.ts";

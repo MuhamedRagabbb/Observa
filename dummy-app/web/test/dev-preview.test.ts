@@ -47,6 +47,19 @@ describe("preview and stack-mode guards", () => {
     expect(bundleConfig("operator", {}).preview?.proxy).toEqual({});
   });
 
+  it("builds both bundles' files under /ui/next/; only the store's dev server serves its pages at /", async () => {
+    expect(bundleConfig("store", {}).base).toBe("/ui/next/");
+    expect(bundleConfig("operator", {}).base).toBe("/ui/next/");
+    expect(bundleConfig("store", {}, "serve").base).toBe("/");
+    expect(bundleConfig("operator", {}, "serve").base).toBe("/ui/next/");
+    // `vite preview` serves the built files, so it keeps the build's base.
+    const { default: storeConfig } = await import("../vite.store.config.ts");
+    const resolve = storeConfig as unknown as (env: { command: "serve" | "build"; mode: string; isPreview?: boolean }) => { base?: string };
+    expect(resolve({ command: "serve", mode: "development" }).base).toBe("/");
+    expect(resolve({ command: "serve", mode: "production", isPreview: true }).base).toBe("/ui/next/");
+    expect(resolve({ command: "build", mode: "production" }).base).toBe("/ui/next/");
+  });
+
   it("refuses to run stack-mode browser tests against the live gateway", () => {
     const run = spawnSync("npx", ["playwright", "test", "--list"], {
       cwd: join(import.meta.dirname, ".."),

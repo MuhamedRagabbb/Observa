@@ -16,6 +16,7 @@ from services.shared.errors import AppError
 from services.shared.models import ERRORS, HealthResult, RuntimeUpdate
 from services.shared.runtime import Runtime
 from services.shared.telemetry import Telemetry, correlation, request_id_var
+from services.shared.ui import is_untraced_page
 
 
 class ObservabilityMiddleware:
@@ -23,10 +24,14 @@ class ObservabilityMiddleware:
         self.app, self.telemetry, self.runtime = app, telemetry, runtime
 
     async def __call__(self, scope, receive, send):
+        # Not business telemetry: health probes, the favicon, controller internals, /ui/ files
+        # and the pages this app serves (GET/HEAD on its allowlist; see services/shared/ui.py).
+        # Everything else, including unknown paths such as /unavailable, is recorded.
         if (
             scope["type"] != "http"
-            or scope["path"] in ("/health", "/", "/favicon.ico")
+            or scope["path"] in ("/health", "/favicon.ico")
             or scope["path"].startswith(("/_control", "/ui/"))
+            or is_untraced_page(scope["app"], scope["method"], scope["path"])
         ):
             return await self.app(scope, receive, send)
         headers = {k.decode(): v.decode() for k, v in scope["headers"]}

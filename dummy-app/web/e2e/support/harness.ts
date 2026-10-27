@@ -1,5 +1,6 @@
 // Playwright fixtures for mocked-mode tests.
-// - `api`: serves the built bundle (/ui/next/) from disk and /ui/config from fixtures; every other
+// - `api`: serves the built bundles from disk by the real server's rules (store pages at /, files
+//   under /ui/next/) and /ui/config from fixtures; every other
 //   request must match a typed handler for its own origin. Unmocked same-origin requests, other origins and WebSockets
 //   are aborted and recorded, and a test fails if any violation remains at teardown.
 // - `capture(stateId, target?)`: screenshot for the review page, named by coverage state: the full
@@ -17,7 +18,7 @@ export { expect };
 
 export const STORE_ORIGIN = `http://127.0.0.1:${PREVIEW_PORTS.store}`;
 export const OPERATOR_ORIGIN = `http://127.0.0.1:${PREVIEW_PORTS.operator}`;
-export const STORE_URL = `${STORE_ORIGIN}/ui/next/`;
+export const STORE_URL = `${STORE_ORIGIN}/`;
 export const OPERATOR_URL = `${OPERATOR_ORIGIN}/ui/next/`;
 /** The test-only component gallery (e2e/gallery). It has no API: only its files and /ui/config. */
 export const GALLERY_ORIGIN = `http://127.0.0.1:${PREVIEW_PORTS.gallery}`;
@@ -28,7 +29,7 @@ export const HARNESS_STATES = ["shell-store", "shell-operator", "gallery-compone
 
 export const SCREENS_DIR = join(import.meta.dirname, "..", "..", "e2e-output", "screens");
 
-type Method = "GET" | "POST" | "PUT" | "DELETE";
+type Method = "GET" | "HEAD" | "POST" | "PUT" | "DELETE";
 type GatewayPath = Exclude<keyof GatewayPaths, "/health">;
 type ControllerPath = Exclude<keyof ControllerPaths, "/health">;
 export type MockRequest = {
@@ -66,7 +67,18 @@ const CONTENT_TYPES: Record<string, string> = {
 const isExactFile = (file: string) =>
   existsSync(file) && statSync(file).isFile() && readdirSync(dirname(file)).includes(basename(file));
 
-async function serveBundle(route: Route, origin: string, path: string) {
+/** The store's pages on the Gateway: the same allowlist as services/shared/ui.py STORE_PAGE. */
+export const STORE_PAGE_PATTERN = "/(?:checkout|orders(?:/(?:OBS-[0-9]+-[0-9A-F]{4}|ATT-[0-9A-F]{4}-[0-9]{4}))?)?";
+export const STORE_PAGE = new RegExp(`^(?:${STORE_PAGE_PATTERN})$`);
+
+/** The store's entry page for an allowlisted page path, like the Gateway (P4-H). */
+async function serveStorePage(route: Route) {
+  const entry = join(BUNDLE_DIRS[STORE_ORIGIN] as string, "index.html");
+  if (!existsSync(entry)) return route.fulfill({ status: 404, body: "bundle not built" });
+  return route.fulfill({ path: entry, contentType: CONTENT_TYPES[".html"] ?? "text/html" });
+}
+
+async function serveBundle(route: Route, origin: string, path: string, search: string) {
   const root = BUNDLE_DIRS[origin] as string;
   // Like the real server: nothing at all is served while the bundle is not built.
   if (!existsSync(join(root, "index.html"))) return route.fulfill({ status: 404, body: "bundle not built" });
@@ -76,9 +88,15 @@ async function serveBundle(route: Route, origin: string, path: string) {
   if (folder === "assets" || folder === "licenses") {
     const candidate = normalize(join(root, rest));
     file = candidate.startsWith(root + sep) && isExactFile(candidate) ? candidate : null;
+  } else if (rest.split("/").pop()?.includes(".")) {
+    file = null; // a file name outside assets/ is never a page
+  } else if (origin === STORE_ORIGIN) {
+    // The store's pages moved to / (P4-H): an old /ui/next/<page> link redirects there.
+    const page = `/${rest}`;
+    if (!STORE_PAGE.test(page)) return route.fulfill({ status: 404, body: "not found" });
+    return route.fulfill({ status: 308, headers: { location: page + search } });
   } else {
-    // A client-side route gets the entry page; a file name outside assets/ never does.
-    file = rest.split("/").pop()?.includes(".") ? null : join(root, "index.html");
+    file = join(root, "index.html"); // the operator's client-side routes (until P5)
   }
   if (!file || !existsSync(file)) return route.fulfill({ status: 404, body: "not found" });
   return route.fulfill({ path: file, contentType: CONTENT_TYPES[extname(file)] ?? "application/octet-stream" });
@@ -166,7 +184,10 @@ export class MockApi {
       const config = url.origin === OPERATOR_ORIGIN ? OPERATOR_UI_CONFIG : STORE_UI_CONFIG;
       return route.fulfill({ status: 200, json: config });
     }
-    if (url.pathname.startsWith("/ui/next/")) return serveBundle(route, url.origin, url.pathname);
+    if (url.pathname.startsWith("/ui/next/")) return serveBundle(route, url.origin, url.pathname, url.search);
+    if (url.origin === STORE_ORIGIN && (method === "GET" || method === "HEAD") && STORE_PAGE.test(url.pathname)) {
+      return serveStorePage(route);
+    }
     if (url.pathname === "/favicon.ico") return route.fulfill({ status: 404, body: "no favicon" });
 
     const mock: MockRequest = {

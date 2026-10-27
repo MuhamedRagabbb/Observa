@@ -1,3 +1,5 @@
+import { defineConfig } from "vite";
 import { bundleConfig } from "./vite.bundle.ts";
 
-export default bundleConfig("store");
+// `vite preview` serves the built files, so it keeps the build's base (/ui/next/).
+export default defineConfig(({ command, isPreview }) => bundleConfig("store", process.env, isPreview ? "build" : command));

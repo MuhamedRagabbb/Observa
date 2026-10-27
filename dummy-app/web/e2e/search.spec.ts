@@ -131,7 +131,7 @@ test.describe("search", () => {
     await page.goto(`${STORE_URL}orders`);
     await expect(page.getByRole("heading", { level: 1, name: "My Orders" })).toBeVisible();
     await searchButton(page).click();
-    await expect(page).toHaveURL(/\/ui\/next\/?$/);
+    await expect(page).toHaveURL(STORE_URL);
     await expect(field(page)).toBeFocused();
     await expect(collection(page).getByRole("listitem")).toHaveCount(5);
     await expect.poll(() => inView(field(page))).toBe(true);

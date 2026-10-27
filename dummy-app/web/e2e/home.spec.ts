@@ -32,7 +32,7 @@ test.describe("hero", () => {
     const headline = page.getByRole("heading", { level: 1, name: "Quiet objects, closely observed." });
     const cta = page.getByRole("link", { name: "Shop the collection" });
     await expect(headline).toBeVisible();
-    await expect(cta).toHaveAttribute("href", "/ui/next#collection"); // the server redirects /ui/next to /ui/next/
+    await expect(cta).toHaveAttribute("href", "/#collection");
     // "observed." is set in the display serif's true italic, not a slanted upright.
     const italic = await headline.locator("em").evaluate((em) => {
       const style = getComputedStyle(em);
@@ -59,7 +59,7 @@ test.describe("hero", () => {
     const heading = page.getByRole("heading", { level: 2, name: "The Collection" });
     await expect(heading).toBeFocused();
     await expect(heading).toBeInViewport();
-    await expect(page).toHaveURL(/\/ui\/next\/?#collection$/);
+    await expect(page).toHaveURL(`${STORE_URL}#collection`);
   });
 
   test("the header's Products link leads to the collection too", async ({ page, api }, info) => {

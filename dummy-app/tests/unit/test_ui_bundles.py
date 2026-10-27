@@ -1,5 +1,7 @@
-"""The new React bundles are served under /ui/next/: the store by the Gateway, the operator by
-the controller. The legacy Arabic UI keeps / until P4 (store) and P5 (operator) switch it.
+"""The React bundles' files are served under /ui/next/: the store's by the Gateway, the
+operator's by the controller. The operator's pages are at /ui/next/ too until P5 (the legacy
+Arabic operator UI keeps the controller's /); the store's pages moved to / in P4-H
+(test_store_cutover.py), where old /ui/next/ page links redirect.
 
 Builds are fakes written to a temporary folder named by UI_BUNDLE_DIR.
 """
@@ -16,27 +18,6 @@ from services.shared import ui
 IMMUTABLE = "public, max-age=31536000, immutable"
 
 
-def write_build(root, name):
-    build = root / name
-    (build / "assets").mkdir(parents=True)
-    (build / "licenses").mkdir()
-    (build / "index.html").write_text(f'<!doctype html><html lang="en"><title>{name}</title>', "utf-8")
-    (build / "assets" / f"{name}-Ab12.js").write_text(f"console.log('{name}')", "utf-8")
-    (build / "assets" / f"{name}-Cd34.css").write_text("body{margin:0}", "utf-8")
-    (build / "assets" / "inter-latin-Ef56.woff2").write_bytes(b"wOF2font")
-    (build / "licenses" / "inter-OFL.txt").write_text("SIL Open Font License, Version 1.1", "utf-8")
-    return build
-
-
-@pytest.fixture
-def builds(tmp_path, monkeypatch):
-    root = tmp_path / "dist"
-    write_build(root, "store")
-    write_build(root, "operator")
-    monkeypatch.setenv("UI_BUNDLE_DIR", str(root))
-    return root
-
-
 @pytest.fixture
 async def controller(tmp_path):
     app = controller_app(
@@ -48,24 +29,24 @@ async def controller(tmp_path):
             yield client
 
 
-async def test_gateway_serves_the_store_entry_without_long_term_caching(mesh, builds):
-    response = await mesh["client"].get("/ui/next/")
+async def test_the_operator_entry_is_served_without_long_term_caching(controller, builds):
+    response = await controller.get("/ui/next/")
     assert response.status_code == 200
-    assert "<title>store</title>" in response.text
+    assert "<title>operator</title>" in response.text
     assert response.headers["content-type"].startswith("text/html")
     assert response.headers["cache-control"] == "no-cache"
 
 
-async def test_client_side_routes_get_the_entry_page(mesh, builds):
-    for path in ("/ui/next/orders", "/ui/next/orders/ATT-5A0E-0001"):
-        response = await mesh["client"].get(path)
+async def test_operator_client_side_routes_get_the_entry_page(controller, builds):
+    for path in ("/ui/next/history", "/ui/next/runs/run-1"):
+        response = await controller.get(path)
         assert response.status_code == 200
-        assert "<title>store</title>" in response.text
+        assert "<title>operator</title>" in response.text
         assert response.headers["cache-control"] == "no-cache"
 
 
-async def test_the_bundle_root_without_a_slash_redirects(mesh, builds):
-    response = await mesh["client"].get("/ui/next", follow_redirects=False)
+async def test_the_operator_bundle_root_without_a_slash_redirects(controller, builds):
+    response = await controller.get("/ui/next", follow_redirects=False)
     assert response.status_code in (307, 308)
     assert response.headers["location"] == "/ui/next/"
 
@@ -161,9 +142,12 @@ async def test_each_asset_has_exactly_one_url(mesh, builds):
         assert (await mesh["client"].get(path)).status_code == 404, path
 
 
-async def test_the_bundle_root_redirect_keeps_the_query(mesh, builds):
-    response = await mesh["client"].get("/ui/next?ref=mail", follow_redirects=False)
+async def test_the_bundle_root_redirect_keeps_the_query(mesh, builds, controller):
+    response = await controller.get("/ui/next?ref=mail", follow_redirects=False)
     assert response.headers["location"] == "/ui/next/?ref=mail"
+    # The store's pages are at / since P4-H.
+    response = await mesh["client"].get("/ui/next?ref=mail", follow_redirects=False)
+    assert response.headers["location"] == "/?ref=mail"
 
 
 async def test_source_maps_and_icons_get_their_media_types(mesh, builds):
@@ -189,7 +173,7 @@ async def test_each_origin_serves_only_its_own_bundle(mesh, builds, controller):
     assert asset.status_code == 200 and asset.headers["cache-control"] == IMMUTABLE
 
 
-async def test_a_missing_build_is_a_404_and_the_legacy_ui_still_works(
+async def test_a_missing_build_is_a_404_and_the_legacy_operator_ui_still_works(
     mesh, controller, tmp_path, monkeypatch
 ):
     monkeypatch.setenv("UI_BUNDLE_DIR", str(tmp_path / "never-built"))
@@ -197,16 +181,19 @@ async def test_a_missing_build_is_a_404_and_the_legacy_ui_still_works(
         for path in ("/ui/next/", "/ui/next/orders", "/ui/next/assets/store-Ab12.js"):
             response = await client.get(path)
             assert response.status_code == 404, path
-        legacy = await client.get("/")
-        assert legacy.status_code == 200 and 'lang="ar" dir="rtl"' in legacy.text
+    legacy = await controller.get("/")
+    assert legacy.status_code == 200 and 'lang="ar" dir="rtl"' in legacy.text
+    # The Gateway's / is the React store only (the legacy Arabic store was removed in P4-H).
+    assert (await mesh["client"].get("/")).status_code == 404
 
 
 async def test_bundle_requests_are_not_business_telemetry(mesh, builds):
     before = mesh["logs"].getvalue()
-    for path in ("/ui/next/", "/ui/next/orders", "/ui/next/assets/store-Ab12.js", "/ui/next/missing.js"):
+    for path in ("/ui/next/", "/ui/next/orders", "/ui/next/cart", "/ui/next/assets/store-Ab12.js", "/ui/next/missing.js"):
         response = await mesh["client"].get(path)
         assert "x-trace-id" not in response.headers, path
     assert mesh["logs"].getvalue() == before
+    mesh["apps"]["gateway"].state.telemetry.traces.force_flush()  # spans are batched
     assert mesh["exporters"]["gateway"].get_finished_spans() == ()
     # A real API call is still traced, so the check above can fail.
     assert len((await mesh["client"].get("/api/products")).headers["x-trace-id"]) == 32
@@ -226,14 +213,25 @@ def test_the_web_build_and_the_server_agree_on_the_bundle_path():
     )
     declared = re.search(r'BUNDLE_PATH = "([^"]+)"', source)
     assert declared and declared.group(1) == ui.BUNDLE_PATH + "/"
-    # The cross-app link targets: both apps are served at /ui/next/ until P4 and P5.
+    # The cross-app link targets: the store at / since P4-H, the operator at /ui/next/ until P5.
     links = dict(re.findall(r'^\s+(store|control): "([^"]+)"', source, flags=re.M))
-    assert links == {"store": ui.BUNDLE_PATH + "/", "control": ui.BUNDLE_PATH + "/"}
+    assert links == {"store": "/", "control": ui.BUNDLE_PATH + "/"}
 
 
-async def test_head_requests_get_the_same_headers_without_a_body(mesh, builds):
-    for path, cache in (("/ui/next/", "no-cache"), ("/ui/next/assets/store-Ab12.js", IMMUTABLE)):
-        response = await mesh["client"].head(path)
+def test_the_browser_test_harness_serves_the_same_store_pages_as_the_server():
+    """The mocked Playwright harness mirrors the server's page allowlist (services/shared/ui.py)."""
+    harness = (Path(__file__).resolve().parents[2] / "web" / "e2e" / "support" / "harness.ts").read_text("utf-8")
+    declared = re.search(r'STORE_PAGE_PATTERN = "([^"]+)";', harness)
+    assert declared, "harness.ts must declare STORE_PAGE_PATTERN"
+    assert declared.group(1) == ui.STORE_PAGE.pattern
+
+
+async def test_head_requests_get_the_same_headers_without_a_body(mesh, builds, controller):
+    for client, path, cache in (
+        (controller, "/ui/next/", "no-cache"),
+        (mesh["client"], "/ui/next/assets/store-Ab12.js", IMMUTABLE),
+    ):
+        response = await client.head(path)
         assert response.status_code == 200, path
         assert response.headers["cache-control"] == cache
         assert response.content == b""

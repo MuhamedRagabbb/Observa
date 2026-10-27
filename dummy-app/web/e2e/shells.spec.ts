@@ -23,7 +23,7 @@ test.describe("bundle shells", () => {
     await page.goto(OPERATOR_URL);
     await expect(page.getByRole("link", { name: "Storefront" })).toHaveAttribute(
       "href",
-      "http://127.0.0.1:18000/ui/next/",
+      "http://127.0.0.1:18000/",
     );
     await capture("shell-operator");
   });
@@ -99,7 +99,7 @@ test.describe("harness guards", () => {
     await page.evaluate(() => fetch("/api/orders").catch(() => undefined));
   });
 
-  test("serves bundle files by the real server's rules", async ({ page }) => {
+  test("serves bundle files by the real server's rules", async ({ page, api }) => {
     await page.goto(STORE_URL);
     const script = await page.locator("script[src*='/assets/']").getAttribute("src");
     const statuses = await page.evaluate(async (src) => {
@@ -109,11 +109,26 @@ test.describe("harness guards", () => {
         // Windows file systems ignore case; the real server compares the exact name.
         otherCase: await status((src ?? "").toUpperCase().replace("/UI/NEXT/ASSETS/", "/ui/next/assets/")),
         missing: await status("/ui/next/assets/missing.js"),
-        clientRoute: await status("/ui/next/orders/OBS-1"),
         fileOutsideAssets: await status("/ui/next/robots.txt"),
+        // P4-H: the store's pages are an explicit allowlist at /; nothing else gets the entry page.
+        page: await status("/orders/OBS-1042-7F3A"),
+        oldPageLink: await fetch("/ui/next/checkout", { redirect: "manual" }).then((r) => r.type),
+        // Not pages: never the entry page (the server's 404 is tested in test_store_cutover.py).
+        notAReference: await status("/orders/OBS-1").catch(() => "not served"),
+        notAPage: await status("/cart").catch(() => "not served"),
       };
     }, script);
-    expect(statuses).toEqual({ exact: 200, otherCase: 404, missing: 404, clientRoute: 200, fileOutsideAssets: 404 });
+    expect(statuses).toEqual({
+      exact: 200,
+      otherCase: 404,
+      missing: 404,
+      fileOutsideAssets: 404,
+      page: 200,
+      oldPageLink: "opaqueredirect",
+      notAReference: "not served",
+      notAPage: "not served",
+    });
+    expect(api.takeViolations()).toEqual(["unmocked GET /orders/OBS-1", "unmocked GET /cart"]);
   });
 
   test("reduced motion can be emulated for motion checks", async ({ page }) => {

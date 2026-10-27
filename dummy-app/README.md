@@ -1,6 +1,6 @@
 # OBSERVA dummy commerce environment
 
-A runnable local test bed generating correlated JSON logs, OpenTelemetry metrics and distributed traces. Four Python 3.12/FastAPI services use PostgreSQL 16, with separate databases and credentials. Includes reproducible traffic, three independent reversible failures, an Arabic storefront and a separate evaluation-only operator interface. No OBSERVA agents are included.
+A runnable local test bed generating correlated JSON logs, OpenTelemetry metrics and distributed traces. Four Python 3.12/FastAPI services use PostgreSQL 16, with separate databases and credentials. Includes reproducible traffic, three independent reversible failures, an English storefront and a separate evaluation-only operator interface (Arabic, until P5). No OBSERVA agents are included.
 
 See [VALIDATION.md](VALIDATION.md) for the recorded commands, observed live telemetry, acceptance results and practical limits from the implementation run.
 
@@ -27,7 +27,7 @@ Traffic begins automatically at 4 requests/second with seed 42. All exposed port
 
 | Entry point | Default address |
 | --- | --- |
-| Arabic storefront | http://localhost:8000/ |
+| Storefront (English, React) | http://localhost:8000/ |
 | Operator interface (evaluation only) | http://localhost:8090/ |
 | Gateway Swagger/OpenAPI | http://localhost:8000/docs / http://localhost:8000/openapi.json |
 | Orders / Inventory / Payments Swagger | http://localhost:8001/docs / http://localhost:8002/docs / http://localhost:8003/docs |
@@ -48,17 +48,17 @@ Open http://localhost:3000/d/observa-overview (anonymous viewing enabled). `tele
 
 ## Business API
 
-The built-in Arabic storefront at `http://localhost:8000/` lists live products, filters/searches the catalog, creates real simulated checkouts, and shows success or failure with request/trace IDs and a Jaeger link. The checkout button disables while a request is pending; the browser never automatically retries a checkout. Ambiguous network/timeout results are marked unconfirmed rather than reported as a definite failure or success.
+The storefront at `http://localhost:8000/` is the English React app built from `web/` (P4). It lists live products with search, keeps a multi-item cart, places checkouts through `POST /api/checkout` (one POST per attempt, never retried automatically; an unclear answer is shown as "Status unknown" with Check status), and lists the browser's orders under **My Orders**, merged with any attempt that is still unconfirmed. The browser keeps only an anonymous customer ID, the cart and unconfirmed attempts; contact details are never stored. All transaction state remains owned by the backend databases. Prices are illustrative USD from the integer-cent API values; no real charge is made.
 
-The **My orders** view stores up to 100 recent orders/attempts in that browser's local storage. It is not a global list of traffic-generator orders. Reloading preserves this local history; users can update statuses or import an existing order by its full ID. All transaction state remains owned by the backend databases. Prices are displayed in illustrative USD units from the integer-cent API values; no real charge is made.
+The Gateway serves the storefront's entry page only at an explicit allowlist: `/`, `/checkout`, `/orders` and `/orders/<OBS-… or ATT-… reference>`, for GET and HEAD. There is no catch-all: any other path (an unknown route, `/unavailable`, a typo) is a plain, instrumented 404. Only those page requests and `/ui/` files are left out of application telemetry, and only on the Gateway; the orders service's own `/orders` API is unaffected. The bundle's files stay at `/ui/next/assets/`, and an old `/ui/next/<page>` link redirects (308) to `/<page>`. The legacy Arabic storefront was removed in P4-H.
 
 The operator interface at `http://localhost:8090/` calls the controller on its own origin. It includes all three manual scenarios with duration/parameter inputs, live state and expiry countdown, stop controls, and automatic warmup/duration/recovery/repeat/seed/scenario settings. Its session activity list contains actions from that page only. It is evaluation infrastructure and must not be scraped or ingested by the investigating agent.
 
-The current UI's HTML, CSS, JavaScript and SVG assets ship inside the image under `services/ui/`. They need no Node build, CDN, added service, or extra container. Storefront and operator pages use separate origins, and the storefront does not proxy fault-control calls through Gateway. Static UI requests and `/ui/config` are excluded from application telemetry, while shopping API requests retain normal instrumentation. Public navigation links follow the Compose port settings through a non-sensitive UI config endpoint. All mock-credential and loopback-only boundaries still apply.
+The legacy operator UI's HTML, CSS, JavaScript and SVG assets ship inside the image under `services/ui/` and are served by the controller only. They need no Node build, CDN, added service, or extra container. Storefront and operator pages use separate origins, and the storefront does not proxy fault-control calls through Gateway. Static UI requests and `/ui/config` are excluded from application telemetry, while shopping API requests retain normal instrumentation. Public navigation links follow the Compose port settings through a non-sensitive UI config endpoint. All mock-credential and loopback-only boundaries still apply.
 
-### New English UI preview (`/ui/next/`)
+### React UIs (`web/`)
 
-The redesigned React interface is being built in `web/` and is served beside the current UI until it replaces it. For now it is only a header shell. The Gateway serves the storefront build at `http://localhost:8000/ui/next/` and the controller serves the operator build at `http://localhost:8090/ui/next/`. Each origin serves only its own build, and these pages are excluded from application telemetry like the rest of `/ui/`.
+The React interfaces are built in `web/`. The storefront's pages are at `http://localhost:8000/` (see above); the operator build is at `http://localhost:8090/ui/next/` beside the Arabic operator UI until P5. Both bundles' files are served under `/ui/next/` on their own origin, each origin serves only its own build, and `/ui/` requests are excluded from application telemetry.
 
 The Dockerfile builds both bundles in a Node stage (`npm ci`, typecheck, `npm run build`) and copies only `web/dist` into `services/ui/dist` of the Python runtime image; Node does not ship. A running stack serves `/ui/next/` only after its image is rebuilt from this code. Image builds, including `docker compose build` and `up --build`, now pull `node:24` and reach the npm registry, so the first build is slower and needs network access. Compose builds every app service as `observa-dummy:local`, so a Compose build replaces the image a running stack uses, and recreating the stack deploys it. To check an image without touching a running stack, build it under its own tag and run the opt-in image tests. They use throwaway containers with no network:
 
@@ -90,10 +90,10 @@ Use one of these while the new storefront is built. None of them touches the liv
      docker compose @f exec -T $svc sh -c "set -f; python -m services.shared.migrations --dsn `${DATABASE_URL}?lock_timeout=5s --dir scripts/migrations/$svc"
    }
    docker compose @f --profile traffic up -d --no-deps traffic-generator   # optional background checkout traffic
-   # Storefront: http://127.0.0.1:18000/ui/next/   Operator: http://127.0.0.1:18090/ui/next/
+   # Storefront: http://127.0.0.1:18000/   Operator: http://127.0.0.1:18090/ui/next/
    docker compose @f down   # containers and networks only; remove observa-p4-preview_* volumes by exact name
    ```
-3. **Hot reload:** in `web/`, `npm run dev:store` (http://127.0.0.1:5180/ui/next/) or `npm run dev:operator` (:5181). These proxy to the preview project. `OBSERVA_GATEWAY_URL` and `OBSERVA_CONTROLLER_URL` change the target, and the live ports 8000 and 8090 are refused.
+3. **Hot reload:** in `web/`, `npm run dev:store` (http://127.0.0.1:5180/) or `npm run dev:operator` (:5181). These proxy to the preview project. `OBSERVA_GATEWAY_URL` and `OBSERVA_CONTROLLER_URL` change the target, and the live ports 8000 and 8090 are refused.
 
 ```sh
 curl http://localhost:8000/health
