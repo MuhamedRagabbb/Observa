@@ -51,10 +51,14 @@
   --font-mono: "JetBrains Mono Variable", ui-monospace, "Cascadia Mono", Consolas, monospace;
 
   /* Type scale [measured] headline glyphs: about 48px at 375, about 72px at 1440; rest [inferred] */
+  --text-hero: clamp(2.75rem, 0.5rem + 5.9vw, 7.5rem); /* [measured] Hero headline about 120px at 1920 */
   --text-display: clamp(3rem, 2.25rem + 3.2vw, 4.5rem); /* page titles ("Checkout") */
   --text-heading-1: clamp(2.25rem, 1.9rem + 1.5vw, 3rem); /* state titles ("Idle") */
   --text-heading-2: clamp(1.75rem, 1.6rem + 0.6vw, 2.125rem); /* section titles */
   --text-heading-3: 1.5rem; /* product names, card titles */
+  --text-card-name-feature: clamp(1.75rem, 1.4rem + 1vw, 2.25rem); /* [measured] Journal / Notebook: 36px at 1440, 28px at 390 */
+  --text-card-name: 1.75rem; /* [measured] collection card names at 1440 */
+  --text-lede: clamp(1.0625rem, 1rem + 0.25vw, 1.1875rem); /* [measured] hero lede about 19px at 1920 */
   --text-body-large: 1.125rem; /* primary button label */
   --text-body: 1rem;
   --text-small: 0.875rem;

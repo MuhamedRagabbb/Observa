@@ -1,0 +1,59 @@
+/*
+ * Artboard: Hero background, 16:9 desktop (1920 wide). Copy on the left, vertically centred;
+ * the still life on the right. Measured at 1920 and scaled: headline about 120px, two lines,
+ * tight leading; lede about 19px in two lines; the large primary button. Narrow screens
+ * (derived) stack copy above a smaller still life.
+ */
+.hero {
+  display: grid;
+  align-items: center;
+  gap: var(--space-10);
+  padding-block: var(--space-8) var(--space-12);
+}
+
+.copy {
+  display: grid;
+  justify-items: start;
+}
+
+.headline {
+  font-size: var(--text-hero);
+  line-height: 0.98;
+  letter-spacing: -0.02em;
+}
+
+.accent {
+  font-style: italic;
+}
+
+.lede {
+  max-width: 30rem;
+  margin: var(--space-8) 0 var(--space-10);
+  color: var(--color-ink-accent);
+  font-size: var(--text-lede);
+  line-height: 1.6;
+}
+
+.art {
+  justify-self: center;
+  width: min(100%, 26rem);
+}
+
+.image {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+@media (min-width: 60rem) {
+  .hero {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+    min-height: calc(100svh - 7.5rem);
+    padding-block: var(--space-6) var(--space-16);
+  }
+
+  .art {
+    justify-self: end;
+    width: min(100%, 36rem);
+  }
+}

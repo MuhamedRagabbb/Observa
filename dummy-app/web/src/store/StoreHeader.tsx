@@ -7,7 +7,13 @@ import styles from "./StoreHeader.module.css";
 
 const ITEM = ["item", "items"] as const;
 
-export type HeaderLink = { to: string; label: string; end?: boolean };
+export type HeaderLink = {
+  to: string;
+  label: string;
+  end?: boolean;
+  /** A link to a section of a page (such as /#collection): never marked as the current page. */
+  section?: boolean;
+};
 
 type StoreHeaderProps =
   | {
@@ -52,9 +58,15 @@ export function StoreHeader(props: StoreHeaderProps) {
             <ul className={styles.navList}>
               {props.links.map((link) => (
                 <li key={link.to}>
-                  <NavLink to={link.to} end={link.end} className={styles.navLink}>
-                    {link.label}
-                  </NavLink>
+                  {link.section ? (
+                    <Link to={link.to} className={styles.navLink}>
+                      {link.label}
+                    </Link>
+                  ) : (
+                    <NavLink to={link.to} end={link.end} className={styles.navLink}>
+                      {link.label}
+                    </NavLink>
+                  )}
                 </li>
               ))}
             </ul>

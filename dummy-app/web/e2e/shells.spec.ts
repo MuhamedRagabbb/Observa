@@ -1,6 +1,12 @@
 // P4-0 harness checks, run against the production builds served by vite preview, with every
 // API request answered by typed mocks.
+import { PRODUCTS } from "./fixtures/gateway.ts";
 import { OPERATOR_URL, STORE_URL, expect, test } from "./support/harness.ts";
+
+// The store home reads its products on load; every test here answers that request.
+test.beforeEach(({ api }) => {
+  api.onGateway("GET", "/api/products", () => ({ status: 200, body: PRODUCTS }));
+});
 
 test.describe("bundle shells", () => {
   test("the storefront shell links to Experiments on the preview controller port", async ({ page, capture }) => {
@@ -26,9 +32,9 @@ test.describe("bundle shells", () => {
 test.describe("harness guards", () => {
   test("an API call without a mock is reported and never reaches a server", async ({ page, api }) => {
     await page.goto(STORE_URL);
-    const outcome = await page.evaluate(() => fetch("/api/products").then((r) => r.status, () => "failed"));
+    const outcome = await page.evaluate(() => fetch("/api/orders").then((r) => r.status, () => "failed"));
     expect(outcome).toBe("failed");
-    expect(api.takeViolations()).toEqual(["unmocked GET /api/products"]);
+    expect(api.takeViolations()).toEqual(["unmocked GET /api/orders"]);
   });
 
   test("a request to another origin, such as the live gateway, is blocked and reported", async ({ page, api }) => {
@@ -90,7 +96,24 @@ test.describe("harness guards", () => {
   test("a violation nobody takes fails the test", async ({ page }) => {
     test.fail(true, "teardown must fail on a leftover violation");
     await page.goto(STORE_URL);
-    await page.evaluate(() => fetch("/api/products").catch(() => undefined));
+    await page.evaluate(() => fetch("/api/orders").catch(() => undefined));
+  });
+
+  test("serves bundle files by the real server's rules", async ({ page }) => {
+    await page.goto(STORE_URL);
+    const script = await page.locator("script[src*='/assets/']").getAttribute("src");
+    const statuses = await page.evaluate(async (src) => {
+      const status = (path: string) => fetch(path).then((r) => r.status);
+      return {
+        exact: await status(src ?? ""),
+        // Windows file systems ignore case; the real server compares the exact name.
+        otherCase: await status((src ?? "").toUpperCase().replace("/UI/NEXT/ASSETS/", "/ui/next/assets/")),
+        missing: await status("/ui/next/assets/missing.js"),
+        clientRoute: await status("/ui/next/orders/OBS-1"),
+        fileOutsideAssets: await status("/ui/next/robots.txt"),
+      };
+    }, script);
+    expect(statuses).toEqual({ exact: 200, otherCase: 404, missing: 404, clientRoute: 200, fileOutsideAssets: 404 });
   });
 
   test("reduced motion can be emulated for motion checks", async ({ page }) => {

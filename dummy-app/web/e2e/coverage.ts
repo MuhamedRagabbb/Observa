@@ -93,6 +93,14 @@ export const COVERAGE: CoverageState[] = [
     derived: ALL,
     reference: allRef(A.collection, A.collectionMobile),
   },
+  {
+    id: "collection-empty",
+    slice: "P4-B",
+    screen: "The API returned no products",
+    approved: {},
+    derived: ALL,
+    reference: allRef(A.collection, A.collectionMobile),
+  },
 
   // P4-C: cart
   {

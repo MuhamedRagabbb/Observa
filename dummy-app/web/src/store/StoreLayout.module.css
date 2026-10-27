@@ -4,6 +4,7 @@
   margin-inline: auto;
 }
 
+/* Pages own their vertical rhythm: the home hero starts right under the header. */
 .main {
-  padding-block: var(--space-12);
+  padding-block-end: var(--space-16);
 }

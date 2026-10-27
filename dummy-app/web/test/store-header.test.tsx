@@ -42,6 +42,14 @@ describe("storefront header, as shipped in P4-A", () => {
     expect(within(nav).getByRole("link", { name: "Home" }).getAttribute("aria-current")).toBe("page");
   });
 
+  it("links Products to the collection on the home page, without marking it current", () => {
+    renderAt(storeRoutes);
+    const nav = screen.getByRole("navigation", { name: "Main" });
+    const products = within(nav).getByRole("link", { name: "Products" });
+    expect(products.getAttribute("href")).toBe("/#collection");
+    expect(products.getAttribute("aria-current")).toBeNull();
+  });
+
   it("offers exactly the controls that work, and nothing else", async () => {
     vi.stubGlobal("fetch", async () =>
       Response.json({ mode: "store", ports: { store: 18000, control: 18090, grafana: 1, jaeger: 1, prometheus: 1 } }),
@@ -56,7 +64,7 @@ describe("storefront header, as shipped in P4-A", () => {
         el.querySelector("svg[aria-label]")?.getAttribute("aria-label") ??
         el.textContent?.replace("↗", "").trim(),
     );
-    expect(names).toEqual(["OBSERVA", "Home", "Experiments"]);
+    expect(names).toEqual(["OBSERVA", "Home", "Products", "Experiments"]);
   });
 });
 

@@ -32,13 +32,16 @@ describe.each(BUNDLES)("%s bundle", (bundle) => {
     }
     expect(fonts.every((file) => file.endsWith(".woff2"))).toBe(true);
     expect(fonts.some((file) => /latin-ext|cyrillic|greek|vietnamese/.test(file))).toBe(false);
-    expect(fonts.some((file) => file.includes("italic"))).toBe(false);
+    // The one italic is the display serif's, for the hero's "observed." (Hero artboard).
+    expect(fonts.filter((file) => file.includes("italic")).map((file) => file.replace(/-[\w-]{8}\.woff2$/, ""))).toEqual([
+      "instrument-serif-latin-400-italic",
+    ]);
   });
 
   it("declares every font face with swap and same-origin sources", () => {
     const styles = css(bundle);
     const faces = styles.match(/@font-face\{[^}]*\}/g) ?? [];
-    expect(faces).toHaveLength(FAMILIES.length);
+    expect(faces).toHaveLength(FAMILIES.length + 1); // plus the Instrument Serif italic
     for (const face of faces) expect(face).toContain("font-display:swap");
     for (const [, url] of styles.matchAll(/url\(["']?([^"')]+)/g)) {
       expect(url).toMatch(/^\/ui\/next\/assets\//);

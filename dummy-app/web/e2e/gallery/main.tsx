@@ -143,7 +143,7 @@ function Headers() {
         <StoreHeader
           links={[
             { to: "/", label: "Home", end: true },
-            { to: "/products", label: "Products" },
+            { to: "/#collection", label: "Products", section: true },
             { to: "/orders", label: "My Orders" },
           ]}
           search={{ onOpen: noop }}

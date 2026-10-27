@@ -1,0 +1,74 @@
+/*
+ * Artboards: Product Collection 1440 and 390. Name (serif) with the price on the same line,
+ * the stock marker below and, from P4-C, the action at the end of that line. Narrow cards (the
+ * two-column phone grid) stack the price under the name.
+ */
+.card {
+  container-type: inline-size;
+}
+
+.info {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "name price"
+    "status action";
+  align-items: baseline;
+  column-gap: var(--space-4);
+  row-gap: var(--space-3);
+  padding-block-start: var(--space-5);
+}
+
+.name {
+  grid-area: name;
+  font-size: var(--text-card-name);
+  letter-spacing: -0.01em;
+}
+
+.card[data-feature] .name {
+  font-size: var(--text-card-name-feature);
+}
+
+.price {
+  grid-area: price;
+  margin: 0;
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.status {
+  grid-area: status;
+  align-self: center;
+}
+
+.action {
+  grid-area: action;
+  justify-self: end;
+}
+
+/* [measured] 390 phone grid: cards about 160px wide stack name, price, stock and action. */
+@container (max-width: 15rem) {
+  .info {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "name"
+      "price"
+      "status"
+      "action";
+    row-gap: var(--space-2);
+    padding-block-start: var(--space-4);
+  }
+
+  .name {
+    font-size: 1.25rem;
+  }
+
+  .status {
+    padding-block-start: var(--space-2);
+  }
+
+  .action {
+    justify-self: stretch;
+  }
+}

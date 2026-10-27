@@ -1,11 +1,12 @@
 // Playwright fixtures for mocked-mode tests.
-// - `api`: serves the built bundle (/ui/next/) and /ui/config; every other request must match a
-//   typed handler for its own origin. Unmocked same-origin requests, other origins and WebSockets
+// - `api`: serves the built bundle (/ui/next/) from disk and /ui/config from fixtures; every other
+//   request must match a typed handler for its own origin. Unmocked same-origin requests, other origins and WebSockets
 //   are aborted and recorded, and a test fails if any violation remains at teardown.
-// - `capture(stateId)`: full-page screenshot for the review page, named by coverage state.
-import { mkdirSync } from "node:fs";
-import { join } from "node:path";
-import { test as base, expect, type BrowserContext, type Route } from "@playwright/test";
+// - `capture(stateId, target?)`: screenshot for the review page, named by coverage state: the full
+//   page, the first viewport ("viewport") or one element (a Locator).
+import { existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
+import { basename, dirname, extname, join, normalize, sep } from "node:path";
+import { test as base, expect, type BrowserContext, type Locator, type Route } from "@playwright/test";
 import type { paths as ControllerPaths } from "../../src/api/generated/controller.ts";
 import type { paths as GatewayPaths } from "../../src/api/generated/gateway.ts";
 import { COVERAGE } from "../coverage.ts";
@@ -40,8 +41,48 @@ export type MockRequest = {
 export type MockReply = { status: number; body?: unknown; headers?: Record<string, string> } | "network-error";
 type Handler = (request: MockRequest, params: Record<string, string>) => MockReply | Promise<MockReply>;
 
-/** The only same-origin paths served for real: the built bundle and the browser's favicon probe. */
-const passesThrough = (path: string) => path.startsWith("/ui/next/") || path === "/favicon.ico";
+/**
+ * Each origin's built files. They are served from disk with route.fulfill, by the same rules as
+ * the real server (services/shared/ui.py register_bundle): files under assets/ and licenses/,
+ * the entry page for any other path, 404 for an unknown file. Going through the vite preview
+ * servers instead stalled for about 10 seconds now and then under parallel load.
+ */
+const WEB = join(import.meta.dirname, "..", "..");
+const BUNDLE_DIRS: Record<string, string> = {
+  [STORE_ORIGIN]: join(WEB, "dist", "store"),
+  [OPERATOR_ORIGIN]: join(WEB, "dist", "operator"),
+  [GALLERY_ORIGIN]: join(WEB, "e2e-output", "gallery-dist"),
+};
+const CONTENT_TYPES: Record<string, string> = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".woff2": "font/woff2",
+  ".txt": "text/plain; charset=utf-8",
+};
+
+/** True only for a file whose name matches exactly: Windows ignores case, the real server does not. */
+const isExactFile = (file: string) =>
+  existsSync(file) && statSync(file).isFile() && readdirSync(dirname(file)).includes(basename(file));
+
+async function serveBundle(route: Route, origin: string, path: string) {
+  const root = BUNDLE_DIRS[origin] as string;
+  // Like the real server: nothing at all is served while the bundle is not built.
+  if (!existsSync(join(root, "index.html"))) return route.fulfill({ status: 404, body: "bundle not built" });
+  const rest = path.slice("/ui/next/".length);
+  const [folder] = rest.split("/");
+  let file: string | null;
+  if (folder === "assets" || folder === "licenses") {
+    const candidate = normalize(join(root, rest));
+    file = candidate.startsWith(root + sep) && isExactFile(candidate) ? candidate : null;
+  } else {
+    // A client-side route gets the entry page; a file name outside assets/ never does.
+    file = rest.split("/").pop()?.includes(".") ? null : join(root, "index.html");
+  }
+  if (!file || !existsSync(file)) return route.fulfill({ status: 404, body: "not found" });
+  return route.fulfill({ path: file, contentType: CONTENT_TYPES[extname(file)] ?? "application/octet-stream" });
+}
 
 /** /api/attempts/{attempt_ref} -> ^/api/attempts/(?<attempt_ref>[^/]+)$ (paths hold only [a-z_/-]). */
 function templateRegex(template: string) {
@@ -125,7 +166,8 @@ export class MockApi {
       const config = url.origin === OPERATOR_ORIGIN ? OPERATOR_UI_CONFIG : STORE_UI_CONFIG;
       return route.fulfill({ status: 200, json: config });
     }
-    if (passesThrough(url.pathname)) return route.continue();
+    if (url.pathname.startsWith("/ui/next/")) return serveBundle(route, url.origin, url.pathname);
+    if (url.pathname === "/favicon.ico") return route.fulfill({ status: 404, body: "no favicon" });
 
     const mock: MockRequest = {
       method,
@@ -153,7 +195,9 @@ export class MockApi {
 
 const KNOWN_STATES = new Set<string>([...COVERAGE.map((s) => s.id), ...HARNESS_STATES]);
 
-export const test = base.extend<{ api: MockApi; capture: (stateId: string) => Promise<void> }>({
+type CaptureTarget = "page" | "viewport" | Locator;
+
+export const test = base.extend<{ api: MockApi; capture: (stateId: string, target?: CaptureTarget) => Promise<void> }>({
   api: [
     async ({ page }, use, testInfo) => {
       const api = new MockApi();
@@ -179,12 +223,17 @@ export const test = base.extend<{ api: MockApi; capture: (stateId: string) => Pr
     { auto: true },
   ],
   capture: async ({ page }, use, testInfo) => {
-    await use(async (stateId) => {
+    await use(async (stateId, target = "page") => {
       expect(KNOWN_STATES.has(stateId), `unknown coverage state "${stateId}"`).toBe(true);
       const dir = join(SCREENS_DIR, testInfo.project.name);
       mkdirSync(dir, { recursive: true });
       await page.evaluate(() => document.fonts.ready);
-      await page.screenshot({ path: join(dir, `${stateId}.png`), fullPage: true, animations: "disabled" });
+      const path = join(dir, `${stateId}.png`);
+      if (typeof target === "string") {
+        await page.screenshot({ path, fullPage: target === "page", animations: "disabled" });
+      } else {
+        await target.screenshot({ path, animations: "disabled" });
+      }
     });
   },
 });

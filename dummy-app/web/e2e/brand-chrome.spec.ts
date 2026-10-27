@@ -1,6 +1,7 @@
 // P4-A: the storefront header as shipped, and the shared components in the test-only gallery.
 // Runs at 1440, 390 and 375 against production builds with mocked requests.
 import type { Page } from "@playwright/test";
+import { PRODUCTS } from "./fixtures/gateway.ts";
 import { GALLERY_URL, STORE_URL, expect, test } from "./support/harness.ts";
 
 const isDesktop = (projectName: string) => projectName === "desktop-1440";
@@ -22,7 +23,11 @@ const noSideScroll = (page: Page) =>
   page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
 
 test.describe("storefront header as shipped", () => {
-  test("shows the wordmark, Home and Experiments, and nothing that does not work yet", async ({ page }, info) => {
+  test.beforeEach(({ api }) => {
+    api.onGateway("GET", "/api/products", () => ({ status: 200, body: PRODUCTS }));
+  });
+
+  test("shows the wordmark, Home, Products and Experiments, and nothing that does not work yet", async ({ page }, info) => {
     await page.goto(STORE_URL);
     const banner = page.getByRole("banner");
     const home = banner.getByRole("link", { name: "OBSERVA" });
@@ -31,7 +36,7 @@ test.describe("storefront header as shipped", () => {
       "href",
       "http://127.0.0.1:18090/ui/next/",
     );
-    for (const name of [/Products/, /My Orders/, /Search/, /Cart/]) {
+    for (const name of [/My Orders/, /Search/, /Cart/]) {
       await expect(banner.getByRole("link", { name })).toHaveCount(0);
       await expect(banner.getByRole("button", { name })).toHaveCount(0);
     }
@@ -53,7 +58,7 @@ test.describe("storefront header as shipped", () => {
   test("keyboard reaches each header item in order with a visible focus ring", async ({ page }, info) => {
     await page.goto(STORE_URL);
     await expect(page.getByRole("link", { name: "Experiments" })).toBeVisible();
-    const expected = isDesktop(info.project.name) ? ["OBSERVA", "Home", "Experiments"] : ["OBSERVA", "Experiments"];
+    const expected = isDesktop(info.project.name) ? ["OBSERVA", "Home", "Products", "Experiments"] : ["OBSERVA", "Experiments"];
     const seen = [];
     for (let i = 0; i < expected.length; i += 1) {
       await page.keyboard.press("Tab");

@@ -12,7 +12,7 @@ Playwright 1.64.0 (exact pin). Chromium only. Every state is captured at **1440,
 All output (`e2e-output/`) is git-ignored and kept out of the Docker build context.
 
 ## Harness rules (`support/harness.ts`)
-- **Strict mocks:** only the built bundle (`/ui/next/…`), `/favicon.ico` and `/ui/config` (served from fixtures) pass through. Every other request needs a typed handler for its own origin: `api.onGateway(method, "<Gateway OpenAPI path>", …)` answers only on the storefront origin, and `api.onController(…)` only on the operator origin. These are aborted and recorded:
+- **Strict mocks:** only the built bundle (`/ui/next/…`, served from `dist/` on disk by the real server's rules: assets and licences as files, any other path the entry page, unknown files 404), `/favicon.ico` (404) and `/ui/config` (from fixtures) are answered without a mock. The `vite preview` servers only give each origin an address: going through them stalled for about 10 s now and then under parallel load. Every other request needs a typed handler for its own origin: `api.onGateway(method, "<Gateway OpenAPI path>", …)` answers only on the storefront origin, and `api.onController(…)` only on the operator origin. These are aborted and recorded:
   - an unmocked same-origin request;
   - any request to another origin, such as the live gateway on :8000;
   - any WebSocket.
@@ -32,7 +32,7 @@ All 28 storefront artboards are mapped exactly once (checked by `test/coverage-m
 |---|---|---|---|---|---|
 | home-hero | P4-B | A | d | d | Hero background — 16 9 desktop (no mobile hero, audit item 1) |
 | collection | P4-B | A | A | d | Product Collection — 1440 desktop / 390 mobile |
-| collection-loading, collection-error | P4-B | d | d | d | none |
+| collection-loading, collection-error, collection-empty | P4-B | d | d | d | none |
 | cart-ready | P4-C | A | d | d | Cart drawer — ready to check out |
 | cart-unavailable | P4-C | A | d | A | Cart drawer — with unavailable item / Cart sheet — 375 mobile |
 | cart-empty, cart-loading, cart-error | P4-C | A | d | d | Cart drawer — empty / loading / error |
@@ -53,7 +53,7 @@ All 28 storefront artboards are mapped exactly once (checked by `test/coverage-m
 | orders-limit-notice, order-detail-declined, order-detail-processing | P4-F | d | d | d | none |
 | search-results, search-no-results | P4-G | d | d | d | none |
 
-Totals: 33 states and 99 state-width cells. 28 cells have an approved artboard (19 at 1440, 1 at 390, 8 at 375); 71 are derived. Three artboards (My Orders error, 375 list, 375 unknown detail) show a placeholder bar where the header goes, so their headers are derived from the other artboards.
+Totals: 34 states and 102 state-width cells. 28 cells have an approved artboard (19 at 1440, 1 at 390, 8 at 375); 74 are derived. Three artboards (My Orders error, 375 list, 375 unknown detail) show a placeholder bar where the header goes, so their headers are derived from the other artboards.
 
 ## Checkout safety tests to implement (P4-D to P4-F)
 These follow the approved outcome rules:

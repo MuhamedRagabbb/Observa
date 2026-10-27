@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 // @vitest-environment-options {"url": "http://192.168.1.20:8000/ui/next/orders?x=1#top"}
 // Each shell links to the other app on the same host, using the port that /ui/config
-// reports. The only request either shell makes is GET /ui/config on its own origin.
+// reports, from one GET /ui/config on its own origin. (The store home also reads its
+// products; that request is answered with an empty list here and not counted.)
 import { cleanup, render, screen } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider, type RouteObject } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -15,10 +16,21 @@ const config = (mode: UiConfig["mode"]): UiConfig => ({
   ports: { store: 18000, control: 18090, grafana: 3000, jaeger: 16686, prometheus: 9090 },
 });
 
+const urlOf = (input: RequestInfo | URL) => (input instanceof Request ? input.url : String(input));
+
+/** Answers /ui/config with `respond`; the store's product request gets an empty list. */
 function stubFetch(respond: () => Promise<Response>) {
-  const fetch = vi.fn((_input: RequestInfo | URL, _init?: RequestInit) => respond());
-  vi.stubGlobal("fetch", fetch);
-  return fetch;
+  const configCalls: string[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn((input: RequestInfo | URL) => {
+      const url = urlOf(input);
+      if (url.endsWith("/api/products")) return Promise.resolve(Response.json([]));
+      configCalls.push(url);
+      return respond();
+    }),
+  );
+  return configCalls;
 }
 
 function renderShell(routes: RouteObject[]) {
@@ -50,11 +62,11 @@ describe("crossAppUrl", () => {
 
 describe("cross-app links", () => {
   it("the storefront links to Experiments on the controller's port", async () => {
-    const fetch = stubFetch(async () => Response.json(config("store")));
+    const configCalls = stubFetch(async () => Response.json(config("store")));
     renderShell(storeRoutes);
     const link = await screen.findByRole("link", { name: "Experiments" });
     expect(link.getAttribute("href")).toBe("http://192.168.1.20:18090/ui/next/");
-    expect(fetch.mock.calls.map(([input]) => String(input))).toEqual(["/ui/config"]);
+    expect(configCalls).toEqual(["/ui/config"]);
   });
 
   it("the operator links back to the Storefront on the Gateway's port", async () => {
@@ -65,18 +77,18 @@ describe("cross-app links", () => {
   });
 
   it("shows no link rather than a guessed one when /ui/config fails", async () => {
-    const fetch = stubFetch(async () => new Response("down", { status: 503 }));
+    const configCalls = stubFetch(async () => new Response("down", { status: 503 }));
     renderShell(storeRoutes);
-    await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(configCalls).toHaveLength(1));
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(screen.queryByRole("link", { name: "Experiments" })).toBeNull();
     expect(screen.getByRole("main", { name: "Storefront" })).toBeTruthy();
   });
 
   it("shows no link when /ui/config is malformed", async () => {
-    const fetch = stubFetch(async () => Response.json({ mode: "store", ports: { control: "8090" } }));
+    const configCalls = stubFetch(async () => Response.json({ mode: "store", ports: { control: "8090" } }));
     renderShell(storeRoutes);
-    await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(configCalls).toHaveLength(1));
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(screen.queryByRole("link", { name: "Experiments" })).toBeNull();
   });
