@@ -94,12 +94,17 @@ describe("the collection", () => {
     ]);
   });
 
-  it("offers no cart controls yet: the cart arrives in P4-C", async () => {
+  it("gives each card one cart action: Add to cart, or Sold out when out of stock", async () => {
     stubApi(json(PRODUCTS));
     renderHome();
-    await within(collection()).findAllByRole("listitem");
-    expect(within(collection()).queryAllByRole("button")).toEqual([]);
-    expect(within(collection()).queryByText(/add to cart|sold out/i)).toBeNull();
+    const items = await within(collection()).findAllByRole("listitem");
+    expect(items.map((item) => within(item).getAllByRole("button").map((b) => b.textContent?.trim()))).toEqual([
+      ["Add to cart"],
+      ["Add to cart"],
+      ["Add to cart"],
+      ["Sold out"],
+      ["Add to cart"],
+    ]);
   });
 
   it("shows a product the display map does not know under its API name", async () => {

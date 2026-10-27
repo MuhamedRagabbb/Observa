@@ -1,10 +1,12 @@
 import { Outlet } from "react-router";
+import { CartDrawer } from "./cart/CartDrawer.tsx";
+import { CartProvider, useCart } from "./cart/CartContext.tsx";
 import { COLLECTION_ID } from "./home/anchors.ts";
 import { StoreHeader, type HeaderLink } from "./StoreHeader.tsx";
 import styles from "./StoreLayout.module.css";
 
 /**
- * What the header offers today. My Orders (P4-F), Search (P4-G) and the Cart (P4-C) join it in
+ * What the header offers today, besides the Cart. My Orders (P4-F) and Search (P4-G) join it in
  * the slices that make them work.
  */
 const LINKS: HeaderLink[] = [
@@ -14,11 +16,21 @@ const LINKS: HeaderLink[] = [
 
 export function StoreLayout() {
   return (
+    <CartProvider>
+      <Page />
+    </CartProvider>
+  );
+}
+
+function Page() {
+  const cart = useCart();
+  return (
     <div className={styles.page}>
-      <StoreHeader links={LINKS} />
+      <StoreHeader links={LINKS} cart={{ count: cart.units, onOpen: cart.open }} />
       <main className={styles.main} aria-label="Storefront">
         <Outlet />
       </main>
+      {cart.isOpen ? <CartDrawer /> : null}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Button } from "../../shared/ui/Button.tsx";
 import { countLabel } from "../../shared/ui/CountBadge.tsx";
+import { AddToCart } from "../cart/AddToCart.tsx";
 import { useProducts } from "../products.ts";
 import { COLLECTION_ID } from "./anchors.ts";
 import styles from "./Collection.module.css";
@@ -79,7 +80,7 @@ export function Collection() {
         <ul className={styles.grid}>
           {shown.map((product, index) => (
             <li key={product.product_id} className={styles.item}>
-              <ProductCard product={product} feature={index === 0} />
+              <ProductCard product={product} feature={index === 0} action={<AddToCart product={product} />} />
             </li>
           ))}
         </ul>

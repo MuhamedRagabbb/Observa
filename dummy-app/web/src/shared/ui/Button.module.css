@@ -104,7 +104,8 @@
 }
 
 /* Disabled (Sold out; Proceed to Checkout with an unavailable item): flat grey, no shadow. */
-.button:disabled {
+.button:disabled,
+.button[data-unavailable] {
   border-color: transparent;
   background: var(--color-control-disabled);
   color: var(--color-text-disabled-label);
@@ -112,11 +113,13 @@
   cursor: not-allowed;
 }
 
-.button:disabled .fill {
+.button:disabled .fill,
+.button[data-unavailable] .fill {
   background: transparent;
 }
 
-.button:disabled .iconBlock {
+.button:disabled .iconBlock,
+.button[data-unavailable] .iconBlock {
   color: var(--color-text-subtle);
 }
 

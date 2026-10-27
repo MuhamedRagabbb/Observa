@@ -27,7 +27,7 @@ test.describe("storefront header as shipped", () => {
     api.onGateway("GET", "/api/products", () => ({ status: 200, body: PRODUCTS }));
   });
 
-  test("shows the wordmark, Home, Products and Experiments, and nothing that does not work yet", async ({ page }, info) => {
+  test("shows the wordmark, Home, Products, Experiments and Cart, and nothing that does not work yet", async ({ page }, info) => {
     await page.goto(STORE_URL);
     const banner = page.getByRole("banner");
     const home = banner.getByRole("link", { name: "OBSERVA" });
@@ -36,7 +36,8 @@ test.describe("storefront header as shipped", () => {
       "href",
       "http://127.0.0.1:18090/ui/next/",
     );
-    for (const name of [/My Orders/, /Search/, /Cart/]) {
+    await expect(banner.getByRole("button", { name: "Cart, 0 items" })).toBeVisible();
+    for (const name of [/My Orders/, /Search/]) {
       await expect(banner.getByRole("link", { name })).toHaveCount(0);
       await expect(banner.getByRole("button", { name })).toHaveCount(0);
     }
@@ -58,7 +59,9 @@ test.describe("storefront header as shipped", () => {
   test("keyboard reaches each header item in order with a visible focus ring", async ({ page }, info) => {
     await page.goto(STORE_URL);
     await expect(page.getByRole("link", { name: "Experiments" })).toBeVisible();
-    const expected = isDesktop(info.project.name) ? ["OBSERVA", "Home", "Products", "Experiments"] : ["OBSERVA", "Experiments"];
+    const expected = isDesktop(info.project.name)
+      ? ["OBSERVA", "Home", "Products", "Experiments", "Cart, 0 items"]
+      : ["OBSERVA", "Experiments", "Cart, 0 items"];
     const seen = [];
     for (let i = 0; i < expected.length; i += 1) {
       await page.keyboard.press("Tab");

@@ -89,8 +89,9 @@ test.describe("the collection", () => {
     ]);
     await expect(cards(page).nth(3).getByText("Out of stock")).toBeVisible();
     await expect(collection(page).getByText("In stock")).toHaveCount(4);
-    await expect(collection(page).getByRole("button")).toHaveCount(0);
-    await expect(collection(page).getByText(/add to cart|sold out/i)).toHaveCount(0);
+    // One cart action per card (P4-C): Add to cart, or Sold out for the product with no stock.
+    await expect(collection(page).getByRole("button", { name: /^Add to cart: / })).toHaveCount(4);
+    await expect(collection(page).getByRole("button", { name: /^Sold out: / })).toBeDisabled();
     expect(await noSideScroll(page)).toBe(true);
     await loadAllImages(page);
     await capture("collection", collection(page));

@@ -10,7 +10,7 @@ type ProductCardProps = {
   product: Product;
   /** The large first tile of the collection (Journal / Notebook in the artboards). */
   feature?: boolean;
-  /** The card's action, such as "Add to cart". Empty until the cart works (P4-C). */
+  /** The card's action: Add to cart or Sold out (P4-C). */
   action?: ReactNode;
 };
 
@@ -21,9 +21,11 @@ export function ProductCard({ product, feature = false, action }: ProductCardPro
     <article className={styles.card} data-feature={feature || undefined}>
       <ProductImage productId={product.product_id} priority={feature} />
       <div className={styles.info}>
-        <h3 className={styles.name}>{displayName(product)}</h3>
-        <p className={styles.price}>{formatMoney(product.price_cents)}</p>
-        <div className={styles.status}>
+        <div className={styles.top}>
+          <h3 className={styles.name}>{displayName(product)}</h3>
+          <p className={styles.price}>{formatMoney(product.price_cents)}</p>
+        </div>
+        <div className={styles.bottom}>
           {inStock ? (
             <StatusMarker shape="filled" tone="success">
               In stock
@@ -33,8 +35,8 @@ export function ProductCard({ product, feature = false, action }: ProductCardPro
               Out of stock
             </StatusMarker>
           )}
+          {action ? <div className={styles.action}>{action}</div> : null}
         </div>
-        {action ? <div className={styles.action}>{action}</div> : null}
       </div>
     </article>
   );

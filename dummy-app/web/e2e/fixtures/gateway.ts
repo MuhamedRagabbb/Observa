@@ -21,3 +21,41 @@ export const STORE_UI_CONFIG: UiConfig = {
 };
 
 export const OPERATOR_UI_CONFIG: UiConfig = { ...STORE_UI_CONFIG, mode: "control" };
+
+export type CartQuote = components["schemas"]["CartQuote"];
+export type QuoteLine = components["schemas"]["QuoteLine"];
+
+/**
+ * The quote the Gateway would return for these lines against this catalogue: the same rules as
+ * build_quote in services/shared/checkout.py (lines sorted by product ID, unavailable lines
+ * excluded from the subtotal and unit count).
+ */
+export function quoteFor(items: { product_id: string; quantity: number }[], products: Product[] = PRODUCTS): CartQuote {
+  const catalog = new Map(products.map((product) => [product.product_id, product]));
+  const lines: QuoteLine[] = [...items]
+    .sort((a, b) => a.product_id.localeCompare(b.product_id))
+    .map(({ product_id, quantity }) => {
+      const product = catalog.get(product_id);
+      if (!product) {
+        return { product_id, name: null, quantity, unit_price_cents: null, line_total_cents: null, available: false, unavailable_reason: "unknown_product" };
+      }
+      const reason = product.stock <= 0 ? "out_of_stock" : product.stock < quantity ? "insufficient_stock" : null;
+      return {
+        product_id,
+        name: product.name,
+        quantity,
+        unit_price_cents: product.price_cents,
+        line_total_cents: product.price_cents * quantity,
+        available: reason === null,
+        unavailable_reason: reason,
+      };
+    });
+  const available = lines.filter((line) => line.available);
+  return {
+    lines,
+    subtotal_cents: available.reduce((sum, line) => sum + (line.line_total_cents ?? 0), 0),
+    unit_count: available.reduce((sum, line) => sum + line.quantity, 0),
+    unavailable_count: lines.length - available.length,
+    can_checkout: lines.length > 0 && available.length === lines.length,
+  };
+}

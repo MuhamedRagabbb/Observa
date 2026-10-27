@@ -74,6 +74,23 @@ describe("Button", () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
+  it("can be unavailable yet keep focus, for a control that just reached a limit", () => {
+    const onClick = vi.fn();
+    render(
+      <Button icon="plus" unavailable onClick={onClick}>
+        10 in cart
+      </Button>,
+    );
+    const button = screen.getByRole("button", { name: "10 in cart" }) as HTMLButtonElement;
+    expect(button.disabled).toBe(false);
+    expect(button.getAttribute("aria-disabled")).toBe("true");
+    expect(button.getAttribute("aria-busy")).toBeNull();
+    button.focus();
+    fireEvent.click(button);
+    expect(onClick).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(button);
+  });
+
   it("has primary and secondary variants", () => {
     render(
       <>

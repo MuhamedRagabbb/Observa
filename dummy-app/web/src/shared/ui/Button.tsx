@@ -38,6 +38,11 @@ type ButtonProps = Common &
      * keyboard and screen-reader users do not lose their place.
      */
     loading?: boolean;
+    /**
+     * Looks and acts disabled but keeps focus: for a button that just reached a limit while
+     * focused ("10 in cart"), where a native disabled button would drop focus to the page.
+     */
+    unavailable?: boolean;
   };
 
 export function Button({
@@ -47,12 +52,13 @@ export function Button({
   block,
   type = "button",
   loading = false,
+  unavailable = false,
   onClick,
   children,
   ...rest
 }: ButtonProps) {
   const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
-    if (loading) {
+    if (loading || unavailable) {
       event.preventDefault();
       return;
     }
@@ -65,7 +71,8 @@ export function Button({
       className={classes(size, block)}
       data-variant={variant}
       aria-busy={loading || undefined}
-      aria-disabled={loading || undefined}
+      aria-disabled={loading || unavailable || undefined}
+      data-unavailable={unavailable || undefined}
       onClick={handleClick}
     >
       <Body icon={icon} loading={loading}>
@@ -75,7 +82,7 @@ export function Button({
   );
 }
 
-type ButtonLinkProps = Common & Pick<LinkProps, "to" | "state" | "replace">;
+type ButtonLinkProps = Common & Pick<LinkProps, "to" | "state" | "replace" | "onClick">;
 
 /** Looks like a Button but navigates, so it is a link for assistive tech and the browser. */
 export function ButtonLink({ icon, variant = "primary", size = "medium", block, children, ...link }: ButtonLinkProps) {

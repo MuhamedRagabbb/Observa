@@ -64,7 +64,7 @@ describe("storefront header, as shipped in P4-A", () => {
         el.querySelector("svg[aria-label]")?.getAttribute("aria-label") ??
         el.textContent?.replace("↗", "").trim(),
     );
-    expect(names).toEqual(["OBSERVA", "Home", "Products", "Experiments"]);
+    expect(names).toEqual(["OBSERVA", "Home", "Products", "Experiments", "Cart, 0 items"]);
   });
 });
 
