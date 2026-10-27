@@ -3,7 +3,7 @@
 // (services/shared/checkout.py: 1-10 units per product, at most 10 lines, IDs sku-NNN).
 // Prices and availability never live here; the quote supplies them.
 import { afterEach, describe, expect, it } from "vitest";
-import { addItem, CART_STORAGE_KEY, createCartStore, parseStoredCart, removeItems, setQuantity } from "../src/store/cart/cart-store.ts";
+import { addItem, CART_STORAGE_KEY, createCartStore, parseStoredCart, removeItems, setQuantity, subtractLines } from "../src/store/cart/cart-store.ts";
 
 afterEach(() => localStorage.clear());
 
@@ -46,6 +46,11 @@ describe("cart rules", () => {
     expect(setQuantity(lines, "sku-001", 42)).toEqual([line("sku-001", 10), line("sku-002", 1)]);
     expect(setQuantity(lines, "sku-009", 3)).toBe(lines);
     expect(setQuantity(lines, "sku-001", 2)).toBe(lines);
+  });
+
+  it("subtracts ordered units, dropping lines that reach zero", () => {
+    const lines = [line("sku-001", 3), line("sku-002", 1), line("sku-005", 2)];
+    expect(subtractLines(lines, [line("sku-001", 1), line("sku-002", 1), line("sku-009", 4)])).toEqual([line("sku-001", 2), line("sku-005", 2)]);
   });
 
   it("removes the named products", () => {

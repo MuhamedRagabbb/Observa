@@ -198,6 +198,10 @@
   font-weight: 400;
 }
 
+.proceed {
+  margin-block-start: var(--space-4);
+}
+
 .note {
   margin: 0;
   color: var(--color-text-muted);

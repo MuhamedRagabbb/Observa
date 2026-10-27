@@ -12,6 +12,7 @@ import { COLLECTION_ID } from "../home/anchors.ts";
 import { formatMoney } from "../money.ts";
 import { ProductImage } from "../ProductImage.tsx";
 import { MAX_QUANTITY, type CartLine } from "./cart-store.ts";
+import { useUnconfirmedAttempts } from "../checkout/attempts.ts";
 import { useCart } from "./CartContext.tsx";
 import styles from "./CartDrawer.module.css";
 import { useCartQuote, type CartQuote, type QuoteLine } from "./quote.ts";
@@ -59,11 +60,13 @@ function useModalPage(host: HTMLElement) {
  * The cart: a drawer from the right on wide screens (Cart drawer artboards), a full-height
  * sheet on phones (Cart sheet 375). A modal dialog: focus moves to its title, Tab stays inside,
  * Escape and the close button return focus to the opener. Prices and availability come only
- * from the quote. "Proceed to Checkout" arrives with checkout (P4-D).
+ * from the quote. Proceed to Checkout is a link only when the quote is current, every line is
+ * available and no earlier attempt is unconfirmed; otherwise it is disabled and a hint says why.
  */
 export function CartDrawer() {
   const { store, lines, close } = useCart();
   const quote = useCartQuote(lines);
+  const pending = useUnconfirmedAttempts()[0];
   const host = useRef<HTMLElement | null>(null);
   host.current ??= document.createElement("div");
   const panel = useRef<HTMLDivElement>(null);
@@ -185,7 +188,15 @@ export function CartDrawer() {
         ) : view === "loading" ? (
           <LoadingCart count={lines.length} />
         ) : (
-          <ReadyCart lines={lines} quote={data as CartQuote} stale={stale} onRemove={remove} onQuantity={store.setQuantity} />
+          <ReadyCart
+            lines={lines}
+            quote={data as CartQuote}
+            stale={stale || quote.isFetching}
+            pendingRef={pending?.attempt_ref ?? null}
+            onRemove={remove}
+            onQuantity={store.setQuantity}
+            onProceed={() => close({ restoreFocus: false })}
+          />
         )}
       </div>
     </div>,
@@ -197,15 +208,20 @@ function ReadyCart({
   lines,
   quote,
   stale,
+  pendingRef,
   onRemove,
   onQuantity,
+  onProceed,
 }: {
   lines: CartLine[];
   quote: CartQuote;
   /** The quote is for the previous lines: money is shown as updating, never out of date. */
   stale: boolean;
+  /** An earlier checkout attempt whose outcome is unknown: new checkouts wait for it. */
+  pendingRef: string | null;
   onRemove: (productIds: string[]) => void;
   onQuantity: (productId: string, quantity: number) => void;
+  onProceed: () => void;
 }) {
   const byId = new Map(quote.lines.map((line) => [line.product_id, line]));
   // Only lines still in the cart count: right after a removal the previous quote is still shown.
@@ -293,6 +309,23 @@ function ReadyCart({
             Remove unavailable items to continue.
           </p>
         ) : null}
+        {pendingRef ? (
+          <p className={styles.hint}>
+            <span className={styles.ring} aria-hidden="true" />
+            Your last order ({pendingRef}) isn’t confirmed yet. New checkouts are paused until its status is known.
+          </p>
+        ) : null}
+        <div className={styles.proceed}>
+          {!stale && quote.can_checkout && unavailable.length === 0 && !pendingRef ? (
+            <ButtonLink to="/checkout" icon="arrow-right" size="large" block onClick={onProceed}>
+              Proceed to Checkout
+            </ButtonLink>
+          ) : (
+            <Button icon="arrow-right" size="large" block disabled>
+              Proceed to Checkout
+            </Button>
+          )}
+        </div>
       </div>
     </>
   );

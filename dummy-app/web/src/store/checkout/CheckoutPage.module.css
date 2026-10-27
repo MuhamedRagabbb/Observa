@@ -1,0 +1,303 @@
+/*
+ * Artboards: Checkout 1440 and 375, Outcome 1-4 and the Mobile outcomes. Wide screens: the page
+ * (form or outcome) on the left, about 560px, the summary card on the right, about 420px.
+ * Phones: one column; the summary is a disclosure above the form and below an outcome.
+ */
+.layout {
+  display: grid;
+  gap: var(--space-8);
+  padding-block: var(--space-6) var(--space-16);
+}
+
+.side {
+  display: none;
+}
+
+.layout[data-summary-first] .phoneSummary {
+  order: -1;
+}
+
+.main {
+  min-width: 0;
+}
+
+@media (min-width: 60rem) {
+  .layout {
+    grid-template-columns: minmax(0, 35rem) minmax(0, 26.25rem);
+    justify-content: space-between;
+    align-items: start;
+    padding-block-start: var(--space-12);
+  }
+
+  .phoneSummary {
+    display: none;
+  }
+
+  .side {
+    display: block;
+  }
+}
+
+.title {
+  font-size: var(--text-display);
+  letter-spacing: -0.01em;
+}
+
+.title:focus,
+.outcomeTitle:focus {
+  outline: none;
+}
+
+.form {
+  display: grid;
+  gap: var(--space-10);
+}
+
+.section {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.sectionTitle {
+  font-size: 1.75rem;
+}
+
+.hint {
+  margin: calc(var(--space-2) * -1) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-small);
+}
+
+.field {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.label {
+  color: var(--color-ink-soft);
+  font-size: var(--text-control);
+  font-weight: 500;
+}
+
+.input {
+  height: 3.25rem;
+  padding-inline: var(--space-4);
+  border: 1px solid var(--color-line-control);
+  border-radius: var(--radius-control);
+  background: var(--color-field);
+  color: var(--color-ink);
+  font: inherit;
+}
+
+.input::placeholder {
+  color: var(--color-text-subtle);
+}
+
+.input[readonly] {
+  background: var(--color-surface-sunken);
+  color: var(--color-text-muted);
+}
+
+.input[aria-invalid="true"] {
+  border-color: var(--color-fault);
+}
+
+.error {
+  margin: 0;
+  color: var(--color-fault);
+  font-size: var(--text-small);
+}
+
+.method {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  border: 1.5px solid var(--color-ink);
+  border-radius: var(--radius-control);
+  background: var(--color-field);
+}
+
+.radio {
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 1.5px solid var(--color-ink);
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--color-ink) 0 40%, transparent 45%);
+}
+
+.methodName {
+  flex: 1;
+  color: var(--color-ink);
+  font-weight: 500;
+}
+
+.methodNote {
+  color: var(--color-text-muted);
+  font-size: var(--text-small);
+}
+
+.submit {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.submitNote {
+  display: flex;
+  gap: var(--space-3);
+  min-height: 1.5rem;
+  font-size: var(--text-small);
+}
+
+.submitNote > span:last-child {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.spinner {
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+  margin-block-start: 0.15rem;
+  border: 1.5px solid var(--color-text-muted);
+  border-inline-end-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+.strong {
+  color: var(--color-ink);
+  font-weight: 500;
+}
+
+.muted {
+  color: var(--color-text-muted);
+}
+
+.outcome {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-5);
+}
+
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  color: var(--color-ink-accent);
+  font-size: var(--text-small);
+  font-weight: 500;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+
+.confirmIcon {
+  display: grid;
+  place-items: center;
+  width: 1.375rem;
+  height: 1.375rem;
+  border-radius: 50%;
+  background: var(--color-ink);
+  color: var(--color-on-ink);
+  font-size: 0.875rem;
+}
+
+.faultIcon {
+  color: var(--color-fault);
+  font-size: 1.375rem;
+}
+
+.clockIcon {
+  color: var(--color-ink-accent);
+  font-size: 1.375rem;
+}
+
+/* [measured] Outcome artboards: about 62px at 1440, one line for "We couldn't place your order." */
+.outcomeTitle {
+  font-size: clamp(2.5rem, 1.6rem + 3vw, 3.875rem);
+  letter-spacing: -0.015em;
+}
+
+.lede {
+  max-width: 34rem;
+  margin: 0;
+  color: var(--color-ink-accent);
+  font-size: var(--text-lede);
+  line-height: 1.6;
+}
+
+.reference {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  width: 100%;
+  padding: var(--space-5) var(--space-6);
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-card);
+  background: var(--color-field);
+}
+
+.referenceLabel {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+  font-weight: 500;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+
+.referenceValue {
+  margin: var(--space-1) 0 0;
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: 1.375rem;
+  letter-spacing: 0.02em;
+}
+
+.copy {
+  flex: none;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4) var(--space-8);
+  margin-block-start: var(--space-4);
+}
+
+.empty {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-3);
+  padding-block: var(--space-12);
+}
+
+.emptyTitle {
+  margin: var(--space-6) 0 0;
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: var(--text-heading-2);
+}
+
+@media (max-width: 59.99rem) {
+  .actions {
+    justify-self: stretch;
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+  }
+
+  .actions > a,
+  .actions > button {
+    justify-content: center;
+  }
+}

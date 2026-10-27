@@ -208,7 +208,7 @@ describe("the cart dialog", () => {
 });
 
 describe("cart states", () => {
-  it("ready: lines, prices and subtotal from the quote, with no checkout control yet", async () => {
+  it("ready: lines, prices and subtotal from the quote, and Proceed to Checkout", async () => {
     storeCart([
       { product_id: "sku-001", quantity: 1 },
       { product_id: "sku-002", quantity: 2 },
@@ -228,8 +228,7 @@ describe("cart states", () => {
     expect(within(cart).getByText("3 items")).toBeTruthy();
     expect(within(cart).getByText("$52.00")).toBeTruthy();
     expect(within(cart).getByText("Demo checkout. No real payment or shipping.")).toBeTruthy();
-    expect(within(cart).queryByRole("button", { name: /checkout/i })).toBeNull();
-    expect(within(cart).queryByRole("link", { name: /checkout/i })).toBeNull();
+    expect(within(cart).getByRole("link", { name: "Proceed to Checkout" }).getAttribute("href")).toBe("/checkout");
   });
 
   it("changing a quantity shows no out-of-date money while the new quote loads", async () => {

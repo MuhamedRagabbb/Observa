@@ -88,7 +88,7 @@ test.describe("cart states", () => {
     await expect(cart.getByText("4 items", { exact: true })).toBeVisible();
     await expect(cart.getByText("2 × $18.00 each")).toBeVisible();
     await expect(cart.getByText("$54.00")).toBeVisible();
-    await expect(cart.getByRole("button", { name: /checkout/i })).toHaveCount(0);
+    await expect(cart.getByRole("link", { name: "Proceed to Checkout" })).toBeVisible();
     await settle(page); // measure after the slide-in
     const box = await cart.boundingBox();
     if (!box) throw new Error("cart not laid out");

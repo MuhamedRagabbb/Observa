@@ -33,6 +33,14 @@ export function setQuantity(lines: CartLine[], productId: string, quantity: numb
   return lines.map((line) => (line.product_id === productId ? { ...line, quantity: clamp(quantity) } : line));
 }
 
+/** Takes ordered units out of the cart; lines that reach zero go. Units added since stay. */
+export function subtractLines(lines: CartLine[], ordered: readonly CartLine[]): CartLine[] {
+  const taken = new Map(ordered.map((line) => [line.product_id, line.quantity]));
+  return lines
+    .map((line) => ({ ...line, quantity: line.quantity - (taken.get(line.product_id) ?? 0) }))
+    .filter((line) => line.quantity > 0);
+}
+
 export function removeItems(lines: CartLine[], productIds: readonly string[]): CartLine[] {
   return lines.filter((line) => !productIds.includes(line.product_id));
 }
@@ -114,6 +122,8 @@ export function createCartStore(storage: Storage = window.localStorage) {
     },
     setQuantity: (productId: string, quantity: number) => commit(setQuantity(lines, productId, quantity)),
     remove: (productIds: readonly string[]) => commit(removeItems(lines, productIds)),
+    /** After a confirmed order: removes exactly the ordered units. */
+    subtract: (ordered: readonly CartLine[]) => commit(subtractLines(lines, ordered)),
   };
 }
 

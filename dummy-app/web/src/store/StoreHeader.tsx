@@ -27,7 +27,7 @@ type StoreHeaderProps =
     }
   | {
       /** Focused pages (checkout, outcomes): the wordmark and one way back, no navigation. */
-      back: { to: string; label: string };
+      back: { to: string; label: string; state?: unknown };
       links?: never;
       search?: never;
       cart?: never;
@@ -48,7 +48,7 @@ export function StoreHeader(props: StoreHeaderProps) {
         <Wordmark />
       </Link>
       {props.back ? (
-        <Link to={props.back.to} className={styles.back}>
+        <Link to={props.back.to} state={props.back.state} className={styles.back}>
           <Icon name="arrow-left" className={styles.backIcon} />
           <span className={styles.backLabel}>{props.back.label}</span>
         </Link>

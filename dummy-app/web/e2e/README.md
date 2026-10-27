@@ -92,3 +92,8 @@ These follow the approved outcome rules:
 - U7: Every click sends exactly one POST, never retried automatically. A double-click sends one POST.
 - U8: An unconfirmed record older than the 50-order server window is still checkable from My Orders.
 - U9 (documented limitation): clearing site data loses unconfirmed records and the anonymous customer ID. The server still holds the attempt.
+
+### Status after P4-D (`checkout.spec.ts`, `test/checkout-*.test.ts`)
+- Covered: E1-E3 (`test/checkout-outcome.test.ts`, plus a wrong-reference e2e case), R1, R5, T2 (`cart.spec.ts`), T3, T6 (paused while unconfirmed), U1, U6, U7; two tabs pressing Place Order together send one POST, with and without Web Locks.
+- How duplicates are prevented: `src/store/checkout/gate.ts` decides in one IndexedDB read-write transaction (refuse while any attempt is stored, advance the reference counter, store the attempt). IndexedDB runs such transactions one at a time across tabs; localStorage is only the mirror the screens read. Without IndexedDB the fallback is a Web Lock (or an in-tab queue) over localStorage, which reads the record back before sending.
+- Left for P4-E/P4-F: R2-R4, T4, T5, T5b, U2-U5, U8 (Check status, resolve, polling, My Orders).
