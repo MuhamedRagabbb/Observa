@@ -6,7 +6,7 @@ import { countLabel } from "../../shared/ui/CountBadge.tsx";
 import { Icon } from "../../shared/ui/Icon.tsx";
 import { Notice } from "../../shared/ui/Notice.tsx";
 import { QuantityStepper } from "../../shared/ui/QuantityStepper.tsx";
-import { TextButton } from "../../shared/ui/TextLink.tsx";
+import { TextButton, TextLink } from "../../shared/ui/TextLink.tsx";
 import { displayName } from "../catalog.ts";
 import { COLLECTION_ID } from "../home/anchors.ts";
 import { formatMoney } from "../money.ts";
@@ -312,7 +312,12 @@ function ReadyCart({
         {pendingRef ? (
           <p className={styles.hint}>
             <span className={styles.ring} aria-hidden="true" />
-            Your last order ({pendingRef}) isn’t confirmed yet. New checkouts are paused until its status is known.
+            <span>
+              Your last order ({pendingRef}) isn’t confirmed yet. New checkouts are paused until its status is known.{" "}
+              <TextLink to="/checkout" onClick={onProceed}>
+                Check its status
+              </TextLink>
+            </span>
           </p>
         ) : null}
         <div className={styles.proceed}>

@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useSearchParams } from "react-router";
 import { Button, ButtonLink } from "../../shared/ui/Button.tsx";
 import { Icon } from "../../shared/ui/Icon.tsx";
 import { Notice } from "../../shared/ui/Notice.tsx";
@@ -8,9 +9,10 @@ import type { CartLine } from "../cart/cart-store.ts";
 import { useCartQuote, type CartQuote } from "../cart/quote.ts";
 import { displayName } from "../catalog.ts";
 import { formatMoney } from "../money.ts";
-import { useUnconfirmedAttempts, type AttemptRecord } from "./attempts.ts";
+import { useAttemptsSynced, useUnconfirmedAttempts, type AttemptRecord } from "./attempts.ts";
 import styles from "./CheckoutPage.module.css";
 import { validateContact, type Contact, type ContactErrors } from "./contact.ts";
+import type { Notice as SessionNotice } from "./flow.ts";
 import type { CheckoutResult } from "./outcome.ts";
 import { OrderSummary, type SummaryData } from "./OrderSummary.tsx";
 import { checkoutFlow, useCheckoutSession } from "./session.ts";
@@ -87,43 +89,79 @@ function Layout({ main, summary, summaryFirstOnPhones }: { main: ReactNode; summ
   );
 }
 
+/** R4: after a confirmed order the address carries its reference, so a reload can re-read it. */
+const ATTEMPT_PARAM = "attempt";
+
 /**
  * /checkout. Which screen shows, in order of precedence:
- * 1. this tab's attempt: placing, then its outcome;
- * 2. any unconfirmed attempt in this browser (a reload, another tab): that attempt, and no form,
- *    because its outcome could be a placed order;
- * 3. an empty cart: nothing to submit;
- * 4. the form.
+ * 1. this tab's attempt: placing, then its outcome (or its pending state while it is checked);
+ * 2. any unconfirmed attempt in this browser (a reload, another tab): that attempt, with Check
+ *    status, and no form, because its outcome could be a placed order;
+ * 3. R4: a confirmed order named in the address, re-read read-only;
+ * 4. an empty cart: nothing to submit;
+ * 5. the form.
  */
 export function CheckoutPage() {
   const { lines } = useCart();
   const session = useCheckoutSession();
   const unconfirmed = useUnconfirmedAttempts();
+  const synced = useAttemptsSynced();
   const flow = checkoutFlow();
+  const [params, setParams] = useSearchParams();
+  const wanted = params.get(ATTEMPT_PARAM);
+  const [restoring, setRestoring] = useState<string | null>(null);
 
   // Leaving the page forgets a finished screen (Back after success shows no stale outcome);
   // an answer still on its way keeps the session and settles it when it arrives.
   useEffect(() => () => flow.reset(), [flow]);
 
+  // R4: only once the gate has been read, only if this browser holds no unconfirmed attempt
+  // (that one is shown and checked instead), and only by a read-only lookup.
+  const mayRestore = wanted !== null && synced && unconfirmed.length === 0 && session.phase === "idle";
+  useEffect(() => {
+    if (!mayRestore || !wanted) return;
+    let live = true;
+    setRestoring(wanted);
+    void flow.restore(wanted).then((found) => {
+      if (!live) return;
+      setRestoring(null);
+      if (!found) setParams({}, { replace: true });
+    });
+    return () => {
+      live = false;
+      setRestoring(null);
+    };
+  }, [mayRestore, wanted, flow, setParams]);
+
   if (session.phase === "done") {
-    const { classification } = session;
+    const { classification, attemptRef } = session;
     if (classification.kind === "definite" && classification.result.outcome !== "processing") {
-      return <OutcomeScreen result={classification.result} />;
+      return <OutcomeScreen key={attemptRef} result={classification.result} />;
     }
-    return (
-      <PendingScreen
-        attemptRef={session.attemptRef}
-        lines={session.lines}
-        status={classification.kind === "definite" ? "processing" : "unknown"}
-      />
-    );
+    const held = unconfirmed.find((a) => a.attempt_ref === attemptRef);
+    // This tab's own attempt is briefly missing from the list while the gate is re-read.
+    const record: AttemptRecord = held ?? { attempt_ref: attemptRef, customer_id: session.customerId, lines: session.lines, created_at: "", status: "unknown" };
+    const processing = classification.kind === "definite" || record.status === "processing";
+    return <PendingScreen key={attemptRef} record={record} status={processing ? "processing" : record.status} activity={session.activity} notice={session.notice} />;
   }
   if (session.phase !== "submitting") {
     const pending: AttemptRecord | undefined = unconfirmed[0];
-    if (pending) return <PendingScreen attemptRef={pending.attempt_ref} lines={pending.lines} status={pending.status} />;
+    if (pending) return <PendingScreen key={pending.attempt_ref} record={pending} status={pending.status} />;
+    if (restoring || (wanted !== null && !synced)) return <RestoringScreen />;
     if (lines.length === 0) return <EmptyCheckout />;
   }
   return <CheckoutForm lines={session.phase === "submitting" ? session.lines : lines} submitting={session.phase === "submitting"} />;
+}
+
+function RestoringScreen() {
+  return (
+    <div className={styles.empty}>
+      <h1 className={styles.title}>Checkout</h1>
+      <p className={styles.muted} role="status">
+        Loading your order…
+      </p>
+    </div>
+  );
 }
 
 function Field({
@@ -290,6 +328,12 @@ function Eyebrow({ icon, children }: { icon: ReactNode; children: ReactNode }) {
 function OutcomeScreen({ result }: { result: CheckoutResult }) {
   const flow = checkoutFlow();
   const heading = useFocusOnMount<HTMLHeadingElement>();
+  const [, setParams] = useSearchParams();
+  const confirmedRef = result.outcome === "confirmed" ? result.attempt_ref : null;
+  // R4: the reference only (never contact details), replacing this history entry.
+  useEffect(() => {
+    if (confirmedRef) setParams({ [ATTEMPT_PARAM]: confirmedRef }, { replace: true });
+  }, [confirmedRef, setParams]);
   // Back to the form, details kept: a fresh quote of the cart as it is now backs the next
   // attempt, which gets a new reference.
   const tryAgain = () => flow.reset();
@@ -418,10 +462,12 @@ function OutcomeScreen({ result }: { result: CheckoutResult }) {
 }
 
 /**
- * Outcome 4 (and a 202 variant): the attempt may or may not have been placed. New checkouts
- * stay paused until its status is known; checking it arrives in P4-E.
+ * Outcome 4 (and the 202 Processing variant): the attempt may or may not have been placed. New
+ * checkouts stay paused until its status is known. Check status asks the server (GET first;
+ * resolve only after a 404, or when polling gave up on a processing attempt). A processing
+ * attempt is polled automatically, with GET only, for about 60 s.
  */
-const PENDING: Record<AttemptRecord["status"], { eyebrow: string; title: string; body: string }> = {
+const PENDING: Record<AttemptRecord["status"] | "still_processing", { eyebrow: string; title: string; body: string }> = {
   unknown: {
     eyebrow: "Status unknown",
     title: "We couldn’t confirm your order.",
@@ -438,15 +484,54 @@ const PENDING: Record<AttemptRecord["status"], { eyebrow: string; title: string;
     title: "Your order is still processing.",
     body: "The order service is still working on it. To avoid a duplicate order, new checkouts are paused until it finishes.",
   },
+  still_processing: {
+    eyebrow: "Processing",
+    title: "Your order is still processing.",
+    body: "This is taking longer than usual. It may still go through, so new checkouts stay paused. Check again in a moment.",
+  },
 };
 
-function PendingScreen({ attemptRef, lines, status }: { attemptRef: string; lines: CartLine[]; status: AttemptRecord["status"] }) {
-  const quote = useCartQuote(lines);
+function PendingScreen({
+  record,
+  status,
+  activity,
+  notice,
+}: {
+  record: AttemptRecord;
+  status: AttemptRecord["status"];
+  activity?: "checking" | "polling";
+  notice?: SessionNotice;
+}) {
+  const flow = checkoutFlow();
+  const quote = useCartQuote(record.lines);
   const heading = useFocusOnMount<HTMLHeadingElement>();
-  const copy = PENDING[status];
+  const gaveUp = status === "processing" && notice === "still_processing";
+  const polls = status === "processing" && !gaveUp && activity !== "checking";
+  const latest = useRef(record);
+  latest.current = record;
+
+  // Processing: poll with GET only while this screen is shown; leaving it stops polling.
+  useEffect(() => {
+    if (!polls) return;
+    const following = flow.follow(latest.current);
+    return following.stop;
+  }, [polls, flow, record.attempt_ref]);
+
+  const copy = PENDING[gaveUp ? "still_processing" : status];
+  const checking = activity === "checking";
+  const check = () => {
+    if (!checking) void flow.check(latest.current);
+  };
+  const statusLine = checking
+    ? "Checking your order’s status…"
+    : notice === "check_failed"
+      ? "We couldn’t check its status just now. Your order is still paused; please try again in a moment."
+      : polls
+        ? "Checking for an update automatically…"
+        : "";
   return (
     <Layout
-      summary={quoteSummary(quote.data && !quote.isPlaceholderData ? quote.data : undefined, lines)}
+      summary={quoteSummary(quote.data && !quote.isPlaceholderData ? quote.data : undefined, record.lines)}
       main={
         <div className={styles.outcome}>
           <Eyebrow icon={<Icon name="clock" className={styles.clockIcon} />}>{copy.eyebrow}</Eyebrow>
@@ -454,9 +539,20 @@ function PendingScreen({ attemptRef, lines, status }: { attemptRef: string; line
             {copy.title}
           </h1>
           <p className={styles.lede}>{copy.body}</p>
-          <Reference label="Attempt reference" value={attemptRef} />
+          <Reference label="Attempt reference" value={record.attempt_ref} />
+          <p className={styles.checkStatus} role="status">
+            {statusLine}
+          </p>
           <div className={styles.actions}>
-            <TextLink to="/">Back to the store</TextLink>
+            {polls ? null : (
+              // Outcome 4 artboard: "Check Order Status" with the arrow, then Return to cart.
+              <Button icon={gaveUp ? "refresh" : "arrow-right"} size="large" loading={checking} unavailable={checking} onClick={check}>
+                {checking ? "Checking…" : gaveUp ? "Check again" : "Check Order Status"}
+              </Button>
+            )}
+            <TextLink to="/" state={OPEN_CART}>
+              Return to cart
+            </TextLink>
           </div>
         </div>
       }

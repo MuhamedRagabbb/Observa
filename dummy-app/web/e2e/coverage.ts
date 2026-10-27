@@ -234,7 +234,7 @@ export const COVERAGE: CoverageState[] = [
   {
     id: "checkout-unconfirmed-prompt",
     slice: "P4-E",
-    screen: "Same lines as an unconfirmed attempt: check that attempt first",
+    screen: "Cart while an attempt is unconfirmed: checkout paused, Check its status (T6: any unconfirmed attempt pauses)",
     approved: {},
     derived: ALL,
     reference: allRef(A.unknown, A.unknownMobile),

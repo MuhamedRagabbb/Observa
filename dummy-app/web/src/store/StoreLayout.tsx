@@ -3,6 +3,7 @@ import { Outlet, useLocation, useMatch, useNavigate } from "react-router";
 import { CartDrawer } from "./cart/CartDrawer.tsx";
 import { CartProvider, useCart } from "./cart/CartContext.tsx";
 import { OPEN_CART } from "./checkout/CheckoutPage.tsx";
+import { startCheckoutRecovery } from "./checkout/session.ts";
 import { COLLECTION_ID } from "./home/anchors.ts";
 import { StoreHeader, type HeaderLink } from "./StoreHeader.tsx";
 import styles from "./StoreLayout.module.css";
@@ -26,6 +27,7 @@ export function StoreLayout() {
 
 function Page() {
   const cart = useCart();
+  useEffect(() => startCheckoutRecovery(), []);
   const checkout = useMatch("/checkout") !== null;
   const location = useLocation();
   const navigate = useNavigate();

@@ -3,7 +3,7 @@ import { Link, type LinkProps } from "react-router";
 import { Icon, type IconName } from "./Icon.tsx";
 import styles from "./TextLink.module.css";
 
-type TextLinkProps = Pick<LinkProps, "to" | "state" | "replace" | "aria-label"> & {
+type TextLinkProps = Pick<LinkProps, "to" | "state" | "replace" | "aria-label" | "onClick"> & {
   icon?: IconName;
   children: ReactNode;
 };

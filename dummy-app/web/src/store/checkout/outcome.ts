@@ -40,7 +40,7 @@ const isResultLine = (value: unknown) =>
   (value.unit_price_cents === null || value.unit_price_cents === undefined || typeof value.unit_price_cents === "number");
 
 /** The fields this app relies on are present and of the right type. */
-function isCheckoutResult(value: unknown): value is CheckoutResult {
+export function isCheckoutResult(value: unknown): value is CheckoutResult {
   if (!isRecord(value)) return false;
   const outcome = value.outcome as Outcome;
   return (

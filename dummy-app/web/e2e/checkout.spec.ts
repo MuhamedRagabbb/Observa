@@ -1,99 +1,28 @@
 // P4-D: checkout and definite outcomes, against the production build with typed mocks.
 // Every POST /api/checkout is counted: no test may see more POSTs than presses.
 // Safety cases from e2e/README.md: E1-E3 (via the outcome screens), R1, R5, T3, T6, U1, U6, U7,
-// plus two tabs pressing Place Order together.
+// plus two tabs pressing Place Order together. Recovery (P4-E) is in recovery.spec.ts.
 import type { BrowserContext, Page } from "@playwright/test";
-import type { components } from "../src/api/generated/gateway.ts";
-import { PRODUCTS, quoteFor } from "./fixtures/gateway.ts";
-import { STORE_URL, expect, test, type MockApi, type MockReply } from "./support/harness.ts";
-
-type Line = { product_id: string; quantity: number };
-type CheckoutResult = components["schemas"]["CheckoutResult"];
-
-const CHECKOUT_URL = `${STORE_URL}checkout`;
-const READY: Line[] = [
-  { product_id: "sku-001", quantity: 1 },
-  { product_id: "sku-002", quantity: 2 },
-  { product_id: "sku-003", quantity: 1 },
-];
-const isDesktop = (projectName: string) => projectName === "desktop-1440";
-
-function result(ref: string, outcome: CheckoutResult["outcome"], extra: Partial<CheckoutResult> = {}): CheckoutResult {
-  return {
-    attempt_ref: ref,
-    order_id: outcome === "confirmed" ? "order-0f8fad5b-d9cb-469f-a165-70867728950e" : null,
-    order_number: outcome === "confirmed" ? "OBS-1042-7F3A" : null,
-    state: { confirmed: "completed", processing: "charging", payment_failed: "payment_declined", unavailable: "not_placed", failed: "failed", abandoned: "abandoned" }[outcome],
-    outcome,
-    retryable: outcome === "payment_failed" || outcome === "abandoned" || (outcome === "failed" && extra.retryable !== false),
-    items: READY.map((line) => ({
-      ...line,
-      unit_price_cents: PRODUCTS.find((p) => p.product_id === line.product_id)?.price_cents ?? null,
-    })),
-    total_cents: 5400,
-    error_code: null,
-    unavailable_items: null,
-    created_at: "2026-10-27T10:00:00Z",
-    ...extra,
-  };
-}
-
-const envelope = (code: string, details?: CheckoutResult) => ({ error_code: code, message: "Checkout was not completed", ...(details ? { details } : {}) });
-
-type Reply = (ref: string) => MockReply | Promise<MockReply>;
-
-/** Catalogue, quotes and checkout; returns the references of every checkout POST seen. */
-function serve(api: MockApi, reply: Reply) {
-  const refs: string[] = [];
-  api.onGateway("GET", "/api/products", () => ({ status: 200, body: PRODUCTS }));
-  api.onGateway("POST", "/api/cart/quote", (request) => ({ status: 200, body: quoteFor((request.body as { items: Line[] }).items) }));
-  api.onGateway("POST", "/api/checkout", (request) => {
-    const ref = request.headers["idempotency-key"] ?? "";
-    refs.push(ref);
-    return reply(ref);
-  });
-  return refs;
-}
-
-/** Stores a cart (and optionally attempt records) once per tab, as an earlier visit would have. */
-async function seed(page: Page, lines: Line[], attempts?: unknown[]) {
-  await page.addInitScript(
-    ({ cart, attempts }) => {
-      if (sessionStorage.getItem("seeded")) return;
-      localStorage.setItem("observa.cart", cart);
-      if (attempts) localStorage.setItem("observa.attempts", attempts);
-      sessionStorage.setItem("seeded", "1");
-    },
-    {
-      cart: JSON.stringify({ version: 1, lines }),
-      attempts: attempts ? JSON.stringify({ version: 1, attempts }) : null,
-    },
-  );
-}
-
-async function fill(page: Page) {
-  await page.getByLabel("Full name").fill("Demo Name");
-  await page.getByLabel("Email").fill("demo@example.com");
-}
-
-const placeButton = (page: Page) => page.getByRole("button", { name: /^Place Order/ });
-
-async function place(page: Page) {
-  await fill(page);
-  await expect(placeButton(page)).not.toHaveAttribute("aria-disabled", "true");
-  await placeButton(page).click();
-}
-
-const storedAttempts = (page: Page) =>
-  page.evaluate(() => JSON.parse(localStorage.getItem("observa.attempts") ?? '{"attempts":[]}').attempts as { attempt_ref: string; status: string }[]);
-const storedCart = (page: Page) => page.evaluate(() => JSON.parse(localStorage.getItem("observa.cart") ?? '{"lines":[]}').lines as Line[]);
-
-async function settled(page: Page) {
-  await page.evaluate(() => document.fonts.ready);
-  for (const image of await page.locator("main img").all()) {
-    if (await image.isVisible()) await expect(image).toHaveJSProperty("complete", true);
-  }
-}
+import {
+  CHECKOUT_URL,
+  envelope,
+  fill,
+  gateRecord,
+  isDesktop,
+  place,
+  placeButton,
+  pressTogether,
+  READY,
+  result,
+  seed,
+  seedGate,
+  serve,
+  serveStatus,
+  settled,
+  storedAttempts,
+  storedCart,
+} from "./support/checkout.ts";
+import { STORE_URL, expect, test, type MockReply } from "./support/harness.ts";
 
 test.describe("checkout form", () => {
   test("form with the server-priced summary", async ({ page, api, capture }, info) => {
@@ -257,8 +186,11 @@ test.describe("unknown outcomes are kept", () => {
     await place(page);
     await expect.poll(() => refs.length).toBe(1);
     await page.reload();
-    await expect(page.getByRole("heading", { level: 1, name: "We couldn’t confirm your order." })).toBeVisible();
+    // The answer died with the page: the attempt is still "submitting", shown as status unknown.
+    await expect(page.getByText("Status unknown")).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "We’re still waiting to confirm your order." })).toBeVisible();
     await expect(page.getByText(refs[0] ?? "missing")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Check Order Status" })).toBeVisible();
     await expect(page.getByLabel("Full name")).toHaveCount(0);
     await page.waitForTimeout(300);
     expect(refs).toHaveLength(1);
@@ -280,7 +212,8 @@ test.describe("unknown outcomes are kept", () => {
 
   test("an unconfirmed attempt pauses new checkouts in the cart and on the page (T6)", async ({ page, api }) => {
     const refs = serve(api, () => ({ status: 500 }));
-    await seed(page, READY, [{ attempt_ref: "ATT-1A2B-0042", lines: READY, created_at: "2026-10-27T10:00:00.000Z", status: "unknown" }]);
+    await seed(page, READY);
+    await seedGate(page, [gateRecord("ATT-1A2B-0042", "unknown")]);
     await page.goto(STORE_URL);
     await page.getByRole("banner").getByRole("button", { name: /^Cart,/ }).click();
     const cart = page.getByRole("dialog", { name: "Cart" });
@@ -294,8 +227,9 @@ test.describe("unknown outcomes are kept", () => {
 });
 
 test.describe("navigation and other tabs", () => {
-  test("Back and Forward after success never resubmit (R5)", async ({ page, api }) => {
+  test("Back and Forward after success never resubmit; Forward re-reads the confirmation (R5, R4)", async ({ page, api }) => {
     const refs = serve(api, (ref) => ({ status: 201, body: result(ref, "confirmed") }));
+    const status = serveStatus(api, { get: (ref) => ({ status: 200, body: result(ref, "confirmed") }) });
     await seed(page, READY);
     await page.goto(STORE_URL);
     await page.getByRole("banner").getByRole("button", { name: /^Cart,/ }).click();
@@ -305,8 +239,10 @@ test.describe("navigation and other tabs", () => {
     await page.goBack();
     await expect(page.getByRole("heading", { level: 1, name: /Quiet objects/ })).toBeVisible();
     await page.goForward();
-    await expect(page.getByText("Your cart is empty.")).toBeVisible();
+    // The confirmation is shown again from the server (R4): re-read by reference, never re-sent.
+    await expect(page.getByRole("heading", { level: 1, name: "Thank you." })).toBeVisible();
     await expect(placeButton(page)).toHaveCount(0);
+    expect(status.seen).toEqual([`GET ${refs[0]}`]);
     expect(refs).toHaveLength(1);
   });
 
@@ -316,8 +252,8 @@ test.describe("navigation and other tabs", () => {
     return other;
   }
 
-  test("two tabs pressing Place Order together send one POST; the other tab shows that attempt", async ({ page, api, context }) => {
-    const refs = serve(api, () => new Promise<MockReply>(() => undefined));
+  /** Both tabs ready to press Place Order, the POST never answering (so nothing settles). */
+  async function readyTabs(page: Page, context: BrowserContext) {
     await seed(page, READY);
     await page.goto(CHECKOUT_URL);
     const other = await twoTabs(context);
@@ -325,11 +261,14 @@ test.describe("navigation and other tabs", () => {
       await fill(tab);
       await expect(placeButton(tab)).not.toHaveAttribute("aria-disabled", "true");
     }
-    // Both presses fire at once from inside the pages; whichever tab is second may already have
-    // swapped its form for the other tab's attempt, which is the behaviour under test.
-    const press = (tab: Page) =>
-      tab.evaluate(() => document.querySelector<HTMLButtonElement>("form button[type=submit]")?.click());
-    await Promise.all([press(page), press(other)]);
+    return other;
+  }
+
+  test("two tabs pressing Place Order at the same instant send one POST; the other tab shows that attempt", async ({ page, api, context }) => {
+    const refs = serve(api, () => new Promise<MockReply>(() => undefined));
+    const other = await readyTabs(page, context);
+    // Both presses fire at one shared wall-clock instant, inside the pages.
+    await pressTogether([page, other]);
     await expect.poll(() => refs.length).toBe(1);
     await page.waitForTimeout(500);
     expect(refs).toHaveLength(1);
@@ -337,24 +276,39 @@ test.describe("navigation and other tabs", () => {
     await other.close();
   });
 
-  test("without Web Locks (plain http on a LAN address), two tabs pressing together still send one POST", async ({ page, api, context }) => {
-    await context.addInitScript(() => Object.defineProperty(navigator, "locks", { value: undefined, configurable: true }));
-    const refs = serve(api, () => new Promise<MockReply>(() => undefined));
+  test.describe("with the gate's check deliberately removed (test-only mutant)", () => {
+    // The page's IndexedDB is patched in the browser, never in the shipped code: inside a
+    // read-write transaction the attempts store reads as empty. The same race then sends exactly
+    // two POSTs, so the "one POST" assertion above can tell a broken gate from a working one.
+    test("the same race sends two POSTs, so the race test above can fail", async ({ page, api, context }) => {
+      await context.addInitScript(() => {
+        const getAll = IDBObjectStore.prototype.getAll;
+        IDBObjectStore.prototype.getAll = function (this: IDBObjectStore, ...args: Parameters<IDBObjectStore["getAll"]>) {
+          if (this.name === "attempts" && this.transaction.mode === "readwrite") return getAll.call(this, IDBKeyRange.only("~none~"));
+          return getAll.apply(this, args);
+        };
+      });
+      const refs = serve(api, () => new Promise<MockReply>(() => undefined));
+      const other = await readyTabs(page, context);
+      await pressTogether([page, other]);
+      await expect.poll(() => refs.length).toBe(2);
+      await page.waitForTimeout(500);
+      expect(refs).toHaveLength(2);
+      expect(new Set(refs).size).toBe(2);
+      await other.close();
+    });
+  });
+
+  test("without IndexedDB nothing is sent: checkout fails closed", async ({ page, api, context }) => {
+    await context.addInitScript(() => Object.defineProperty(window, "indexedDB", { value: undefined, configurable: true }));
+    const refs = serve(api, (ref) => ({ status: 201, body: result(ref, "confirmed") }));
     await seed(page, READY);
     await page.goto(CHECKOUT_URL);
-    const other = await twoTabs(context);
-    expect(await page.evaluate(() => "locks" in navigator && navigator.locks !== undefined)).toBe(false);
-    for (const tab of [page, other]) {
-      await fill(tab);
-      await expect(placeButton(tab)).not.toHaveAttribute("aria-disabled", "true");
-    }
-    const press = (tab: Page) =>
-      tab.evaluate(() => document.querySelector<HTMLButtonElement>("form button[type=submit]")?.click());
-    await Promise.all([press(page), press(other)]);
-    await expect.poll(() => refs.length).toBe(1);
-    await page.waitForTimeout(500);
-    expect(refs).toHaveLength(1);
-    await other.close();
+    await place(page);
+    await expect(page.getByText(/didn’t let this page save the order’s reference, so nothing was sent/)).toBeVisible();
+    await page.waitForTimeout(300);
+    expect(refs).toEqual([]);
+    expect(await storedCart(page)).toEqual(READY);
   });
 
   test("success in one tab empties the cart in the other, which cannot submit it (T3)", async ({ page, api, context }) => {

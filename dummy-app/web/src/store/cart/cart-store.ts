@@ -71,11 +71,32 @@ export function parseStoredCart(raw: string | null): CartLine[] {
 
 type Storage = Pick<globalThis.Storage, "getItem" | "setItem">;
 
-function read(storage: Storage): CartLine[] {
+/** How many confirmed orders the cart remembers having applied (see applyConfirmed). */
+// At least twice the checkout journal (gate.ts EFFECTS_KEPT): a crash replay can apply an older
+// order after newer ones, so markers must outlive every effect the journal can still replay.
+export const APPLIED_KEPT = 40;
+const ATTEMPT_REF = /^ATT-[0-9A-F]{4}-[0-9]{4}$/;
+
+/** The attempt references of confirmed orders already taken out of a stored cart. */
+export function parseApplied(raw: string | null): string[] {
   try {
-    return parseStoredCart(storage.getItem(CART_STORAGE_KEY));
+    const parsed: unknown = raw ? JSON.parse(raw) : null;
+    if (typeof parsed !== "object" || parsed === null || (parsed as { version?: unknown }).version !== VERSION) return [];
+    const applied = (parsed as { applied?: unknown }).applied;
+    return Array.isArray(applied) ? applied.filter((ref): ref is string => typeof ref === "string" && ATTEMPT_REF.test(ref)).slice(-APPLIED_KEPT) : [];
   } catch {
     return [];
+  }
+}
+
+type State = { lines: CartLine[]; applied: string[] };
+
+function read(storage: Storage): State | null {
+  try {
+    const raw = storage.getItem(CART_STORAGE_KEY);
+    return { lines: parseStoredCart(raw), applied: parseApplied(raw) };
+  } catch {
+    return null;
   }
 }
 
@@ -84,23 +105,26 @@ function read(storage: Storage): CartLine[] {
  * the storage event. Works in memory when storage is blocked.
  */
 export function createCartStore(storage: Storage = window.localStorage) {
-  let lines = read(storage);
+  let { lines, applied } = read(storage) ?? { lines: [] as CartLine[], applied: [] as string[] };
   const listeners = new Set<() => void>();
   const emit = () => listeners.forEach((listener) => listener());
-  const commit = (next: CartLine[]) => {
-    if (next === lines) return;
-    lines = next;
+  const save = () => {
     try {
-      storage.setItem(CART_STORAGE_KEY, JSON.stringify({ version: VERSION, lines }));
+      storage.setItem(CART_STORAGE_KEY, JSON.stringify(applied.length > 0 ? { version: VERSION, lines, applied } : { version: VERSION, lines }));
     } catch {
       // Storage blocked or full: the cart still works for this page.
     }
+  };
+  const commit = (next: CartLine[]) => {
+    if (next === lines) return;
+    lines = next;
+    save();
     emit();
   };
   const onStorage = (event: StorageEvent) => {
     // key null: another tab cleared all storage.
     if (event.key !== CART_STORAGE_KEY && event.key !== null) return;
-    lines = read(storage);
+    ({ lines, applied } = read(storage) ?? { lines: [], applied: [] });
     emit();
   };
 
@@ -122,8 +146,25 @@ export function createCartStore(storage: Storage = window.localStorage) {
     },
     setQuantity: (productId: string, quantity: number) => commit(setQuantity(lines, productId, quantity)),
     remove: (productIds: readonly string[]) => commit(removeItems(lines, productIds)),
-    /** After a confirmed order: removes exactly the ordered units. */
-    subtract: (ordered: readonly CartLine[]) => commit(subtractLines(lines, ordered)),
+    /**
+     * A confirmed order's effect, exactly once: removes the ordered units (units added since
+     * stay) and records the order's reference in the same stored value, so the two can never
+     * be saved apart. It starts from what storage holds now, not this tab's copy, so an order
+     * another tab already applied is never taken out twice. Returns whether it applied.
+     */
+    applyConfirmed(attemptRef: string, ordered: readonly CartLine[]): boolean {
+      const fresh = read(storage);
+      if (fresh) ({ lines, applied } = fresh);
+      if (applied.includes(attemptRef)) {
+        emit();
+        return false;
+      }
+      lines = subtractLines(lines, ordered);
+      applied = [...applied, attemptRef].slice(-APPLIED_KEPT);
+      save();
+      emit();
+      return true;
+    },
   };
 }
 

@@ -17,6 +17,11 @@ export function resetCheckoutFlow() {
   shared = null;
 }
 
+/** On page start: re-applies any confirmed order's cart effect that a crash interrupted. */
+export function startCheckoutRecovery() {
+  void checkoutFlow().replayEffects();
+}
+
 export function useCheckoutSession(flow: CheckoutFlow = checkoutFlow()): Session {
   return useSyncExternalStore(flow.subscribe, flow.getSession);
 }

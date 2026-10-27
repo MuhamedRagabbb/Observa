@@ -3,10 +3,13 @@
 // Placing an order: the attempt is recorded before the single POST, the answer is classified
 // by outcome.ts, the cart is cleared only on a confirmed order, and contact details are sent
 // once and never stored (U1, U6, U7).
+import "fake-indexeddb/auto";
+import { IDBFactory } from "fake-indexeddb";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createCartStore, CART_STORAGE_KEY } from "../src/store/cart/cart-store.ts";
-import { ATTEMPTS_KEY, createAttemptStore } from "../src/store/checkout/attempts.ts";
+import { ATTEMPTS_KEY, beginAttempt, createAttemptStore } from "../src/store/checkout/attempts.ts";
 import { createCheckoutFlow } from "../src/store/checkout/flow.ts";
+import { gateList, openGate, resetGate } from "../src/store/checkout/gate.ts";
 import type { CheckoutResult } from "../src/store/checkout/outcome.ts";
 
 const contact = { name: "Demo Person", email: "demo.person@example.com" };
@@ -53,8 +56,15 @@ function setup(reply: (ref: string) => Response | Promise<Response>) {
   return { cart, attempts, flow, seen, fetch };
 }
 
-beforeEach(() => localStorage.clear());
-afterEach(() => vi.useRealTimers());
+beforeEach(() => {
+  globalThis.indexedDB = new IDBFactory();
+  resetGate();
+  localStorage.clear();
+});
+afterEach(() => {
+  vi.useRealTimers();
+  resetGate();
+});
 
 describe("placing an order", () => {
   it("records the attempt before sending exactly one POST with its reference as the Idempotency-Key", async () => {
@@ -107,9 +117,11 @@ describe("placing an order", () => {
   });
 
   it("gives up waiting after 30 seconds and treats the attempt as unknown", async () => {
-    vi.useFakeTimers();
+    // Only the timers the flow uses: IndexedDB keeps running on real ones.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     const { flow, attempts, fetch } = setup(() => new Promise<Response>(() => undefined));
     const placing = flow.place(LINES, contact);
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
     await vi.advanceTimersByTimeAsync(30_000);
     expect(await placing).toMatchObject({ kind: "unknown", reason: "network" });
     expect(fetch).toHaveBeenCalledTimes(1);
@@ -130,8 +142,9 @@ describe("placing an order", () => {
 
   it("sends nothing while another attempt is unconfirmed (another tab, or before a reload)", async () => {
     const { flow, fetch, attempts } = setup((ref) => Response.json(result(ref, "confirmed"), { status: 201 }));
-    attempts.record({ attempt_ref: "ATT-0000-0001", lines: LINES, created_at: "2026-10-27T10:00:00.000Z" });
-    expect(await flow.place(LINES, contact)).toEqual({ kind: "blocked", blockedBy: "ATT-0000-0001" });
+    const other = await beginAttempt(LINES, { customerId: "web-0123456789abcdefghijkl" });
+    await attempts.sync();
+    expect(await flow.place(LINES, contact)).toEqual({ kind: "blocked", blockedBy: other.ok ? other.attemptRef : "missing" });
     expect(fetch).not.toHaveBeenCalled();
   });
 
@@ -146,11 +159,9 @@ describe("placing an order", () => {
     expect(refs[0]).not.toBe(refs[1]);
   });
 
-  it("sends nothing when the attempt record cannot be saved (storage full or blocked)", async () => {
+  it("a blocked localStorage mirror does not matter: the gate holds the attempt, which is sent once", async () => {
     localStorage.setItem(CART_STORAGE_KEY, JSON.stringify({ version: 1, lines: LINES }));
-    const cart = createCartStore();
-    const attempts = createAttemptStore();
-    const { fetch } = server((ref) => Response.json(result(ref, "confirmed"), { status: 201 }));
+    const { fetch } = server(() => Promise.reject(new TypeError("Failed to fetch")));
     const failing = {
       getItem: (key: string) => localStorage.getItem(key),
       setItem: (key: string, value: string) => {
@@ -158,21 +169,25 @@ describe("placing an order", () => {
         localStorage.setItem(key, value);
       },
     };
-    const flow = createCheckoutFlow({ cart, attempts, fetch, storage: failing });
-    expect(await flow.place(LINES, contact)).toEqual({ kind: "blocked", blockedBy: null, reason: "storage" });
-    expect(fetch).not.toHaveBeenCalled();
-    expect(flow.getSession()).toEqual({ phase: "idle" });
+    const attempts = createAttemptStore(failing);
+    const flow = createCheckoutFlow({ cart: createCartStore(), attempts, fetch, storage: failing });
+    expect(await flow.place(LINES, contact)).toMatchObject({ kind: "unknown" });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const db = await openGate();
+    expect((await gateList(db as IDBDatabase))?.map((a) => a.status)).toEqual(["unknown"]);
+    expect(attempts.unconfirmed().map((a) => a.status)).toEqual(["unknown"]);
   });
 
-  it("returns to the form, sending nothing, when starting the attempt throws", async () => {
+  it("returns to the form, sending nothing, when IndexedDB refuses to open (fail closed)", async () => {
     localStorage.setItem(CART_STORAGE_KEY, JSON.stringify({ version: 1, lines: LINES }));
     const { fetch } = server((ref) => Response.json(result(ref, "confirmed"), { status: 201 }));
-    const flow = createCheckoutFlow({
-      cart: createCartStore(),
-      attempts: createAttemptStore(),
-      fetch,
-      locks: { request: () => Promise.reject(new DOMException("denied", "SecurityError")) },
+    const real = globalThis.indexedDB;
+    globalThis.indexedDB = Object.assign(Object.create(real) as IDBFactory, {
+      open: () => {
+        throw new DOMException("denied", "SecurityError");
+      },
     });
+    const flow = createCheckoutFlow({ cart: createCartStore(), attempts: createAttemptStore(), fetch });
     expect(await flow.place(LINES, contact)).toEqual({ kind: "blocked", blockedBy: null, reason: "storage" });
     expect(fetch).not.toHaveBeenCalled();
     expect(flow.getSession()).toEqual({ phase: "idle" });

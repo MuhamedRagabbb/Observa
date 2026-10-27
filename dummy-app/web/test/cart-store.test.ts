@@ -3,7 +3,8 @@
 // (services/shared/checkout.py: 1-10 units per product, at most 10 lines, IDs sku-NNN).
 // Prices and availability never live here; the quote supplies them.
 import { afterEach, describe, expect, it } from "vitest";
-import { addItem, CART_STORAGE_KEY, createCartStore, parseStoredCart, removeItems, setQuantity, subtractLines } from "../src/store/cart/cart-store.ts";
+import { EFFECTS_KEPT } from "../src/store/checkout/gate.ts";
+import { addItem, APPLIED_KEPT, CART_STORAGE_KEY, createCartStore, parseStoredCart, removeItems, setQuantity, subtractLines } from "../src/store/cart/cart-store.ts";
 
 afterEach(() => localStorage.clear());
 
@@ -144,5 +145,64 @@ describe("cart store", () => {
     const store = createCartStore(broken);
     store.add("sku-001");
     expect(store.getLines()).toEqual([line("sku-001")]);
+  });
+});
+
+describe("a confirmed order's cart effect (applied exactly once)", () => {
+  const ordered = [line("sku-001", 1), line("sku-002", 2)];
+  const stored = () => JSON.parse(localStorage.getItem(CART_STORAGE_KEY) ?? "null");
+
+  it("takes the ordered units out and records the order in the same stored value", () => {
+    localStorage.setItem(CART_STORAGE_KEY, JSON.stringify({ version: 1, lines: [line("sku-001", 2), line("sku-002", 2)] }));
+    const cart = createCartStore();
+    expect(cart.applyConfirmed("ATT-1A2B-0001", ordered)).toBe(true);
+    expect(cart.getLines()).toEqual([line("sku-001", 1)]);
+    expect(stored()).toEqual({ version: 1, lines: [line("sku-001", 1)], applied: ["ATT-1A2B-0001"] });
+  });
+
+  it("a second application of the same order changes nothing, even after units were added again", () => {
+    localStorage.setItem(CART_STORAGE_KEY, JSON.stringify({ version: 1, lines: ordered }));
+    const cart = createCartStore();
+    cart.applyConfirmed("ATT-1A2B-0001", ordered);
+    cart.add("sku-001");
+    expect(cart.applyConfirmed("ATT-1A2B-0001", ordered)).toBe(false);
+    expect(cart.getLines()).toEqual([line("sku-001", 1)]);
+  });
+
+  it("another tab that already applied it is respected, even if this tab has not seen its write yet", () => {
+    localStorage.setItem(CART_STORAGE_KEY, JSON.stringify({ version: 1, lines: ordered }));
+    const thisTab = createCartStore();
+    const otherTab = createCartStore();
+    otherTab.applyConfirmed("ATT-1A2B-0001", ordered);
+    otherTab.add("sku-003");
+    // No storage event has reached this tab yet: it must read the stored value, not its copy.
+    expect(thisTab.applyConfirmed("ATT-1A2B-0001", ordered)).toBe(false);
+    expect(stored().lines).toEqual([line("sku-003", 1)]);
+  });
+
+  it("ordinary cart edits keep the record of applied orders", () => {
+    localStorage.setItem(CART_STORAGE_KEY, JSON.stringify({ version: 1, lines: ordered }));
+    const cart = createCartStore();
+    cart.applyConfirmed("ATT-1A2B-0001", ordered);
+    cart.add("sku-004");
+    cart.setQuantity("sku-004", 3);
+    cart.remove(["sku-004"]);
+    expect(stored().applied).toEqual(["ATT-1A2B-0001"]);
+  });
+
+  it(`keeps the most recent ${APPLIED_KEPT} applied orders`, () => {
+    const cart = createCartStore();
+    for (let i = 1; i <= APPLIED_KEPT + 3; i++) cart.applyConfirmed(`ATT-1A2B-${String(i).padStart(4, "0")}`, ordered);
+    expect(stored().applied).toHaveLength(APPLIED_KEPT);
+    expect(stored().applied[0]).toBe("ATT-1A2B-0004");
+  });
+
+  it("remembers at least twice as many applied orders as the crash journal holds (replays can come out of order)", () => {
+    expect(APPLIED_KEPT).toBeGreaterThanOrEqual(2 * EFFECTS_KEPT);
+  });
+
+  it("reads a stored cart without the record as having applied nothing", () => {
+    localStorage.setItem(CART_STORAGE_KEY, JSON.stringify({ version: 1, lines: ordered }));
+    expect(createCartStore().applyConfirmed("ATT-1A2B-0001", ordered)).toBe(true);
   });
 });
