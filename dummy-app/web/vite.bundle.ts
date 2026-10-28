@@ -48,6 +48,25 @@ const DEV = {
   },
 } as const;
 
+/**
+ * The controller refuses a state-changing request whose Origin is not its own (controllers/
+ * fault_injector/guard.py). Through this proxy the dev page's Origin (127.0.0.1:5181) reaches a
+ * controller on another port, so it is rewritten to the controller's origin, but only when it is
+ * exactly the dev page's own: any other page's Origin goes through unchanged and is refused.
+ */
+function originRewrite(name: Bundle, target: string) {
+  if (name !== "operator") return {};
+  const page = `http://127.0.0.1:${DEV.operator.port}`;
+  const controller = new URL(target).origin;
+  return {
+    configure: (proxy: { on: (event: "proxyReq", hook: (proxyReq: { setHeader: (name: string, value: string) => void }, req: { headers: Record<string, string | string[] | undefined> }) => void) => void }) => {
+      proxy.on("proxyReq", (proxyReq, req) => {
+        if (req.headers.origin === page) proxyReq.setHeader("origin", controller);
+      });
+    },
+  };
+}
+
 function devTarget(name: Bundle, env: Record<string, string | undefined>) {
   return refuseLive(DEV[name].env, env[DEV[name].env] ?? DEV[name].target);
 }
@@ -74,7 +93,7 @@ export function bundleConfig(
       host: "127.0.0.1",
       port: DEV[name].port,
       strictPort: true,
-      proxy: Object.fromEntries(DEV[name].paths.map((path) => [path, { target, changeOrigin: true }])),
+      proxy: Object.fromEntries(DEV[name].paths.map((path) => [path, { target, changeOrigin: true, ...originRewrite(name, target) }])),
     },
     // `vite preview` would otherwise inherit the dev proxy; the mocked browser tests need none.
     preview: { proxy: {} },

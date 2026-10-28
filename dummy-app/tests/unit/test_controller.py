@@ -108,7 +108,7 @@ async def test_controller_api_contract_and_defaults(tmp_path):
     )
     async with (
         app.router.lifespan_context(app),
-        httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url="http://controller") as client,
+        httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url="http://127.0.0.1:8090") as client,
     ):
         assert (await client.post("/faults/activate", json={"scenario": "unknown"})).status_code == 422
         result = await client.post("/faults/activate", json={"scenario": "payments_errors"})

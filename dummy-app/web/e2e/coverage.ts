@@ -359,3 +359,96 @@ export const COVERAGE: CoverageState[] = [
     reference: allRef(A.hero, A.collectionMobile),
   },
 ];
+
+// P5: the Operator Dashboard (served by the controller). Its 11 artboards are separate from the
+// storefront's 28, so the storefront matrix above stays as approved. Only idle and fault active
+// have phone artboards; every other state is derived at 390 and 375 (audit item 2).
+export const OPERATOR_SLICES = ["P5-A", "P5-B", "P5-C", "P5-D", "P5-E"] as const;
+export type OperatorSlice = (typeof OPERATOR_SLICES)[number];
+export type OperatorCoverageState = Omit<CoverageState, "slice"> & { slice: OperatorSlice };
+
+const O = {
+  idle: "Operator — idle, 1440 desktop.png",
+  idleMobile: "Operator — 390 mobile, idle.png",
+  active: "Operator — manual fault active.png",
+  activeMobile: "Operator — 390 mobile, fault active.png",
+} as const;
+const phones = (file: string) => ({ "mobile-390": file, "mobile-375": file });
+
+export const OPERATOR_COVERAGE: OperatorCoverageState[] = [
+  {
+    id: "operator-idle",
+    slice: "P5-A",
+    screen: "Idle: no fault running; manual, cycle, health, activity and planned list",
+    approved: { "desktop-1440": O.idle, "mobile-390": O.idleMobile },
+    derived: ["mobile-375"],
+    reference: { "mobile-375": O.idleMobile },
+  },
+  {
+    id: "operator-f1-config",
+    slice: "P5-B",
+    screen: "F1 Database Exhaustion selected: hold_seconds and duration",
+    approved: { "desktop-1440": "Operator — F1 Database Exhaustion config.png" },
+    derived: MOBILE,
+    reference: phones(O.idleMobile),
+  },
+  {
+    id: "operator-f2-config",
+    slice: "P5-B",
+    screen: "F2 Payment Errors selected: failure_rate, status 402/503 and duration",
+    approved: { "desktop-1440": "Operator — F2 Payment Errors config.png" },
+    derived: MOBILE,
+    reference: phones(O.idleMobile),
+  },
+  {
+    id: "operator-f3-config",
+    slice: "P5-B",
+    screen: "F3 Bad Deployment selected: delay_seconds, fixed release and duration",
+    approved: { "desktop-1440": "Operator — F3 Bad Deployment config.png" },
+    derived: MOBILE,
+    reference: phones(O.idleMobile),
+  },
+  {
+    id: "operator-manual-active",
+    slice: "P5-A",
+    screen: "Manual fault active: countdown, Stop fault, controls locked",
+    approved: { "desktop-1440": O.active, "mobile-390": O.activeMobile },
+    derived: ["mobile-375"],
+    reference: { "mobile-375": O.activeMobile },
+  },
+  {
+    id: "operator-automatic-cycle",
+    slice: "P5-C",
+    screen: "Automatic cycle running: repeat and phase, phase timer, Stop cycle",
+    approved: { "desktop-1440": "Operator — automatic cycle.png" },
+    derived: MOBILE,
+    reference: phones(O.activeMobile),
+  },
+  {
+    id: "operator-recovering",
+    slice: "P5-A",
+    screen: "Recovering: waiting for services; controls unlock when health checks pass",
+    approved: { "desktop-1440": "Operator — recovering.png" },
+    derived: MOBILE,
+    reference: phones(O.idleMobile),
+  },
+  {
+    id: "operator-status-unknown",
+    slice: "P5-A",
+    screen: "Fault status unknown: stop not confirmed; Check status and Stop again",
+    approved: { "desktop-1440": "Operator — fault status unknown.png" },
+    derived: MOBILE,
+    reference: phones(O.activeMobile),
+  },
+  {
+    id: "operator-disconnected",
+    slice: "P5-A",
+    screen: "Controller unreachable: last confirmed state, Retry connection, health unknown",
+    approved: { "desktop-1440": "Operator — controller disconnected.png" },
+    derived: MOBILE,
+    reference: phones(O.activeMobile),
+  },
+];
+
+/** Every captured state, storefront then operator (the capture helper and the review page). */
+export const ALL_COVERAGE: (CoverageState | OperatorCoverageState)[] = [...COVERAGE, ...OPERATOR_COVERAGE];

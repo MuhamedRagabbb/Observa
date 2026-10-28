@@ -25,7 +25,7 @@ async def controller(tmp_path):
         client=httpx.AsyncClient(transport=httpx.MockTransport(lambda _: httpx.Response(200))),
     )
     async with app.router.lifespan_context(app):
-        async with httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url="http://ctl") as client:
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url="http://127.0.0.1:8090") as client:
             yield client
 
 

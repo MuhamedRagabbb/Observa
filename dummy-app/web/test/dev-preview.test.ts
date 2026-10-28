@@ -71,3 +71,37 @@ describe("preview and stack-mode guards", () => {
     expect(`${run.stdout}${run.stderr}`).toMatch(/E2E_STACK_URL=.*live stack port/);
   }, 60_000);
 });
+
+// P5-0: the controller accepts a state-changing request only from its own origin (guard.py). The
+// dev proxy changes Host to the controller's, so the dev page's Origin (127.0.0.1:5181) would be
+// refused. The proxy rewrites Origin to the controller's only when it is exactly the dev page's
+// own origin; any other page's Origin is passed on unchanged and still refused.
+describe("dev proxy and the controller's origin guard", () => {
+  type Hook = (proxyReq: { setHeader: (name: string, value: string) => void }, req: { headers: Record<string, string | undefined> }) => void;
+  function forwarded(name: "store" | "operator", origin: string | undefined, env: Record<string, string> = {}) {
+    const route = (bundleConfig(name, env).server?.proxy as Record<string, { configure?: (proxy: unknown, options: unknown) => void }>)[
+      name === "store" ? "/api" : "/faults"
+    ];
+    const hooks: Hook[] = [];
+    route?.configure?.({ on: (event: string, hook: Hook) => event === "proxyReq" && hooks.push(hook) }, {});
+    const headers: Record<string, string> = origin === undefined ? {} : { origin };
+    for (const hook of hooks) hook({ setHeader: (key, value) => (headers[key.toLowerCase()] = value) }, { headers: origin === undefined ? {} : { origin } });
+    return headers.origin;
+  }
+
+  it("rewrites the dev page's own Origin to the controller's", () => {
+    expect(forwarded("operator", "http://127.0.0.1:5181")).toBe("http://127.0.0.1:18090");
+    expect(forwarded("operator", "http://127.0.0.1:5181", { OBSERVA_CONTROLLER_URL: "http://127.0.0.1:28090/" })).toBe("http://127.0.0.1:28090");
+  });
+
+  it("passes any other Origin on unchanged, so the controller still refuses it", () => {
+    for (const origin of ["https://evil.example", "null", "http://localhost:5181", "http://127.0.0.1:5180"]) {
+      expect(forwarded("operator", origin), origin).toBe(origin);
+    }
+  });
+
+  it("adds no Origin to a request that had none, and leaves the store's proxy alone", () => {
+    expect(forwarded("operator", undefined)).toBeUndefined();
+    expect(forwarded("store", "http://127.0.0.1:5180")).toBe("http://127.0.0.1:5180");
+  });
+});

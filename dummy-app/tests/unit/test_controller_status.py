@@ -355,7 +355,7 @@ async def test_the_operator_api_serves_status_health_and_activity_without_ground
     )
     async with (
         app.router.lifespan_context(app),
-        httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url="http://controller") as client,
+        httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url="http://127.0.0.1:8090") as client,
     ):
         activated = await client.post(
             "/faults/activate", json={"scenario": "payments_errors", "parameters": {"failure_rate": 1}}
@@ -536,7 +536,7 @@ async def test_an_unconfirmed_stop_never_reveals_the_fault_cause(tmp_path):
     )
     async with (
         app.router.lifespan_context(app),
-        httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url="http://controller") as client,
+        httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url="http://127.0.0.1:8090") as client,
     ):
         activated = await client.post(
             "/faults/activate", json={"scenario": "bad_deployment", "parameters": {"delay_seconds": 1.5}}

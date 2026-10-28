@@ -66,7 +66,12 @@ describe("bundle boundary", () => {
   });
 
   it("neither bundle reaches test-only code (the gallery, fixtures) outside src/", () => {
-    expect([...from("store"), ...from("operator")].filter((file) => file.startsWith("../"))).toEqual([]);
+    // The one exception: shared contract data in contracts/*.json, which pytest checks against the
+    // backend (P5-0: the operator reads fault-parameters.json). Never code, never e2e/ or test/.
+    const outside = [...from("store"), ...from("operator")].filter((file) => file.startsWith("../"));
+    expect(outside.filter((file) => !/^\.\.\/contracts\/[a-z-]+\.json$/.test(file))).toEqual([]);
+    expect(outside).toEqual(["../contracts/fault-parameters.json"]);
+    expect([...from("store")].filter((file) => file.startsWith("../"))).toEqual([]);
   });
 
   it("operator code never reaches store code", () => {

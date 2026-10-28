@@ -9,7 +9,7 @@
 import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { COVERAGE, VIEWPORTS, type CoverageState, type Viewport } from "../coverage.ts";
+import { ALL_COVERAGE, VIEWPORTS, type CoverageState, type Viewport } from "../coverage.ts";
 
 export type ReviewState = Omit<CoverageState, "slice"> & { slice: string };
 export type ReviewOptions = { states: ReviewState[]; screensDir: string; artboardsDir: string; outDir: string };
@@ -145,7 +145,7 @@ if (isCli) {
     },
   ];
   const summary = buildReview({
-    states: [...harness, ...COVERAGE],
+    states: [...harness, ...ALL_COVERAGE],
     screensDir: join(web, "e2e-output", "screens"),
     artboardsDir: process.env.ARTBOARDS_DIR ?? join(web, "..", "..", "docs", "design", "artboards"),
     outDir: join(web, "e2e-output", "review"),

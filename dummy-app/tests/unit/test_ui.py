@@ -41,7 +41,7 @@ async def test_operator_interface_uses_controller_origin(tmp_path):
     )
     async with app.router.lifespan_context(app):
         async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app), base_url="http://controller"
+            transport=httpx.ASGITransport(app), base_url="http://127.0.0.1:8090"
         ) as client:
             page = await client.get("/")
             assert page.status_code == 200

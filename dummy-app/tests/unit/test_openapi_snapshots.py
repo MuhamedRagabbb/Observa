@@ -80,7 +80,7 @@ async def test_ui_config_matches_the_shared_web_contract(mesh, tmp_path):
         path=tmp_path / "incidents.jsonl",
         client=httpx.AsyncClient(transport=httpx.MockTransport(lambda _: httpx.Response(200))),
     )
-    async with httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url="http://controller") as client:
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url="http://127.0.0.1:8090") as client:
         control = (await client.get("/ui/config")).json()
     assert control["mode"] == "control"
     assert shape(control) == shape(contract)

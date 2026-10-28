@@ -1,7 +1,9 @@
 // Fixtures for stack-mode tests (*.stack.spec.ts): the real storefront and API of a running
 // preview project, without mocks. Run with E2E_STACK_URL=http://127.0.0.1:18000.
-// - Every browser request must stay on the preview Gateway's origin; anything else is aborted and
-//   fails the test at teardown, as in mocked mode.
+// - Every browser request must stay on an allowed origin, the preview Gateway's by default (an
+//   operator test sets `allowedOrigins` to the controller's); anything else is aborted and fails
+//   the test at teardown, as in mocked mode. Targets are checked by stack-safety.ts: loopback
+//   http only, never the live ports, the controller never on the Gateway's origin.
 // - `faults`: the preview controller only (E2E_STACK_CONTROLLER_URL, default port 18090; the
 //   live ports are refused). A test that starts a fault stops it in teardown, pass or fail.
 // - `orders()`: what the real Gateway lists for this browser's anonymous customer.
@@ -13,19 +15,16 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { test as base, expect, request as http, type APIRequestContext, type Page } from "@playwright/test";
 import type { components } from "../../src/api/generated/gateway.ts";
-import { refuseLive } from "../../preview-guard.ts";
 import { STORE_PAGE } from "./harness.ts";
+import { allowedOrigin, stackTargets } from "./stack-safety.ts";
 
 export { expect };
 export type CheckoutResult = components["schemas"]["CheckoutResult"];
 
-const STACK_URL = process.env.E2E_STACK_URL ? refuseLive("E2E_STACK_URL", process.env.E2E_STACK_URL) : "";
-export const STACK_ORIGIN = STACK_URL ? new URL(STACK_URL).origin : "";
-const controllerDefault = STACK_URL ? `http://${new URL(STACK_URL).hostname}:18090` : "";
-export const CONTROLLER_URL = refuseLive(
-  "E2E_STACK_CONTROLLER_URL",
-  process.env.E2E_STACK_CONTROLLER_URL ?? (controllerDefault || "http://127.0.0.1:18090"),
-);
+const TARGETS = stackTargets(process.env);
+export const STACK_ORIGIN = TARGETS?.gateway ?? "";
+/** The preview controller's origin (no trailing slash). */
+export const CONTROLLER_URL = TARGETS?.controller ?? "";
 
 const LOCAL_BUNDLE = process.env.E2E_STACK_BUNDLE === "local";
 const DIST = join(import.meta.dirname, "..", "..", "dist", "store");
@@ -73,6 +72,8 @@ export class Faults {
 }
 
 type StackFixtures = {
+  /** Origins the browser may reach in this test: the Gateway's unless a test says otherwise. */
+  allowedOrigins: string[];
   offOrigin: string[];
   localBundle: boolean;
   faults: Faults;
@@ -81,15 +82,18 @@ type StackFixtures = {
 };
 
 export const test = base.extend<StackFixtures>({
+  allowedOrigins: [[STACK_ORIGIN], { option: true }],
   offOrigin: [
-    async ({ context }, use) => {
-      if (!STACK_ORIGIN) throw new Error("Stack tests need E2E_STACK_URL (a preview project, never the live stack)");
+    async ({ context, allowedOrigins }, use) => {
+      if (!TARGETS) throw new Error("Stack tests need E2E_STACK_URL (a preview project, never the live stack)");
+      const unknown = allowedOrigins.filter((origin) => origin !== TARGETS.gateway && origin !== TARGETS.controller);
+      if (unknown.length > 0) throw new Error(`allowedOrigins may only name the preview project's origins, not ${unknown.join(", ")}`);
       const seen: string[] = [];
       await context.route(
         () => true,
         (route) => {
           const url = route.request().url();
-          if (new URL(url).origin === STACK_ORIGIN) return route.fallback();
+          if (allowedOrigin(url, allowedOrigins)) return route.fallback();
           seen.push(url);
           return route.abort("blockedbyclient");
         },
@@ -100,7 +104,7 @@ export const test = base.extend<StackFixtures>({
         return socket.close();
       });
       await use(seen);
-      expect(seen, "browser requests left the preview Gateway's origin").toEqual([]);
+      expect(seen, "browser requests left the allowed preview origins").toEqual([]);
     },
     { auto: true },
   ],
@@ -125,6 +129,7 @@ export const test = base.extend<StackFixtures>({
     { auto: true },
   ],
   faults: async ({}, use) => {
+    if (!TARGETS) throw new Error("Fault tests need E2E_STACK_URL (a preview project, never the live stack)");
     const api = await http.newContext({ baseURL: CONTROLLER_URL, extraHTTPHeaders: { "x-control-token": "local-control-only" } });
     const faults = new Faults(api);
     try {

@@ -39,7 +39,7 @@ def node_modules_dirs():
 async def requests(app, paths, *, lifespan=False):
     async def run():
         out = {}
-        async with httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url="http://probe") as client:
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url="http://127.0.0.1") as client:
             for path in paths:
                 response = await client.get(path, follow_redirects=False)
                 out[path] = {

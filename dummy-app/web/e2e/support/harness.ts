@@ -10,7 +10,7 @@ import { basename, dirname, extname, join, normalize, sep } from "node:path";
 import { test as base, expect, type BrowserContext, type Locator, type Route } from "@playwright/test";
 import type { paths as ControllerPaths } from "../../src/api/generated/controller.ts";
 import type { paths as GatewayPaths } from "../../src/api/generated/gateway.ts";
-import { COVERAGE } from "../coverage.ts";
+import { ALL_COVERAGE } from "../coverage.ts";
 import { OPERATOR_UI_CONFIG, STORE_UI_CONFIG } from "../fixtures/gateway.ts";
 import { PREVIEW_PORTS } from "./ports.ts";
 
@@ -214,7 +214,7 @@ export class MockApi {
   }
 }
 
-const KNOWN_STATES = new Set<string>([...COVERAGE.map((s) => s.id), ...HARNESS_STATES]);
+const KNOWN_STATES = new Set<string>([...ALL_COVERAGE.map((s) => s.id), ...HARNESS_STATES]);
 
 type CaptureTarget = "page" | "viewport" | Locator;
 

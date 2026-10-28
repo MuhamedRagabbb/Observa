@@ -16,9 +16,10 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from controllers.fault_injector.guard import ControlRequestGuard
 from controllers.fault_injector.health import HealthSnapshot, default_health
 from services.shared.errors import AppError
-from services.shared.models import ERRORS
+from services.shared.models import ERRORS, ErrorBody
 from services.shared.telemetry import utcnow
 from services.shared.ui import register_bundle, register_ui
 
@@ -639,6 +640,9 @@ def create_app(*, path=None, client=None, health=None, health_interval=None):
             await controller.close()
 
     app = FastAPI(title="Evaluation-only fault controller", lifespan=lifespan, responses=ERRORS)
+    # State-changing requests only from the controller's own page or a client without Origin (guard.py).
+    app.add_middleware(ControlRequestGuard)
+    refused = {403: {"model": ErrorBody, "description": "Not from the controller's own page"}}
     register_ui(app, "control")
     register_bundle(app, "operator")
     app.state.controller = controller
@@ -672,19 +676,19 @@ def create_app(*, path=None, client=None, health=None, health_interval=None):
         """This controller session's control actions and state changes, newest first."""
         return controller.activity(limit)
 
-    @app.post("/faults/activate", response_model=ControllerStatus)
+    @app.post("/faults/activate", response_model=ControllerStatus, responses=refused)
     async def activate(config: Activation):
         return await controller.activate(config)
 
-    @app.post("/faults/deactivate", response_model=ControllerStatus)
+    @app.post("/faults/deactivate", response_model=ControllerStatus, responses=refused)
     async def deactivate(config: Deactivation):
         return await controller.deactivate(config.scenario)
 
-    @app.post("/faults/auto/start", response_model=ControllerStatus)
+    @app.post("/faults/auto/start", response_model=ControllerStatus, responses=refused)
     async def start_auto(config: AutoConfig):
         return await controller.start_auto(config)
 
-    @app.post("/faults/auto/stop", response_model=ControllerStatus)
+    @app.post("/faults/auto/stop", response_model=ControllerStatus, responses=refused)
     async def stop_auto():
         return await controller.stop_auto()
 

@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "scenarios": [
+    {
+      "id": "db_connection_exhaustion",
+      "code": "F1",
+      "parameters": [{ "name": "hold_seconds", "kind": "range", "min": 0.1, "max": 15, "default": 8, "unit": "s" }]
+    },
+    {
+      "id": "payments_errors",
+      "code": "F2",
+      "parameters": [
+        { "name": "failure_rate", "kind": "range", "min": 0, "max": 1, "default": 0.9, "unit": "ratio" },
+        { "name": "status_code", "kind": "choice", "choices": [402, 503], "default": 503 }
+      ]
+    },
+    {
+      "id": "bad_deployment",
+      "code": "F3",
+      "parameters": [{ "name": "delay_seconds", "kind": "range", "min": 1, "max": 2, "default": 1.5, "unit": "s" }],
+      "fixed": { "release_version": "v2-buggy" }
+    }
+  ],
+  "duration_seconds": { "min": 0.1, "max": 1800, "default": 120, "unit": "s" },
+  "auto": {
+    "warmup_seconds": { "min": 0, "max": 3600, "default": 120, "unit": "s" },
+    "duration_seconds": { "min": 0.1, "max": 1800, "default": 120, "unit": "s" },
+    "recovery_seconds": { "min": 0, "max": 3600, "default": 90, "unit": "s" },
+    "repeat": { "min": 1, "max": 1000, "default": 1, "integer": true },
+    "scenarios": {
+      "min_items": 1,
+      "max_items": 30,
+      "default": ["db_connection_exhaustion", "payments_errors", "bad_deployment"]
+    },
+    "shuffle": { "default": false },
+    "seed": { "default": 42, "integer": true }
+  }
+}
