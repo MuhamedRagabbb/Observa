@@ -155,8 +155,8 @@ test.describe("unknown outcomes against the real Gateway", () => {
   });
 
   // The real Gateway never lists a fenced attempt (GET /api/orders leaves abandoned ones out), so
-  // once resolved it leaves My Orders in both tabs. The mocked T4 test lists it as Not placed.
-  test("an unknown attempt shows in another tab's My Orders; Check status there fences it and both tabs drop it (T4)", async ({ page, context }) => {
+  // "Not placed" comes from the browser's own reminder (checkout/closed.ts), never from the list.
+  test("an unknown attempt shows in another tab's My Orders; Check status there fences it; both tabs say Not placed, the cart unchanged, and Try again gets a new reference (T4)", async ({ page, context, orders }) => {
     const sent: string[] = [];
     await page.route(CHECKOUT_API, (route) => {
       sent.push(route.request().headers()["idempotency-key"] ?? "");
@@ -176,11 +176,29 @@ test.describe("unknown outcomes against the real Gateway", () => {
     expect(answer.status()).toBe(409);
     expect(await answer.json()).toMatchObject({ error_code: "attempt_abandoned", details: { attempt_ref: ref, outcome: "abandoned" } });
     for (const tab of [page, other]) {
-      await expect(tab.getByText("No orders yet.")).toBeVisible();
-      await expect(rows(tab).filter({ hasText: ref })).toHaveCount(0);
+      const row = rows(tab).filter({ hasText: ref });
+      await expect(row).toContainText("Not placed");
+      await expect(row).toContainText("Your cart is unchanged.");
+      await expect(row.getByText(ORDER_NUMBER)).toHaveCount(0);
     }
     expect(await storedAttempts(page)).toEqual([]);
     expect(await storedCart(page)).toHaveLength(2);
+    // The server has no order for it: the reminder is the browser's, not a listed order.
+    expect(await orders(page)).toEqual([]);
+
+    // Try again on the other tab: checkout with the same cart sends a new reference, once.
+    await other.getByRole("link", { name: "Try again" }).click();
+    await expect(other).toHaveURL(/\/checkout$/);
+    await other.route(CHECKOUT_API, (route) => {
+      sent.push(route.request().headers()["idempotency-key"] ?? "");
+      return route.fallback();
+    });
+    await place(other);
+    await expect(thanks(other)).toBeVisible();
+    expect(sent).toHaveLength(2);
+    expect(sent[1]).toMatch(REF);
+    expect(sent[1]).not.toBe(ref);
+    expect((await orders(page)).map((order) => [order.attempt_ref, order.outcome])).toEqual([[sent[1], "confirmed"]]);
     await other.close();
   });
 });

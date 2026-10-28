@@ -3,12 +3,13 @@
 import { useSyncExternalStore } from "react";
 import { cartStore } from "../cart/cart-store.ts";
 import { attemptStore } from "./attempts.ts";
+import { closedStore } from "./closed.ts";
 import { createCheckoutFlow, type CheckoutFlow, type Session } from "./flow.ts";
 
 let shared: CheckoutFlow | null = null;
 
 export function checkoutFlow(): CheckoutFlow {
-  shared ??= createCheckoutFlow({ cart: cartStore(), attempts: attemptStore() });
+  shared ??= createCheckoutFlow({ cart: cartStore(), attempts: attemptStore(), closed: closedStore() });
   return shared;
 }
 

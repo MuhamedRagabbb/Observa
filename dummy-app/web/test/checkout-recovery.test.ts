@@ -12,6 +12,7 @@ import { IDBFactory } from "fake-indexeddb";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CART_STORAGE_KEY, createCartStore } from "../src/store/cart/cart-store.ts";
 import { ATTEMPTS_KEY, beginAttempt, createAttemptStore, CUSTOMER_KEY, type AttemptRecord } from "../src/store/checkout/attempts.ts";
+import { createClosedStore } from "../src/store/checkout/closed.ts";
 import { createCheckoutFlow, POLL_BUDGET_MS } from "../src/store/checkout/flow.ts";
 import { gateEffects, gateList, openGate, resetGate } from "../src/store/checkout/gate.ts";
 import type { CheckoutResult } from "../src/store/checkout/outcome.ts";
@@ -601,5 +602,81 @@ describe("reconciling with My Orders (P4-F)", () => {
     await next.flow.replayEffects();
     await next.flow.replayEffects();
     expect(next.cart.getLines()).toEqual([]);
+  });
+});
+
+describe("a never-placed attempt found from My Orders leaves a note (post-P4-I)", () => {
+  const fencedFor = (ref: string) => result(ref, "abandoned", { items: [], total_cents: null });
+  const notFound: Route = () => json(404, envelope("attempt_not_found"));
+  const resolveFenced: Route = (call) => json(409, envelope("attempt_abandoned", fencedFor(refOf(call))));
+
+  function tabWithNotes(fetch: (request: Request) => Promise<Response>) {
+    const closed = createClosedStore(localStorage, () => Date.parse("2026-10-27T10:05:00.000Z"));
+    const cart = createCartStore();
+    const attempts = createAttemptStore();
+    const flow = createCheckoutFlow({ cart, attempts, closed, fetch, sleep: sleeps().sleep, now: () => "2026-10-27T10:05:00.000Z" });
+    return { flow, cart, closed, attempts };
+  }
+
+  it("a quiet check that fences it records a note for the reference, the cart lines and the customer; the cart is untouched", async () => {
+    const record = await unknownAttempt();
+    const { flow, cart, closed } = tabWithNotes(gateway({ GET: notFound, RESOLVE: resolveFenced }).fetch);
+    expect(await flow.check(record, { quiet: true })).toMatchObject({ kind: "definite", result: { outcome: "abandoned" } });
+    expect(closed.list()).toEqual([{ attempt_ref: record.attempt_ref, customer_id: CUSTOMER, lines: ORDERED, created_at: record.created_at, closed_at: "2026-10-27T10:05:00.000Z" }]);
+    expect(await held()).toEqual([]);
+    expect(cart.getLines()).toEqual(ORDERED);
+  });
+
+  it("the note is there before the attempt leaves My Orders, so the row changes in place instead of vanishing", async () => {
+    const record = await unknownAttempt();
+    const { flow, closed, attempts } = tabWithNotes(gateway({ GET: notFound, RESOLVE: resolveFenced }).fetch);
+    const order: string[] = [];
+    attempts.subscribe(() => order.push(`attempts:${attempts.unconfirmed().length}:note:${closed.list().length}`));
+    await flow.check(record, { quiet: true });
+    // Whenever the held record is gone, the note already exists.
+    expect(order.filter((entry) => entry.startsWith("attempts:0"))).not.toHaveLength(0);
+    expect(order.filter((entry) => entry.startsWith("attempts:0")).every((entry) => entry.endsWith("note:1"))).toBe(true);
+  });
+
+  it("a GET that already shows it fenced (another tab resolved it) records the note too, with no resolve", async () => {
+    const record = await unknownAttempt();
+    const api = gateway({ GET: (call) => json(200, fencedFor(refOf(call))) });
+    const { flow, closed } = tabWithNotes(api.fetch);
+    await flow.check(record, { quiet: true });
+    expect(closed.list().map((note) => note.attempt_ref)).toEqual([record.attempt_ref]);
+    expect(api.count("RESOLVE")).toBe(0);
+  });
+
+  it("the checkout page's own check (not quiet) shows the outcome there and leaves no note", async () => {
+    const record = await unknownAttempt();
+    const { flow, closed } = tabWithNotes(gateway({ GET: notFound, RESOLVE: resolveFenced }).fetch);
+    await flow.check(record);
+    expect(closed.list()).toEqual([]);
+  });
+
+  it.each([
+    ["confirmed", (ref: string) => json(200, result(ref, "confirmed"))],
+    ["payment declined", (ref: string) => json(200, result(ref, "payment_failed", { error_code: "payment_declined" }))],
+    ["processing", (ref: string) => json(200, result(ref, "processing"))],
+    ["a failed check", () => json(503, envelope("target_unavailable"))],
+  ] as const)("%s leaves no note (the server lists or still holds it)", async (_name, answer) => {
+    const record = await unknownAttempt();
+    const { flow, closed } = tabWithNotes(gateway({ GET: (call) => answer(refOf(call)) }).fetch);
+    await flow.check(record, { quiet: true });
+    expect(closed.list()).toEqual([]);
+  });
+
+  it("two tabs finding it fenced leave one note, and the retry that follows still gets a new reference", async () => {
+    const record = await unknownAttempt();
+    const api = gateway({ GET: notFound, RESOLVE: resolveFenced });
+    const a = tabWithNotes(api.fetch);
+    const b = tabWithNotes(api.fetch);
+    await Promise.all([a.flow.check(record, { quiet: true }), b.flow.check(record, { quiet: true })]);
+    expect(createClosedStore(localStorage, () => Date.parse("2026-10-27T10:05:00.000Z")).list()).toHaveLength(1);
+    const posts = gateway({ POST: (call) => json(201, result(call.key, "confirmed")) });
+    const retry = tabWithNotes(posts.fetch);
+    expect(await retry.flow.place(ORDERED, contact)).toMatchObject({ kind: "definite", result: { outcome: "confirmed" } });
+    expect(posts.calls[0]?.key).toMatch(/^ATT-[0-9A-F]{4}-[0-9]{4}$/);
+    expect(posts.calls[0]?.key).not.toBe(record.attempt_ref);
   });
 });

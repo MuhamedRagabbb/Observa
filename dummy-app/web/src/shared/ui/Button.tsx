@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, MouseEvent, ReactNode } from "react";
+import type { ButtonHTMLAttributes, MouseEvent, ReactNode, Ref } from "react";
 import { Link, type LinkProps } from "react-router";
 import styles from "./Button.module.css";
 import { Icon, type IconName } from "./Icon.tsx";
@@ -82,7 +82,7 @@ export function Button({
   );
 }
 
-type ButtonLinkProps = Common & Pick<LinkProps, "to" | "state" | "replace" | "onClick">;
+type ButtonLinkProps = Common & Pick<LinkProps, "to" | "state" | "replace" | "onClick" | "aria-label"> & { ref?: Ref<HTMLAnchorElement> };
 
 /** Looks like a Button but navigates, so it is a link for assistive tech and the browser. */
 export function ButtonLink({ icon, variant = "primary", size = "medium", block, children, ...link }: ButtonLinkProps) {

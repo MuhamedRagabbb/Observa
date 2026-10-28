@@ -19,6 +19,7 @@ import { createGatewayClient } from "../../api/gateway-client.ts";
 import type { ClientSetup } from "../../api/same-origin-client.ts";
 import type { CartLine, CartStore } from "../cart/cart-store.ts";
 import { beginAttempt, customerId, type AttemptRecord, type AttemptStore } from "./attempts.ts";
+import type { ClosedStore } from "./closed.ts";
 import type { Contact } from "./contact.ts";
 import { classifyCheckout, isCheckoutResult, type Classification, type CheckoutResponse } from "./outcome.ts";
 import { classifyStatus } from "./status.ts";
@@ -57,6 +58,8 @@ type Sleep = (ms: number, signal: AbortSignal) => Promise<void>;
 type Deps = {
   cart: CartStore;
   attempts: AttemptStore;
+  /** Where My Orders keeps its "Not placed" reminder for a fenced attempt (display only). */
+  closed?: ClosedStore;
   fetch?: ClientSetup["fetch"];
   storage?: Pick<Storage, "getItem" | "setItem">;
   sleep?: Sleep;
@@ -105,7 +108,7 @@ async function exchange(
   }
 }
 
-export function createCheckoutFlow({ cart, attempts, fetch, storage, sleep = realSleep, now = () => new Date().toISOString() }: Deps) {
+export function createCheckoutFlow({ cart, attempts, closed, fetch, storage, sleep = realSleep, now = () => new Date().toISOString() }: Deps) {
   let session: Session = { phase: "idle" };
   let lastContact: Contact | null = null;
   const listeners = new Set<() => void>();
@@ -282,6 +285,9 @@ export function createCheckoutFlow({ cart, attempts, fetch, storage, sleep = rea
           status.kind === "not_found" || (isProcessing(status as Classification) && exhausted.has(ref))
             ? classifyCheckout(await resolveAttempt(record), ref)
             : (status as Classification);
+        // My Orders: a never-placed attempt is not listed by the server and is about to leave the
+        // held list, so leave a reminder first (the row then changes in place instead of vanishing).
+        if (quiet && classification.kind === "definite" && classification.result.outcome === "abandoned") closed?.add(record);
         await apply(record, classification);
         exhausted.delete(ref);
         if (!quiet) show(record, classification.kind === "unknown" ? previous : classification, classification.kind === "unknown" ? { notice: "check_failed" } : {});

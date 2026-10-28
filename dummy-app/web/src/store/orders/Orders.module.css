@@ -272,6 +272,27 @@ a.reference:hover {
   display: none;
 }
 
+/* A never-placed attempt (a reminder kept by this browser): what changed for the cart, and the way on. */
+.statusCell > .cartNote {
+  display: block;
+  max-width: 14rem;
+  margin-block-start: var(--space-1);
+  color: var(--color-text-muted);
+  font-size: var(--text-small);
+  white-space: normal;
+}
+
+.closedActions {
+  display: inline-grid;
+  justify-items: end;
+  gap: var(--space-2);
+}
+
+/* Dismiss is a 44px touch target at every width. */
+.closedActions > button {
+  min-height: 2.75rem;
+}
+
 /* Phones: each row is a card (375 mobile list artboard). */
 @media (max-width: 47.99rem) {
   .thead {
@@ -358,6 +379,20 @@ a.reference:hover {
 
   .check > button {
     width: 100%;
+  }
+
+  /* Try again fills the card's width; Dismiss is a comfortable 44px target under it. */
+  .closedActions {
+    display: grid;
+    justify-items: stretch;
+  }
+
+  .closedActions > button {
+    justify-self: start;
+  }
+
+  .statusCell > .cartNote {
+    max-width: none;
   }
 
   /* Order details: the full-width Check status of the 375 detail artboard. */

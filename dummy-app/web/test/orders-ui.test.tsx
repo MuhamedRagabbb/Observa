@@ -12,6 +12,7 @@ import { PRODUCTS, quoteFor } from "../e2e/fixtures/gateway.ts";
 import { AppProviders } from "../src/shared/AppProviders.tsx";
 import { CART_STORAGE_KEY, resetCartStore } from "../src/store/cart/cart-store.ts";
 import { CUSTOMER_KEY, resetAttemptStore } from "../src/store/checkout/attempts.ts";
+import { CLOSED_KEY, resetClosedStore } from "../src/store/checkout/closed.ts";
 import { gateList, openGate, resetGate, type GateRecord } from "../src/store/checkout/gate.ts";
 import type { CheckoutResult } from "../src/store/checkout/outcome.ts";
 import { resetCheckoutFlow } from "../src/store/checkout/session.ts";
@@ -99,6 +100,7 @@ beforeEach(() => {
   localStorage.setItem(CUSTOMER_KEY, CUSTOMER);
   resetCartStore();
   resetAttemptStore();
+  resetClosedStore();
   resetCheckoutFlow();
 });
 
@@ -203,28 +205,30 @@ describe("My Orders list", () => {
     expect(within(table).getByRole("button", { name: "Check status" })).toBeTruthy();
   });
 
-  it("Check status on a row: GET first; the result replaces the row (a resolved attempt reads not placed)", async () => {
+  // The real list (GET /api/orders) has only checkouts that have an order: a fenced attempt never
+  // appears in it, so every mock list below stays empty after the check.
+  it("Check status on a row: GET first, then one resolve; the row stays as Not placed, from this browser, with the cart unchanged and a way to try again", async () => {
+    localStorage.setItem(CART_STORAGE_KEY, JSON.stringify({ version: 1, lines: LINES }));
     await seedAttempt("ATT-7F3A-0915", "unknown");
-    let recorded = false;
     stubApi({
-      orders: () => Response.json(recorded ? [result("ATT-7F3A-0915", "abandoned", { items: [], total_cents: null })] : []),
+      orders: () => Response.json([]),
       get: () => Response.json({ error_code: "attempt_not_found", message: "x" }, { status: 404 }),
-      resolve: (ref) => {
-        recorded = true;
-        return Response.json({ error_code: "attempt_abandoned", message: "x", details: result(ref, "abandoned", { items: [], total_cents: null }) }, { status: 409 });
-      },
+      resolve: (ref) => Response.json({ error_code: "attempt_abandoned", message: "x", details: result(ref, "abandoned", { items: [], total_cents: null }) }, { status: 409 }),
     });
     renderAt("/orders");
     fireEvent.click(await screen.findByRole("button", { name: "Check status" }));
-    expect(await screen.findByText("Not placed")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Check status" })).toBeNull();
-    expect(calls).toEqual([
-      LIST,
+    const row = (await screen.findByText("Your cart is unchanged.")).closest("tr") as HTMLElement;
+    expect(row.textContent).toMatch(/ATT-7F3A-0915.*Attempt · not placed.*3 items.*Not charged.*Not placed.*Your cart is unchanged\..*Try again.*Dismiss/);
+    expect(row.textContent).not.toMatch(/OBS-/);
+    expect(within(row).queryByRole("button", { name: "Check status" })).toBeNull();
+    expect(within(row).getByRole("link", { name: "Try again: ATT-7F3A-0915" }).getAttribute("href")).toBe("/checkout");
+    expect(screen.getByText("1 order")).toBeTruthy();
+    expect(calls.filter((c) => c !== LIST)).toEqual([
       `GET /api/attempts/ATT-7F3A-0915?customer_id=${CUSTOMER}`,
       `POST /api/attempts/ATT-7F3A-0915/resolve?customer_id=${CUSTOMER}`,
-      LIST,
     ]);
     expect(await held()).toEqual([]);
+    expect(JSON.parse(localStorage.getItem(CART_STORAGE_KEY) ?? "").lines).toEqual(LINES);
   });
 
   it("after a row's Check status settles it, focus moves to that row's View link and the result is announced", async () => {
@@ -244,6 +248,21 @@ describe("My Orders list", () => {
     const view = await screen.findByRole("link", { name: "View order OBS-1031-9B04" });
     await waitFor(() => expect(document.activeElement).toBe(view));
     expect(screen.getByTestId("orders-announcer").textContent).toBe("ATT-7F3A-0915: Payment declined");
+  });
+
+  it("a never-placed result takes focus on the row's Try again link and is announced with the cart note", async () => {
+    await seedAttempt("ATT-7F3A-0915", "unknown");
+    stubApi({
+      orders: () => Response.json([]),
+      get: (ref) => Response.json(result(ref, "abandoned", { items: [], total_cents: null })),
+    });
+    renderAt("/orders");
+    const check = await screen.findByRole("button", { name: "Check status" });
+    check.focus();
+    fireEvent.click(check);
+    const again = await screen.findByRole("link", { name: "Try again: ATT-7F3A-0915" });
+    await waitFor(() => expect(document.activeElement).toBe(again));
+    expect(screen.getByTestId("orders-announcer").textContent).toBe("ATT-7F3A-0915: Not placed. Your cart is unchanged.");
   });
 
   it("a failed Check status says so on the row and never resolves", async () => {
@@ -379,5 +398,136 @@ describe("after checkout", () => {
     renderAt("/checkout?attempt=ATT-1A2B-0001");
     expect(await screen.findByRole("heading", { level: 1, name: "Thank you." })).toBeTruthy();
     expect(screen.getByRole("link", { name: "View My Orders" }).getAttribute("href")).toBe("/orders");
+  });
+});
+
+/** What another visit (or tab) left: the reminder for an attempt Check status found never placed. */
+function leaveNote(ref = "ATT-7F3A-0915", customer = CUSTOMER) {
+  const note = { attempt_ref: ref, customer_id: customer, lines: LINES, created_at: "2026-10-26T12:00:00.000Z", closed_at: new Date().toISOString() };
+  const stored = JSON.parse(localStorage.getItem(CLOSED_KEY) ?? '{"version":1,"notes":[]}');
+  localStorage.setItem(CLOSED_KEY, JSON.stringify({ version: 1, notes: [note, ...stored.notes] }));
+  resetClosedStore();
+}
+
+describe("a never-placed attempt stays understandable (post-P4-I)", () => {
+  it("after a reload the list still says Not placed, from this browser, and never as an order", async () => {
+    leaveNote();
+    stubApi({ orders: () => Response.json([]) });
+    renderAt("/orders");
+    const row = (await screen.findByText("Your cart is unchanged.")).closest("tr") as HTMLElement;
+    expect(row.textContent).toMatch(/ATT-7F3A-0915.*Attempt · not placed.*Not placed.*Your cart is unchanged\..*Try again/);
+    expect(row.textContent).not.toMatch(/OBS-/);
+    expect(screen.queryByRole("heading", { level: 2, name: "No orders yet." })).toBeNull();
+  });
+
+  it("its details page says it was not placed, nothing was charged, the cart is unchanged and that no order was created", async () => {
+    leaveNote();
+    stubApi({ orders: () => Response.json([]) });
+    renderAt("/orders/ATT-7F3A-0915");
+    expect(await screen.findByRole("heading", { level: 1, name: "Order attempt" })).toBeTruthy();
+    expect(screen.getByText("Not placed")).toBeTruthy();
+    expect(screen.getByText(/nothing was charged\. Your cart is unchanged\./)).toBeTruthy();
+    expect(screen.getByText(/kept in this browser only\. No order was created\./)).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Try again" }).getAttribute("href")).toBe("/checkout");
+    expect(screen.queryByRole("button", { name: "Check status" })).toBeNull();
+    // Nothing is looked up or resolved for it: the reminder already says what is known.
+    expect(calls.filter((c) => c.includes("/api/attempts"))).toEqual([]);
+  });
+
+  it("Try again goes to the checkout page, whose Place Order will use a new reference", async () => {
+    leaveNote();
+    stubApi({ orders: () => Response.json([]) });
+    const router = renderAt("/orders");
+    fireEvent.click(await screen.findByRole("link", { name: "Try again: ATT-7F3A-0915" }));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/checkout"));
+    expect(router.state.location.search).toBe("");
+  });
+
+  it("Dismiss removes the row and the reminder; with nothing else, the page is empty again, also after a reload", async () => {
+    leaveNote();
+    stubApi({ orders: () => Response.json([]) });
+    renderAt("/orders");
+    fireEvent.click(await screen.findByRole("button", { name: "Dismiss ATT-7F3A-0915" }));
+    expect(await screen.findByRole("heading", { level: 2, name: "No orders yet." })).toBeTruthy();
+    expect(JSON.parse(localStorage.getItem(CLOSED_KEY) ?? "").notes).toEqual([]);
+    cleanup();
+    resetClosedStore();
+    renderAt("/orders");
+    expect(await screen.findByRole("heading", { level: 2, name: "No orders yet." })).toBeTruthy();
+  });
+
+  it("another tab's reminder appears here through the storage event", async () => {
+    stubApi({ orders: () => Response.json([]) });
+    renderAt("/orders");
+    expect(await screen.findByRole("heading", { level: 2, name: "No orders yet." })).toBeTruthy();
+    const note = { attempt_ref: "ATT-7F3A-0915", customer_id: CUSTOMER, lines: LINES, created_at: "2026-10-26T12:00:00.000Z", closed_at: new Date().toISOString() };
+    localStorage.setItem(CLOSED_KEY, JSON.stringify({ version: 1, notes: [note] }));
+    await act(async () => {
+      window.dispatchEvent(new StorageEvent("storage", { key: CLOSED_KEY }));
+    });
+    expect(await screen.findByText("Your cart is unchanged.")).toBeTruthy();
+  });
+
+  it("a reminder for another customer ID is not shown", async () => {
+    leaveNote("ATT-7F3A-0915", "web-zzzzzzzzzzzzzzzzzzzzzz");
+    stubApi({ orders: () => Response.json([]) });
+    renderAt("/orders");
+    expect(await screen.findByRole("heading", { level: 2, name: "No orders yet." })).toBeTruthy();
+  });
+
+  it("if the server ever lists the reference, its answer is shown and the reminder is not", async () => {
+    leaveNote("ATT-1A2B-0001");
+    stubApi({ orders: () => Response.json([result("ATT-1A2B-0001", "confirmed")]) });
+    renderAt("/orders");
+    expect(await screen.findByText("OBS-1042-7F3A")).toBeTruthy();
+    expect(screen.queryByText("Your cart is unchanged.")).toBeNull();
+  });
+
+  it("when the list cannot load, the reminder is still shown, apart from the unconfirmed attempts", async () => {
+    leaveNote();
+    await seedAttempt("ATT-7F3A-0916", "unknown");
+    stubApi({ orders: () => Response.json({ error_code: "dependency_unavailable", message: "x" }, { status: 502 }) });
+    renderAt("/orders");
+    expect(await screen.findByRole("heading", { level: 2, name: "We couldn’t load your orders." })).toBeTruthy();
+    const unconfirmed = screen.getByRole("heading", { level: 2, name: "Unconfirmed in this browser" }).closest("section") as HTMLElement;
+    expect(unconfirmed.textContent).toContain("ATT-7F3A-0916");
+    expect(unconfirmed.textContent).not.toContain("Your cart is unchanged.");
+    const closed = screen.getByRole("heading", { level: 2, name: "Not placed in this browser" }).closest("section") as HTMLElement;
+    expect(closed.textContent).toContain("ATT-7F3A-0915");
+    expect(closed.textContent).toContain("Your cart is unchanged.");
+  });
+
+  it("a reminder for an attempt the browser still holds as unconfirmed does not hide its Check status", async () => {
+    leaveNote("ATT-7F3A-0915");
+    await seedAttempt("ATT-7F3A-0915", "unknown");
+    stubApi({ orders: () => Response.json([]) });
+    renderAt("/orders");
+    expect(await screen.findByRole("button", { name: "Check status" })).toBeTruthy();
+    expect(screen.queryByText("Your cart is unchanged.")).toBeNull();
+  });
+});
+
+describe("a reminder that goes away while its page is open (review findings)", () => {
+  it("dismissed elsewhere while its details page is open: the page does not hang on Loading, it says it cannot find the order", async () => {
+    leaveNote();
+    stubApi({ orders: () => Response.json([]), get: () => Response.json({ error_code: "attempt_not_found", message: "x" }, { status: 404 }) });
+    renderAt("/orders/ATT-7F3A-0915");
+    expect(await screen.findByRole("heading", { level: 1, name: "Order attempt" })).toBeTruthy();
+    // Another tab dismisses it.
+    localStorage.setItem(CLOSED_KEY, JSON.stringify({ version: 1, notes: [] }));
+    await act(async () => {
+      window.dispatchEvent(new StorageEvent("storage", { key: CLOSED_KEY }));
+    });
+    expect(await screen.findByRole("heading", { level: 1, name: "We couldn’t find this order." })).toBeTruthy();
+    expect(screen.queryByText("Loading your order…")).toBeNull();
+  });
+
+  it("several reminders: each Try again link names its own attempt", async () => {
+    leaveNote("ATT-7F3A-0915");
+    leaveNote("ATT-7F3A-0916");
+    stubApi({ orders: () => Response.json([]) });
+    renderAt("/orders");
+    expect(await screen.findByRole("link", { name: "Try again: ATT-7F3A-0915" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Try again: ATT-7F3A-0916" })).toBeTruthy();
   });
 });

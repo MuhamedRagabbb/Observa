@@ -19,6 +19,9 @@ const MARKERS: Record<OrderStatus, { label: string; shape: "filled" | "half" | "
 
 export const statusLabel = (status: OrderStatus) => MARKERS[status].label;
 
+/** Said with a never-placed attempt: finding it out changed nothing in the cart. */
+export const CART_UNCHANGED = "Your cart is unchanged.";
+
 export function OrderStatusMarker({ status }: { status: OrderStatus }) {
   const marker = MARKERS[status];
   return (

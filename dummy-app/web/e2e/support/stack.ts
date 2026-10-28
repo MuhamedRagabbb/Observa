@@ -6,9 +6,15 @@
 //   live ports are refused). A test that starts a fault stops it in teardown, pass or fail.
 // - `orders()`: what the real Gateway lists for this browser's anonymous customer.
 // Each test gets a fresh browser context, so a new anonymous customer ID and empty storage.
+// - E2E_STACK_BUNDLE=local serves the store's page and files from web/dist/store (after `npm run
+//   build`) instead of the preview image, and every API call still reaches the real Gateway. It
+//   checks a UI-only change against the real backend without building an image.
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { test as base, expect, request as http, type APIRequestContext, type Page } from "@playwright/test";
 import type { components } from "../../src/api/generated/gateway.ts";
 import { refuseLive } from "../../preview-guard.ts";
+import { STORE_PAGE } from "./harness.ts";
 
 export { expect };
 export type CheckoutResult = components["schemas"]["CheckoutResult"];
@@ -20,6 +26,10 @@ export const CONTROLLER_URL = refuseLive(
   "E2E_STACK_CONTROLLER_URL",
   process.env.E2E_STACK_CONTROLLER_URL ?? (controllerDefault || "http://127.0.0.1:18090"),
 );
+
+const LOCAL_BUNDLE = process.env.E2E_STACK_BUNDLE === "local";
+const DIST = join(import.meta.dirname, "..", "..", "dist", "store");
+const CONTENT_TYPES: Record<string, string> = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml", ".woff2": "font/woff2", ".txt": "text/plain; charset=utf-8" };
 
 type FaultStatus = { state: string; active: { scenario: string } | null; controls: { activate: { enabled: boolean; reason: string | null } } };
 
@@ -64,6 +74,7 @@ export class Faults {
 
 type StackFixtures = {
   offOrigin: string[];
+  localBundle: boolean;
   faults: Faults;
   gateway: APIRequestContext;
   orders: (page: Page) => Promise<CheckoutResult[]>;
@@ -90,6 +101,26 @@ export const test = base.extend<StackFixtures>({
       });
       await use(seen);
       expect(seen, "browser requests left the preview Gateway's origin").toEqual([]);
+    },
+    { auto: true },
+  ],
+  localBundle: [
+    async ({ context }, use) => {
+      if (LOCAL_BUNDLE) {
+        if (!existsSync(join(DIST, "index.html"))) throw new Error("E2E_STACK_BUNDLE=local needs `npm run build` first");
+        await context.route(
+          (url) => url.origin === STACK_ORIGIN,
+          async (route) => {
+            const request = route.request();
+            const { pathname } = new URL(request.url());
+            const file = /^\/ui\/next\/(?:assets|licenses)\/[^/]+$/.test(pathname) ? join(DIST, pathname.slice("/ui/next/".length)) : STORE_PAGE.test(pathname) ? join(DIST, "index.html") : null;
+            if (request.method() !== "GET" || !file || !existsSync(file)) return route.fallback();
+            const type = CONTENT_TYPES[file.slice(file.lastIndexOf("."))] ?? "application/octet-stream";
+            return route.fulfill({ path: file, contentType: type, headers: { "cache-control": "no-cache" } });
+          },
+        );
+      }
+      await use(LOCAL_BUNDLE);
     },
     { auto: true },
   ],

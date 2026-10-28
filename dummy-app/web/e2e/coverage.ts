@@ -252,10 +252,19 @@ export const COVERAGE: CoverageState[] = [
   {
     id: "orders-list-closed-attempts",
     slice: "P4-F",
-    screen: "Rows for abandoned (no items, no order number), not-placed and failed attempts",
+    screen: "Rows for not-placed (sold out) and failed attempts, which the server lists with an order number",
     approved: {},
     derived: ALL,
     reference: allRef(A.ordersList, A.ordersListMobile),
+  },
+  {
+    id: "orders-list-not-placed",
+    slice: "P4-F",
+    screen: "A never-placed attempt (fenced by Check status): Not placed, 'Your cart is unchanged.', Try again, Dismiss",
+    approved: {},
+    derived: ALL,
+    reference: allRef(A.ordersList, A.ordersListMobile),
+    note: "Post-P4-I. The server does not list a fenced attempt; this row is a reminder kept by the browser.",
   },
   {
     id: "orders-empty",
@@ -313,6 +322,15 @@ export const COVERAGE: CoverageState[] = [
     approved: {},
     derived: ALL,
     reference: allRef(A.detailUnknown, A.detailUnknownMobile),
+  },
+  {
+    id: "order-detail-not-placed",
+    slice: "P4-F",
+    screen: "Attempt detail for a never-placed attempt: nothing charged, cart unchanged, no order created, Try again",
+    approved: {},
+    derived: ALL,
+    reference: allRef(A.detailUnknown, A.detailUnknownMobile),
+    note: "Post-P4-I. Shown from the browser's reminder; the server has no record of an order.",
   },
   {
     id: "order-detail-processing",

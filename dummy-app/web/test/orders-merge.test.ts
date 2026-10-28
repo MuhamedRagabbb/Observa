@@ -2,6 +2,7 @@
 // unconfirmed attempts by attempt reference, one row per reference, newest first.
 import { describe, expect, it } from "vitest";
 import type { AttemptRecord } from "../src/store/checkout/attempts.ts";
+import type { ClosedAttempt } from "../src/store/checkout/closed.ts";
 import type { CheckoutResult } from "../src/store/checkout/outcome.ts";
 import { mergeOrders, statusOf } from "../src/store/orders/merge.ts";
 
@@ -97,5 +98,64 @@ describe("merging", () => {
       ],
     });
     expect(mergeOrders([result], [])[0]?.units).toBe(3);
+  });
+});
+
+describe("a never-placed attempt remembered by this browser (post-P4-I)", () => {
+  const note = (ref: string, created_at = "2026-10-26T12:00:00.000Z"): ClosedAttempt => ({
+    attempt_ref: ref,
+    customer_id: CUSTOMER,
+    lines: [
+      { product_id: "sku-001", quantity: 1 },
+      { product_id: "sku-002", quantity: 2 },
+    ],
+    created_at,
+    closed_at: "2026-10-26T12:05:00.000Z",
+  });
+
+  it("is a Not placed attempt row, never an order: the attempt reference, no order number, no total, from this browser", () => {
+    const rows = mergeOrders([], [], [note("ATT-1A2B-0010")]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      attemptRef: "ATT-1A2B-0010",
+      reference: "ATT-1A2B-0010",
+      kind: "attempt",
+      status: "not_placed",
+      createdAt: "2026-10-26T12:00:00.000Z",
+      units: 3,
+      totalCents: null,
+      result: null,
+      record: null,
+      note: { attempt_ref: "ATT-1A2B-0010" },
+    });
+    expect(rows[0]?.items).toEqual([
+      { product_id: "sku-001", quantity: 1, unit_price_cents: null },
+      { product_id: "sku-002", quantity: 2, unit_price_cents: null },
+    ]);
+  });
+
+  it("the server's answer wins: a listed result for the same reference is shown instead, with no note on the row", () => {
+    const rows = mergeOrders([server("ATT-1A2B-0011", "confirmed")], [], [note("ATT-1A2B-0011")]);
+    expect(rows).toMatchObject([{ status: "confirmed", kind: "order", reference: "OBS-1011-7F3A", note: null }]);
+  });
+
+  it("a held unconfirmed record wins too: while the attempt is still unconfirmed here it stays checkable", () => {
+    const rows = mergeOrders([], [local("ATT-1A2B-0012", "unknown")], [note("ATT-1A2B-0012")]);
+    expect(rows).toMatchObject([{ status: "unknown", kind: "attempt", note: null }]);
+    expect(rows[0]?.record?.attempt_ref).toBe("ATT-1A2B-0012");
+  });
+
+  it("sorts with the other rows by when the attempt was started", () => {
+    const rows = mergeOrders(
+      [server("ATT-1A2B-0013", "confirmed", { created_at: "2026-10-27T12:00:00Z" })],
+      [local("ATT-1A2B-0014", "unknown", "2026-10-24T12:00:00.000Z")],
+      [note("ATT-1A2B-0015", "2026-10-26T12:00:00.000Z")],
+    );
+    expect(rows.map((r) => r.attemptRef)).toEqual(["ATT-1A2B-0013", "ATT-1A2B-0015", "ATT-1A2B-0014"]);
+  });
+
+  it("rows that do not come from a note carry no note", () => {
+    const rows = mergeOrders([server("ATT-1A2B-0016", "abandoned")], [local("ATT-1A2B-0017", "unknown")]);
+    expect(rows.map((r) => r.note)).toEqual([null, null]);
   });
 });

@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef } from "react";
 import { createGatewayClient } from "../../api/gateway-client.ts";
 import { customerId, useAttemptsSynced, useUnconfirmedAttempts } from "../checkout/attempts.ts";
+import { useClosedAttempts } from "../checkout/closed.ts";
 import { isCheckoutResult, type CheckoutResult } from "../checkout/outcome.ts";
 import { checkoutFlow } from "../checkout/session.ts";
 import { classifyStatus } from "../checkout/status.ts";
@@ -45,8 +46,11 @@ export function useOrderRows() {
   const query = useQuery({ queryKey: ["orders", customer], queryFn: () => fetchOrders(customer) });
   const local = useUnconfirmedAttempts();
   const synced = useAttemptsSynced();
+  const closed = useClosedAttempts();
   const server = query.data;
-  const rows = useMemo(() => mergeOrders(server ?? [], local), [server, local]);
+  // Reminders of never-placed attempts belong to the ID they were sent with.
+  const notes = useMemo(() => closed.filter((note) => note.customer_id === customer), [closed, customer]);
+  const rows = useMemo(() => mergeOrders(server ?? [], local, notes), [server, local, notes]);
 
   // A definite answer in the list for an attempt still held here: settle it (read-only, no request).
   useEffect(() => {
@@ -59,14 +63,18 @@ export function useOrderRows() {
   }, [server, local, customer]);
 
   // An attempt settled (here, by Check status, or in another tab): reread the list so its row
-  // shows the server's answer.
+  // shows the server's answer. A reminder that went away (dismissed in another tab, or expired)
+  // does the same, so a page that was showing it settles instead of waiting.
   const refetch = query.refetch;
   const previous = useRef(local);
+  const previousNotes = useRef(notes);
   useEffect(() => {
     const gone = previous.current.some((record) => !local.some((a) => a.attempt_ref === record.attempt_ref));
+    const forgotten = previousNotes.current.some((note) => !notes.some((n) => n.attempt_ref === note.attempt_ref));
     previous.current = local;
-    if (gone) void refetch();
-  }, [local, refetch]);
+    previousNotes.current = notes;
+    if (gone || forgotten) void refetch();
+  }, [local, notes, refetch]);
 
   return { rows, query, synced, customer, limited: (server?.length ?? 0) >= ORDERS_LIMIT };
 }

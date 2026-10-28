@@ -3,7 +3,9 @@ import { Link } from "react-router";
 import { BrandMark } from "../../shared/ui/Brand.tsx";
 import { Button, ButtonLink } from "../../shared/ui/Button.tsx";
 import { Icon } from "../../shared/ui/Icon.tsx";
+import { TextButton } from "../../shared/ui/TextLink.tsx";
 import { useCartQuote } from "../cart/quote.ts";
+import { closedStore } from "../checkout/closed.ts";
 import { checkoutFlow } from "../checkout/session.ts";
 import { formatMoney } from "../money.ts";
 import { ProductImage } from "../ProductImage.tsx";
@@ -11,6 +13,7 @@ import type { OrderRow } from "./merge.ts";
 import { useOrderRows } from "./orders-api.ts";
 import styles from "./Orders.module.css";
 import {
+  CART_UNCHANGED,
   CheckStatusButton,
   formatDate,
   notPlaced,
@@ -65,6 +68,8 @@ export function OrdersPage() {
 
   // Every attempt this browser holds, whatever an earlier list said about it.
   const held = rows.filter((row) => row.record !== null);
+  // Attempts Check status found never placed: kept as a reminder, not listed by the server.
+  const closed = rows.filter((row) => row.note !== null);
   if (query.isError && query.data === undefined) {
     return (
       <div className={styles.page}>
@@ -87,6 +92,14 @@ export function OrdersPage() {
               Unconfirmed in this browser
             </h2>
             <OrderTable rows={held} announce={setAnnouncement} answered={answered} />
+          </section>
+        ) : null}
+        {closed.length > 0 ? (
+          <section className={styles.heldSection} aria-labelledby="closed-title">
+            <h2 id="closed-title" className={styles.sectionTitle}>
+              Not placed in this browser
+            </h2>
+            <OrderTable rows={closed} announce={setAnnouncement} answered={answered} />
           </section>
         ) : null}
         {announcer}
@@ -198,20 +211,22 @@ function Row({ row, announce, answered }: { row: OrderRow; announce: Announce; a
   const checkable = row.record !== null && row.status === "unknown";
   // A definite Check status answer replaces the button: focus moves to the row's View link
   // (the row stays, keyed by its attempt reference) and the new status is announced.
-  const view = useRef<HTMLAnchorElement>(null);
+  // A never-placed attempt has no order to view: its Try again link takes focus instead.
+  const next = useRef<HTMLAnchorElement>(null);
+  const reminder = row.note !== null;
   useEffect(() => {
     if (!answered.current.has(row.attemptRef) || row.status === "unknown") return;
     answered.current.delete(row.attemptRef);
-    view.current?.focus();
-    announce(`${row.attemptRef}: ${statusLabel(row.status)}`);
-  }, [row.status, row.attemptRef, announce, answered]);
+    next.current?.focus();
+    announce(`${row.attemptRef}: ${statusLabel(row.status)}${reminder ? `. ${CART_UNCHANGED}` : ""}`);
+  }, [row.status, row.attemptRef, reminder, announce, answered]);
   const muted = row.kind === "attempt";
   const date = formatDate(row.createdAt);
   return (
     <tr className={styles.row} role="row" data-status={row.status}>
       <td role="cell" className={styles.refCell}>
         <div className={styles.refStack}>
-          {checkable ? (
+          {checkable || reminder ? (
             <Link
               to={orderPath(row)}
               className={styles.reference}
@@ -252,6 +267,7 @@ function Row({ row, announce, answered }: { row: OrderRow; announce: Announce; a
       </td>
       <td role="cell" className={styles.statusCell}>
         <OrderStatusMarker status={row.status} />
+        {reminder ? <span className={styles.cartNote}>{CART_UNCHANGED}</span> : null}
       </td>
       <td role="cell" className={styles.actionCell}>
         {checkable && row.record ? (
@@ -262,9 +278,18 @@ function Row({ row, announce, answered }: { row: OrderRow; announce: Announce; a
               if (!definite) answered.current.delete(row.attemptRef);
             }}
           />
+        ) : reminder ? (
+          <span className={styles.closedActions}>
+            <ButtonLink ref={next} to="/checkout" icon="refresh" variant="secondary" aria-label={`Try again: ${row.attemptRef}`}>
+              Try again
+            </ButtonLink>
+            <TextButton aria-label={`Dismiss ${row.attemptRef}`} onClick={() => closedStore().dismiss(row.attemptRef)}>
+              Dismiss
+            </TextButton>
+          </span>
         ) : (
           <Link
-            ref={view}
+            ref={next}
             to={orderPath(row)}
             className={styles.view}
             aria-label={`View order ${row.reference}`}

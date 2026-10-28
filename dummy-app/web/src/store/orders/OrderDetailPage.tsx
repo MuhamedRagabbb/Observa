@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useParams } from "react-router";
-import { Button } from "../../shared/ui/Button.tsx";
+import { Button, ButtonLink } from "../../shared/ui/Button.tsx";
 import { TextLink } from "../../shared/ui/TextLink.tsx";
 import { useCartQuote } from "../cart/quote.ts";
 import { displayName } from "../catalog.ts";
@@ -10,7 +10,7 @@ import { ProductImage } from "../ProductImage.tsx";
 import type { OrderRow, OrderStatus } from "./merge.ts";
 import { useAttemptLookup, useOrderRows } from "./orders-api.ts";
 import styles from "./Orders.module.css";
-import { CheckStatusButton, formatDate, notPlaced, OrderStatusMarker, unitsLabel } from "./presentation.tsx";
+import { CART_UNCHANGED, CheckStatusButton, formatDate, notPlaced, OrderStatusMarker, unitsLabel } from "./presentation.tsx";
 
 const ORDER_NUMBER = /^OBS-[0-9]+-[0-9A-F]{4}$/;
 const ATTEMPT_REF = /^ATT-[0-9A-F]{4}-[0-9]{4}$/;
@@ -108,7 +108,8 @@ function Detail({ row, onRefresh, refreshing }: { row: OrderRow; onRefresh: () =
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => heading.current?.focus({ preventScroll: true }), [row.status]);
   // Lines the server has not priced (an unconfirmed attempt): today's prices, for reference.
-  const unpriced = row.items.some((item) => item.unit_price_cents === null);
+  // (Not for a never-placed reminder: no price was ever agreed for it, so none is shown.)
+  const unpriced = row.note === null && row.items.some((item) => item.unit_price_cents === null);
   const quote = useCartQuote(unpriced ? row.items.map(({ product_id, quantity }) => ({ product_id, quantity })) : []);
   const priced = new Map(quote.data && !quote.isPlaceholderData ? quote.data.lines.map((line) => [line.product_id, line]) : []);
   const unitPrice = (item: OrderRow["items"][number]) => item.unit_price_cents ?? priced.get(item.product_id)?.unit_price_cents ?? null;
@@ -125,10 +126,15 @@ function Detail({ row, onRefresh, refreshing }: { row: OrderRow; onRefresh: () =
       <p className={styles.detailRef}>{row.reference}</p>
       <p className={styles.muted}>{meta}</p>
       <div className={styles.note}>
-        <p>{NOTES[row.status]}</p>
+        <p>{row.note ? `${NOTES.not_placed} ${CART_UNCHANGED}` : NOTES[row.status]}</p>
+        {row.note ? <p>This reminder is kept in this browser only. No order was created.</p> : null}
         {row.status === "unknown" ? <p className={styles.noteRef}>{row.attemptRef}</p> : null}
       </div>
-      {row.status === "unknown" && row.record ? (
+      {row.note ? (
+        <ButtonLink to="/checkout" icon="refresh" variant="secondary" size="large">
+          Try again
+        </ButtonLink>
+      ) : row.status === "unknown" && row.record ? (
         <CheckStatusButton record={row.record} size="large" />
       ) : row.status === "processing" ? (
         row.record ? (

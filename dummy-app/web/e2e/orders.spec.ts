@@ -9,6 +9,7 @@ import {
   fenced,
   gateContents,
   gateRecord,
+  place,
   READY,
   result,
   seed,
@@ -83,18 +84,18 @@ test.describe("My Orders list", () => {
     await capture("orders-list");
   });
 
-  test("closed attempts: fenced (no order number), not placed and failed", async ({ page, api, capture }) => {
+  // GET /api/orders lists only checkouts that have an order, so a fenced attempt is never in it
+  // (services/shared/attempts.py list: order_id IS NOT NULL). A sold-out attempt has one.
+  test("closed attempts the server lists: not placed (sold out) and failed, each with an order number", async ({ page, api, capture }) => {
     serveOrders(api, () =>
       list([
-        fenced("ATT-1A2B-0010"),
         result("ATT-1A2B-0011", "unavailable", { order_number: "OBS-1050-1A2B", unavailable_items: [{ product_id: "sku-004", requested: 1, available: 0 }] }),
         result("ATT-1A2B-0012", "failed", { order_number: "OBS-1049-3C4D", created_at: "2026-10-20T12:00:00Z" }),
       ]),
     );
     await seed(page, []);
     await page.goto(ORDERS_URL);
-    await expect(rows(page)).toHaveCount(3);
-    await expect(rows(page).filter({ hasText: "ATT-1A2B-0010" })).toContainText("Not placed");
+    await expect(rows(page)).toHaveCount(2);
     await expect(rows(page).filter({ hasText: "OBS-1050-1A2B" })).toContainText("Not placed");
     await expect(rows(page).filter({ hasText: "OBS-1049-3C4D" })).toContainText("Failed");
     await settled(page);
@@ -226,16 +227,13 @@ test.describe("order details", () => {
 
 test.describe("other tabs and safety", () => {
   test("an unconfirmed attempt appears in another tab's My Orders, and resolving it there updates both (T4)", async ({ page, api, context }) => {
-    let recorded = false;
     serve(api, () => "network-error");
     const status = serveStatus(api, {
       get: () => ({ status: 404, body: { error_code: "attempt_not_found", message: "x" } }),
-      resolve: (ref) => {
-        recorded = true;
-        return { status: 409, body: envelope("attempt_abandoned", fenced(ref)) };
-      },
+      resolve: (ref) => ({ status: 409, body: envelope("attempt_abandoned", fenced(ref)) }),
     });
-    serveOrders(api, () => list(recorded ? [fenced(UNKNOWN.attempt_ref)] : []));
+    // The real list never has a fenced attempt: both tabs learn it from the browser's reminder.
+    serveOrders(api, () => list([]));
     await seed(page, READY);
     await seedGate(context, [UNKNOWN]);
     await page.goto(ORDERS_URL);
@@ -243,7 +241,12 @@ test.describe("other tabs and safety", () => {
     await other.goto(ORDERS_URL);
     for (const tab of [page, other]) await expect(rows(tab).filter({ hasText: UNKNOWN.attempt_ref })).toContainText("Status unknown");
     await other.getByRole("button", { name: "Check status" }).click();
-    for (const tab of [page, other]) await expect(rows(tab).filter({ hasText: UNKNOWN.attempt_ref })).toContainText("Not placed");
+    for (const tab of [page, other]) {
+      const row = rows(tab).filter({ hasText: UNKNOWN.attempt_ref });
+      await expect(row).toContainText("Not placed");
+      await expect(row).toContainText("Your cart is unchanged.");
+      await expect(row.getByRole("button", { name: "Check status" })).toHaveCount(0);
+    }
     expect(status.seen).toEqual([`GET ${UNKNOWN.attempt_ref}`, `RESOLVE ${UNKNOWN.attempt_ref}`]);
     await other.close();
   });
@@ -280,5 +283,131 @@ test.describe("other tabs and safety", () => {
     const held = await page.evaluate(() => JSON.stringify({ local: { ...localStorage }, session: { ...sessionStorage }, url: location.href }));
     const everything = held + JSON.stringify(await gateContents(page));
     for (const secret of ["Demo Name", "demo@example.com"]) expect(everything).not.toContain(secret);
+  });
+});
+
+// Post-P4-I: Check status finds an attempt was never placed. The server fences the reference but
+// never lists it (it has no order), so the browser keeps a one-day reminder (checkout/closed.ts):
+// the row changes in place to Not placed, says the cart is unchanged and offers Try again.
+test.describe("never placed: the reminder in this browser", () => {
+  const FENCED = UNKNOWN.attempt_ref;
+  const announcer = (page: Page) => page.getByTestId("orders-announcer");
+  const tryAgain = (page: Page) => page.getByRole("link", { name: "Try again" });
+  const checkStatus = (page: Page) => rows(page).filter({ hasText: FENCED }).getByRole("button", { name: "Check status" });
+
+  /** The Gateway for a browser holding one unknown attempt: not found, then fenced by resolve. */
+  function fencing(api: MockApi) {
+    const refs = serve(api, (ref) => ({ status: 201, body: result(ref, "confirmed") }));
+    const status = serveStatus(api, {
+      get: () => ({ status: 404, body: { error_code: "attempt_not_found", message: "x" } }),
+      resolve: (ref) => ({ status: 409, body: envelope("attempt_abandoned", fenced(ref)) }),
+    });
+    serveOrders(api, () => list([]));
+    return { refs, status };
+  }
+
+  test("the row changes in place: Not placed, 'Your cart is unchanged.', Try again; focus and announcement follow; the cart is untouched", async ({ page, api, capture }) => {
+    const { status } = fencing(api);
+    await seed(page, READY);
+    await seedGate(page, [UNKNOWN]);
+    await page.goto(ORDERS_URL);
+    await checkStatus(page).click();
+    const row = rows(page).filter({ hasText: FENCED });
+    await expect(row).toContainText("Not placed");
+    await expect(row).toContainText("Your cart is unchanged.");
+    await expect(row).toContainText("Attempt · not placed");
+    await expect(row.getByText(/OBS-/)).toHaveCount(0);
+    await expect(row.getByRole("button", { name: "Check status" })).toHaveCount(0);
+    await expect(tryAgain(page)).toBeFocused();
+    await expect(announcer(page)).toHaveText(`${FENCED}: Not placed. Your cart is unchanged.`);
+    expect(status.seen).toEqual([`GET ${FENCED}`, `RESOLVE ${FENCED}`]);
+    expect(await storedCart(page)).toEqual(READY);
+    expect((await gateContents(page)).attempts).toEqual([]);
+    await expect(page.getByText("1 order", { exact: true })).toBeVisible();
+    await settled(page);
+    await capture("orders-list-not-placed");
+  });
+
+  test("it survives navigation and reload, and never reads as an order; its details say no order was created", async ({ page, api, capture }) => {
+    fencing(api);
+    await seed(page, READY);
+    await seedGate(page, [UNKNOWN]);
+    await page.goto(ORDERS_URL);
+    await checkStatus(page).click();
+    await expect(rows(page).filter({ hasText: FENCED })).toContainText("Your cart is unchanged.");
+    await page.reload();
+    await expect(rows(page)).toHaveCount(1);
+    await expect(rows(page).first()).toContainText("Not placed");
+    await expect(rows(page).first()).toContainText("Your cart is unchanged.");
+    await page.getByRole("link", { name: FENCED, exact: true }).click();
+    await expect(page).toHaveURL(`${STORE_URL}orders/${FENCED}`);
+    await expect(page.getByRole("heading", { level: 1, name: "Order attempt" })).toBeVisible();
+    await expect(page.getByText("Not placed", { exact: true })).toBeVisible();
+    await expect(page.getByText("This order wasn’t placed and nothing was charged. Your cart is unchanged.")).toBeVisible();
+    await expect(page.getByText("This reminder is kept in this browser only. No order was created.")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Check status" })).toHaveCount(0);
+    await settled(page);
+    await capture("order-detail-not-placed");
+    await page.reload();
+    await expect(page.getByRole("heading", { level: 1, name: "Order attempt" })).toBeVisible();
+  });
+
+  test("Try again returns to checkout with the cart as it was; Place Order sends a new reference, once, and the old one is never reused", async ({ page, api }) => {
+    const { refs } = fencing(api);
+    await seed(page, READY);
+    await seedGate(page, [UNKNOWN]);
+    await page.goto(ORDERS_URL);
+    await checkStatus(page).click();
+    await tryAgain(page).click();
+    await expect(page).toHaveURL(`${STORE_URL}checkout`);
+    expect(refs).toEqual([]);
+    expect(await storedCart(page)).toEqual(READY);
+    await place(page);
+    await expect(page.getByRole("heading", { level: 1, name: "Thank you." })).toBeVisible();
+    expect(refs).toHaveLength(1);
+    expect(refs[0]).toMatch(/^ATT-[0-9A-F]{4}-[0-9]{4}$/);
+    expect(refs[0]).not.toBe(FENCED);
+  });
+
+  test("Dismiss removes the row for good; nothing else changes", async ({ page, api }) => {
+    fencing(api);
+    await seed(page, READY);
+    await seedGate(page, [UNKNOWN]);
+    await page.goto(ORDERS_URL);
+    await checkStatus(page).click();
+    await page.getByRole("button", { name: `Dismiss ${FENCED}` }).click();
+    await expect(page.getByRole("heading", { level: 2, name: "No orders yet." })).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole("heading", { level: 2, name: "No orders yet." })).toBeVisible();
+    expect(await storedCart(page)).toEqual(READY);
+  });
+
+  test("a check in another tab leaves the reminder here too, with one GET and one resolve in all (cross-tab, no duplicate)", async ({ page, api, context }) => {
+    const { status } = fencing(api);
+    await seed(page, READY);
+    await seedGate(context, [UNKNOWN]);
+    await page.goto(ORDERS_URL);
+    const other = await context.newPage();
+    await other.goto(ORDERS_URL);
+    await rows(other).filter({ hasText: FENCED }).getByRole("button", { name: "Check status" }).click();
+    for (const tab of [page, other]) await expect(rows(tab).filter({ hasText: FENCED })).toContainText("Your cart is unchanged.");
+    await expect(rows(page)).toHaveCount(1);
+    await expect(rows(other)).toHaveCount(1);
+    expect(status.seen).toEqual([`GET ${FENCED}`, `RESOLVE ${FENCED}`]);
+    await other.close();
+  });
+
+  test("a failed check leaves the attempt unconfirmed and no reminder: nothing is claimed", async ({ page, api }) => {
+    serve(api, () => ({ status: 500 }));
+    serveStatus(api, { get: () => "network-error" });
+    serveOrders(api, () => list([]));
+    await seed(page, READY);
+    await seedGate(page, [UNKNOWN]);
+    await page.goto(ORDERS_URL);
+    await checkStatus(page).click();
+    await expect(page.getByText("Couldn’t check just now. Try again in a moment.")).toBeVisible();
+    await expect(page.getByText("Your cart is unchanged.")).toHaveCount(0);
+    await expect(rows(page).first()).toContainText("Status unknown");
+    expect(await page.evaluate(() => localStorage.getItem("observa.closed"))).toBeNull();
   });
 });
