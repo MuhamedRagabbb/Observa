@@ -100,7 +100,9 @@ describe("experiment banner", () => {
     expect(within(region).getByRole("heading", { level: 1, name: "Idle" })).toBeTruthy();
     expect(region.textContent).toContain("No fault is running.");
     expect(region.textContent).toContain("No active timer");
-    expect(within(region).queryByRole("button")).toBeNull();
+    const stop = within(region).getByRole("button", { name: "Stop" });
+    expect(within(region).getAllByRole("button")).toEqual([stop]);
+    expect(stop.getAttribute("aria-disabled")).toBe("true");
   });
 
   it("a manual fault counts down on the controller's clock, once a second, without announcing each tick", async () => {

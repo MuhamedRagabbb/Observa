@@ -133,10 +133,20 @@
 }
 
 .bannerAction {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
   justify-self: end;
 }
 
-/* Monitoring follows the banner until the fault-control slices are added. */
+/* Manual controls occupy the left column; the cycle controls arrive in P5-C. */
+.controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: var(--space-12);
+  margin-block-start: var(--space-12);
+}
+
 .monitoring {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
@@ -380,6 +390,7 @@
     width: 100%;
   }
 
+  .controls,
   .monitoring {
     grid-template-columns: minmax(0, 1fr);
   }

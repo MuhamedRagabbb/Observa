@@ -1,15 +1,24 @@
 // The experiment banner (top of every Operator artboard): what the controller is doing now, its
-// countdown on the controller's clock, and the banner's read-only action (Retry connection, Check
-// status). Fault actions (Stop fault, Stop cycle, Stop again) arrive with the controls (P5-B, C).
-import { useEffect, useRef, useState } from "react";
+// countdown on the controller's clock, status reads and manual Stop actions.
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { Button } from "../../shared/ui/Button.tsx";
+import type { ScenarioId } from "../fault-contract.ts";
 import styles from "../Operator.module.css";
 import type { Banner } from "./experiment.ts";
 
-type Props = { banner: Banner; refreshing: boolean; onRefresh: () => Promise<void> };
+type Props = {
+  banner: Banner;
+  refreshing: boolean;
+  onRefresh: () => Promise<void>;
+  headingRef?: RefObject<HTMLHeadingElement | null>;
+  busy?: "start" | "stop" | null;
+  onStop?: (scenario: ScenarioId, control: HTMLButtonElement) => void;
+  onUnavailablePress?: (control: HTMLButtonElement) => void;
+};
 
-export function ExperimentBanner({ banner, refreshing, onRefresh }: Props) {
-  const heading = useRef<HTMLHeadingElement>(null);
+export function ExperimentBanner({ banner, refreshing, onRefresh, headingRef, busy = null, onStop, onUnavailablePress }: Props) {
+  const ownHeading = useRef<HTMLHeadingElement>(null);
+  const heading = headingRef ?? ownHeading;
   // A pressed action that goes away with the state its answer brought hands focus to the new
   // title, but only if focus went with it (nowhere else was chosen meanwhile). A press whose
   // answer changes nothing is forgotten once that answer is in.
@@ -53,9 +62,9 @@ export function ExperimentBanner({ banner, refreshing, onRefresh }: Props) {
           </>
         )}
       </div>
-      {banner.action ? (
+      {banner.action || banner.stop ? (
         <div className={styles.bannerAction}>
-          <Button
+          {banner.action ? <Button
             icon="refresh"
             size="medium"
             loading={refreshing}
@@ -65,7 +74,19 @@ export function ExperimentBanner({ banner, refreshing, onRefresh }: Props) {
             }}
           >
             {refreshing ? (banner.action === "retry" ? "Connecting…" : "Checking…") : label}
-          </Button>
+          </Button> : null}
+          {banner.stop ? <Button
+            icon="stop"
+            variant={banner.stop.kind === "stop-fault" ? "danger" : "secondary"}
+            unavailable={!banner.stop.enabled || busy === "start"}
+            loading={busy === "stop"}
+            onClickCapture={(event) => {
+              if (!banner.stop?.enabled && busy === null) onUnavailablePress?.(event.currentTarget);
+            }}
+            onClick={(event) => {
+              if (banner.stop?.enabled && banner.stop.scenario) onStop?.(banner.stop.scenario, event.currentTarget);
+            }}
+          >{banner.stop.label}</Button> : null}
         </div>
       ) : null}
       <p className="visually-hidden" role="status" data-testid="experiment-announcer">

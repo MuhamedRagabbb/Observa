@@ -448,6 +448,23 @@ export const OPERATOR_COVERAGE: OperatorCoverageState[] = [
     derived: MOBILE,
     reference: phones(O.activeMobile),
   },
+  // P5-B: what a start or stop that the controller could not confirm looks like (no artboard).
+  {
+    id: "operator-start-unconfirmed",
+    slice: "P5-B",
+    screen: "Inject fault answered 503: the start is reported as unconfirmed, status unchanged",
+    approved: {},
+    derived: ["desktop-1440", ...MOBILE],
+    reference: { "desktop-1440": O.idle, ...phones(O.idleMobile) },
+  },
+  {
+    id: "operator-stop-unconfirmed",
+    slice: "P5-B",
+    screen: "Stop fault answered 503: the stop is reported as unconfirmed, status unknown, Check status and Stop again",
+    approved: {},
+    derived: ["desktop-1440", ...MOBILE],
+    reference: { "desktop-1440": "Operator — fault status unknown.png", ...phones(O.activeMobile) },
+  },
   // P5-D: the artboards show health and activity only in their idle samples; these states are derived.
   {
     id: "operator-health-degraded",

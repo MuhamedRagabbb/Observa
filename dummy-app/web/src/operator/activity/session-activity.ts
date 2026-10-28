@@ -44,7 +44,7 @@ export function describeEntry(entry: ActivityEntry): string {
     case "fault_stopped":
       return join("Fault stopped", scenario, typeof entry.reason === "string" && Object.hasOwn(REASONS, entry.reason) ? REASONS[entry.reason] ?? "" : words(entry.reason));
     case "stop_unconfirmed":
-      return "No confirmation received from controller";
+      return join("Stop not confirmed by the affected service", scenario);
     case "cycle_started": {
       const scenarios = Array.isArray(entry.scenarios) ? entry.scenarios.map((value: unknown) => known(value) ? scenarioCode(value) : words(value)).filter(Boolean).join(", ") : "";
       return join("Cycle started", number(entry.repeats) ? `${entry.repeats} ${entry.repeats === 1 ? "repeat" : "repeats"}` : "", scenarios,

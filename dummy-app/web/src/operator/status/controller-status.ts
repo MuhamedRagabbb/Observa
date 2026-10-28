@@ -14,6 +14,7 @@ export const STATUS_TIMEOUT_MS = 5000;
 
 const STATES = new Set(["idle", "manual", "automatic", "recovering", "unknown"]);
 const PHASES = new Set(["warmup", "fault", "recovery", "stopping"]);
+const CONTROLS = ["activate", "auto_start", "deactivate", "auto_stop"];
 
 /** The controller could not be read: network, http_<status>, timeout or invalid_response. */
 export class ControllerUnreachable extends Error {
@@ -26,6 +27,15 @@ export class ControllerUnreachable extends Error {
 export const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
 export const isNumber = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
 
+function validControls(controls: unknown): boolean {
+  return isRecord(controls) && CONTROLS.every((key) => {
+    if (!Object.hasOwn(controls, key)) return true;
+    const control = controls[key];
+    return isRecord(control) && typeof control.enabled === "boolean"
+      && (control.reason === null || typeof control.reason === "string");
+  });
+}
+
 /** A ControllerStatus this page can trust to describe the controller, or an error. */
 export function parseControllerStatus(body: unknown): ControllerStatus {
   const ok =
@@ -34,7 +44,7 @@ export function parseControllerStatus(body: unknown): ControllerStatus {
     STATES.has(body.state) &&
     isNumber(body.now) &&
     typeof body.auto_running === "boolean" &&
-    isRecord(body.controls) &&
+    validControls(body.controls) &&
     (body.active === null || (isRecord(body.active) && typeof body.active.scenario === "string" && isNumber(body.active.expires_at) && typeof body.active.started_at === "string" && isRecord(body.active.parameters))) &&
     (body.auto === null ||
       (isRecord(body.auto) &&

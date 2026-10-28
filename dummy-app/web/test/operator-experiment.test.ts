@@ -193,3 +193,61 @@ describe("review findings (P5-A)", () => {
     expect(view(controllerStatus("automatic", { auto: { ...auto.auto!, scenario: "disk_full" as never } })).title).toBe("disk_full");
   });
 });
+
+describe("banner Stop actions (P5-B)", () => {
+  it("manual: Stop fault, enabled by the controller's own control, for the running scenario", () => {
+    expect(view(controllerStatus("manual")).stop).toEqual({ kind: "stop-fault", label: "Stop fault", enabled: true, scenario: "payments_errors" });
+  });
+
+  it("idle: the artboard's Stop is shown but cannot be used", () => {
+    expect(view(controllerStatus("idle")).stop).toEqual({ kind: "stop-idle", label: "Stop", enabled: false, scenario: null });
+  });
+
+  it("unknown: Stop again beside Check status, only while the controller allows a stop", () => {
+    expect(view(controllerStatus("unknown")).stop).toEqual({ kind: "stop-again", label: "Stop again", enabled: true, scenario: "payments_errors" });
+    const refused = controllerStatus("unknown", { controls: { ...controllerStatus("unknown").controls, deactivate: { enabled: false, reason: "auto_running" } } });
+    expect(view(refused).stop).toEqual({ kind: "stop-again", label: "Stop again", enabled: false, scenario: "payments_errors" });
+  });
+
+  it("unknown without a known incident offers no Stop again", () => {
+    expect(view(controllerStatus("unknown", { active: null })).stop).toBeNull();
+  });
+
+  it("recovering, automatic, connecting and disconnected show no fault Stop", () => {
+    expect(view(controllerStatus("recovering")).stop).toBeNull();
+    expect(view(controllerStatus("automatic")).stop).toBeNull();
+    expect(view(null, 0, "connecting").stop).toBeNull();
+    expect(view(controllerStatus("manual"), 0, "disconnected").stop).toBeNull();
+  });
+});
+
+describe("a fault that is still starting (review: no success before the acknowledgement)", () => {
+  const starting = () => {
+    const base = controllerStatus("manual");
+    return controllerStatus("manual", { active: { ...base.active!, status: "activating", acknowledged_at: null } });
+  };
+
+  it("says it is starting and waiting, with no countdown", () => {
+    expect(view(starting())).toMatchObject({
+      kind: "manual",
+      title: "Payment Errors",
+      description: "Starting: waiting for the affected service to acknowledge the fault.",
+      timer: null,
+      timerNote: "Not started yet",
+      announcement: "Starting fault: Payment Errors.",
+    });
+  });
+
+  it("Stop stays available (a stop must never be refused)", () => {
+    expect(view(starting()).stop).toMatchObject({ kind: "stop-fault", enabled: true });
+  });
+});
+
+describe("Stop on an old answer (review: tab resumed)", () => {
+  it("is unavailable until the status has been read again", () => {
+    const stale = experimentView({ connection: "connected", status: controllerStatus("manual"), elapsed: 8, timeZone: "UTC" });
+    expect(stale.stop).toMatchObject({ kind: "stop-fault", enabled: false });
+    const fresh = experimentView({ connection: "connected", status: controllerStatus("manual"), elapsed: 3, timeZone: "UTC" });
+    expect(fresh.stop).toMatchObject({ enabled: true });
+  });
+});

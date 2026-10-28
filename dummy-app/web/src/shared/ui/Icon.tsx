@@ -14,6 +14,9 @@ const PATHS = {
   copy: "M9 9h10v10H9zM5 15V5h10",
   "chevron-down": "M6 9l6 6 6-6",
   check: "M6.5 12.5l3.5 3.5 7.5-8",
+  play: "M8 5.5 19 12 8 18.5z",
+  stop: "M7 5.5h10A1.5 1.5 0 0 1 18.5 7v10a1.5 1.5 0 0 1-1.5 1.5H7A1.5 1.5 0 0 1 5.5 17V7A1.5 1.5 0 0 1 7 5.5z",
+  lock: "M7 10V7a5 5 0 0 1 10 0v3M6 10h12v11H6zM12 14v3",
 } as const;
 
 export type IconName = keyof typeof PATHS;
@@ -33,7 +36,7 @@ export function Icon({ name, className }: { name: IconName; className?: string }
       aria-hidden="true"
       focusable="false"
     >
-      <path d={PATHS[name]} />
+      <path d={PATHS[name]} fill={name === "play" || name === "stop" ? "currentColor" : undefined} />
     </svg>
   );
 }

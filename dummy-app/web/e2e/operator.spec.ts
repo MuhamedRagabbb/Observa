@@ -3,52 +3,9 @@
 // beside its artboard (npm run e2e:review). The page only reads: any request but the mocked GETs
 // (a POST to start or stop a fault, for example) is a harness violation and fails the test.
 import type { Page } from "@playwright/test";
-import { activity, activityEntry, CONTROLLER_NOW, controllerStatus, healthSnapshot, type ActivityEntry, type ControllerState, type HealthSnapshot } from "./fixtures/controller.ts";
-import { OPERATOR_URL, expect, test, type MockApi, type MockReply } from "./support/harness.ts";
-
-const banner = (page: Page) => page.getByRole("region", { name: "Experiment" });
-const title = (page: Page) => banner(page).getByRole("heading", { level: 1 });
-const header = (page: Page) => page.getByRole("banner");
-const noSideScroll = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
-
-/** GET /services/health and /activity: healthy and empty, unless a test registers its own answer after this. */
-function serveMonitoring(api: MockApi) {
-  api.onController("GET", "/services/health", () => ({ status: 200, body: healthSnapshot() }));
-  api.onController("GET", "/activity", () => ({ status: 200, body: activity([]) }));
-}
-
-/** GET /faults/status answers with `reply()`; returns how many times it was read. */
-function serveStatus(api: MockApi, reply: () => MockReply) {
-  serveMonitoring(api);
-  const reads = { count: 0 };
-  api.onController("GET", "/faults/status", () => {
-    reads.count += 1;
-    return reply();
-  });
-  return reads;
-}
-
-/** Opens the page on the controller's clock and freezes it, so countdowns hold still for the capture. */
-async function open(page: Page, expected: string) {
-  await page.clock.install({ time: CONTROLLER_NOW * 1000 });
-  await page.goto(OPERATOR_URL);
-  await expect(title(page)).toHaveText(expected);
-  await page.clock.pauseAt(CONTROLLER_NOW * 1000 + 3_000);
-  await page.evaluate(() => document.fonts.ready);
-}
-
-/**
- * The page's clock is frozen (see open), but mocked answers arrive in real time and React Query
- * applies them on its own timers: step the frozen clock until `read()` gives `expected`.
- */
-async function stepUntil<T>(page: Page, read: () => Promise<T>, expected: T) {
-  await expect
-    .poll(async () => {
-      await page.clock.runFor(50);
-      return read();
-    })
-    .toEqual(expected);
-}
+import { activity, activityEntry, controllerStatus, healthSnapshot, type ActivityEntry, type ControllerState, type HealthSnapshot } from "./fixtures/controller.ts";
+import { expect, test, type MockApi, type MockReply } from "./support/harness.ts";
+import { banner, header, noSideScroll, open, serveStatus, stepUntil, title } from "./support/operator-page.ts";
 
 const STATES: [ControllerState, string, string, RegExp][] = [
   ["idle", "operator-idle", "Idle", /Experiment\s*Idle\s*No fault is running\.\s*No active timer/],

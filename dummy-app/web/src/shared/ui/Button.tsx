@@ -7,7 +7,7 @@ type Common = {
   /** The glyph in the icon block at the start of the button. */
   icon: IconName;
   /** "primary" is the ink button; "secondary" the light outlined one. */
-  variant?: "primary" | "secondary";
+  variant?: "primary" | "secondary" | "danger";
   /** "large" is the 60px page action (Place order); "medium" the 48px row action (Add to cart). */
   size?: "medium" | "large";
   /** Stretch to the container's width. */

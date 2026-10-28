@@ -94,6 +94,17 @@
   background: var(--color-control-disabled);
 }
 
+/* Stop fault: the active-fault artboard's fault fill and lighter icon block. */
+.button[data-variant="danger"] {
+  background: var(--color-fault-strong);
+  color: var(--color-on-ink);
+  box-shadow: var(--shadow-button);
+}
+
+.button[data-variant="danger"] .fill {
+  background: var(--color-fault);
+}
+
 @media (hover: hover) {
   .button:not(:disabled, [aria-disabled="true"]):hover .fill {
     width: 100%;

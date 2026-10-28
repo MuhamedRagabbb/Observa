@@ -9,6 +9,7 @@ import { faultSummary, SCENARIO_LABELS, scenarioCode } from "../scenarios.ts";
 
 export type ControllerStatus = components["schemas"]["ControllerStatus"];
 export type Connection = "connecting" | "connected" | "disconnected";
+export const STALE_AFTER_SECONDS = 7.5;
 
 export type Banner = {
   kind: "connecting" | "idle" | "manual" | "automatic" | "recovering" | "unknown" | "disconnected";
@@ -21,8 +22,9 @@ export type Banner = {
   timerNote: string | null;
   /** A state that needs the operator's attention (the artboards' red frame). */
   alert: boolean;
-  /** The banner's own read-only action. Fault actions (Stop) arrive with the controls (P5-B, P5-C). */
+  /** The banner's own read-only action. */
   action: "check-status" | "retry" | null;
+  stop: { kind: "stop-fault" | "stop-idle" | "stop-again"; label: string; enabled: boolean; scenario: ScenarioId | null } | null;
   /** Said once by screen readers when the state changes; never the ticking countdown. */
   announcement: string;
 };
@@ -66,7 +68,7 @@ function countdown(endsAt: number, startedAt: number, status: ControllerStatus, 
   return { text: formatClock(left), caption, progress };
 }
 
-const known = (scenario: string | null | undefined): scenario is ScenarioId => !!scenario && scenario in SCENARIO_LABELS;
+const known = (scenario: string | null | undefined): scenario is ScenarioId => !!scenario && Object.hasOwn(SCENARIO_LABELS, scenario);
 /** A scenario this page does not know (a newer controller) is named as sent. */
 const label = (scenario: string | null | undefined) => (known(scenario) ? SCENARIO_LABELS[scenario] : scenario || "a fault");
 
@@ -90,6 +92,7 @@ export function experimentView({ connection, status, elapsed, timeZone }: Experi
       timerNote: "Unavailable",
       alert: true,
       action: "retry",
+      stop: null,
       announcement: "Controller unreachable.",
     };
   }
@@ -103,6 +106,7 @@ export function experimentView({ connection, status, elapsed, timeZone }: Experi
       timerNote: "Unavailable",
       alert: false,
       action: null,
+      stop: null,
       announcement: "Connecting to the controller.",
     };
   }
@@ -112,6 +116,7 @@ export function experimentView({ connection, status, elapsed, timeZone }: Experi
       const active = status.active;
       if (!active) break;
       const scenario = active.scenario;
+      const acknowledged = active.status === "active" && !!active.acknowledged_at;
       const started = formatTime(active.started_at, timeZone);
       const startedAt = Date.parse(active.started_at) / 1000;
       const hasStart = !Number.isNaN(startedAt);
@@ -120,14 +125,15 @@ export function experimentView({ connection, status, elapsed, timeZone }: Experi
         kind: "manual",
         eyebrow: known(scenario) ? `Manual fault · ${scenarioCode(scenario)}` : "Manual fault",
         title: label(scenario),
-        description: known(scenario)
+        description: !acknowledged ? "Starting: waiting for the affected service to acknowledge the fault." : known(scenario)
           ? `${startedText ? `${startedText} · ` : ""}${faultSummary(scenario, active.parameters)}`
           : `${startedText || "Started at an unknown time"}.`,
-        timer: countdown(active.expires_at, hasStart ? startedAt : active.expires_at, status, elapsed, hasStart ? `Remaining of ${formatSpan(active.expires_at - startedAt)}` : "Remaining"),
-        timerNote: null,
+        timer: acknowledged ? countdown(active.expires_at, hasStart ? startedAt : active.expires_at, status, elapsed, hasStart ? `Remaining of ${formatSpan(active.expires_at - startedAt)}` : "Remaining") : null,
+        timerNote: acknowledged ? null : "Not started yet",
         alert: true,
         action: null,
-        announcement: `Manual fault active: ${label(scenario)}.`,
+        announcement: acknowledged ? `Manual fault active: ${label(scenario)}.` : `Starting fault: ${label(scenario)}.`,
+        stop: known(scenario) ? { kind: "stop-fault", label: "Stop fault", enabled: status.controls.deactivate?.enabled === true && elapsed <= STALE_AFTER_SECONDS, scenario } : null,
       };
     }
     case "automatic": {
@@ -144,6 +150,7 @@ export function experimentView({ connection, status, elapsed, timeZone }: Experi
           alert: true,
           action: null,
           announcement: "Automatic cycle: stopping.",
+          stop: null,
         };
       }
       const order = `${auto.shuffle ? "shuffled" : "in order"} · seed ${auto.seed}`;
@@ -163,6 +170,7 @@ export function experimentView({ connection, status, elapsed, timeZone }: Experi
         alert: true,
         action: null,
         announcement: `Automatic cycle, repeat ${auto.repeat} of ${auto.repeats}: ${phase.title}.`,
+        stop: null,
       };
     }
     case "recovering": {
@@ -177,9 +185,11 @@ export function experimentView({ connection, status, elapsed, timeZone }: Experi
         alert: false,
         action: null,
         announcement: "Recovering: waiting for services.",
+        stop: null,
       };
     }
     case "unknown": {
+      const scenario = status.active?.scenario;
       const description =
         status.active?.status === "deactivation_unconfirmed"
           ? "The stop request wasn’t confirmed. The fault may still be running."
@@ -196,6 +206,7 @@ export function experimentView({ connection, status, elapsed, timeZone }: Experi
         alert: true,
         action: "check-status",
         announcement: "Fault status unknown.",
+        stop: known(scenario) ? { kind: "stop-again", label: "Stop again", enabled: status.controls.deactivate?.enabled === true && elapsed <= STALE_AFTER_SECONDS, scenario } : null,
       };
     }
   }
@@ -210,5 +221,6 @@ export function experimentView({ connection, status, elapsed, timeZone }: Experi
     alert: false,
     action: null,
     announcement: "Idle. No fault is running.",
+    stop: { kind: "stop-idle", label: "Stop", enabled: false, scenario: null },
   };
 }

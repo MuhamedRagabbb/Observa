@@ -64,7 +64,7 @@ describe("event copy", () => {
     ["fault_stopped", { scenario: "bad_deployment", reason: "schedule" }, "Fault stopped · F3 Bad Deployment · cycle step ended"],
     ["fault_stopped", { scenario: "bad_deployment", reason: "controller_restart" }, "Fault stopped · F3 Bad Deployment · controller restarted"],
     ["fault_stopped", { scenario: "bad_deployment", reason: "odd_new_reason" }, "Fault stopped · F3 Bad Deployment · odd new reason"],
-    ["stop_unconfirmed", { scenario: "payments_errors" }, "No confirmation received from controller"],
+    ["stop_unconfirmed", { scenario: "payments_errors" }, "Stop not confirmed by the affected service · F2 Payment Errors"],
     ["cycle_started", { repeats: 3, seed: 7341, shuffle: true, scenarios: ["db_connection_exhaustion", "payments_errors"] }, "Cycle started · 3 repeats · F1, F2 · shuffled · seed 7341"],
     ["cycle_started", { repeats: 1, seed: 5, shuffle: false, scenarios: ["bad_deployment"] }, "Cycle started · 1 repeat · F3 · in order"],
     ["phase_started", { phase: "warmup", repeat: 1, step: 0, scenario: null }, "Warmup phase started"],
