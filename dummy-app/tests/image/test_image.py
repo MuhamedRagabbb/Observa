@@ -77,7 +77,8 @@ def test_ships_both_production_builds_read_only(probe):
         assert {
             f"licenses/{family}-OFL.txt" for family in ("instrument-serif", "inter", "jetbrains-mono")
         } <= set(files)
-        assert sum(f.endswith(".woff2") for f in files) == 3
+        # Instrument Serif regular and italic (P4-B), Inter, JetBrains Mono.
+        assert sum(f.endswith(".woff2") for f in files) == 4
         assert not [f for f in files if f.endswith((".map", ".ts", ".tsx"))]
     assert probe["scripts"]["store"] != probe["scripts"]["operator"]
     assert probe["dist_readable"] is True
@@ -128,10 +129,11 @@ def test_controller_serves_only_the_operator_build(probe):
     )
 
 
-def test_legacy_arabic_ui_still_owns_the_root(probe):
-    for app in ("gateway", "controller"):
-        root = probe[app]["/"]
-        assert (root["status"], root["arabic"]) == (200, True)
+def test_legacy_arabic_ui_keeps_only_the_controller_root(probe):
+    # P4-H: the Gateway's / is the English store; the Arabic operator UI stays until P5.
+    gateway, controller = probe["gateway"]["/"], probe["controller"]["/"]
+    assert (gateway["status"], gateway["title"], gateway["arabic"]) == (200, "OBSERVA", False)
+    assert (controller["status"], controller["arabic"]) == (200, True)
 
 
 def test_bundle_requests_carry_no_trace_but_api_calls_do(probe):
@@ -191,11 +193,12 @@ def test_a_gateway_container_serves_the_store_over_http():
         def fetch(*paths):
             return json.loads(docker("exec", name, "python", "-c", FETCH, *paths))
 
-        page = fetch("/ui/next/", "/")
-        entry, legacy = page["/ui/next/"], page["/"]
+        page = fetch("/", "/ui/next/")
+        entry, old_link = page["/"], page["/ui/next/"]
         assert entry["status"] == 200 and "<title>OBSERVA</title>" in entry["text"]
         assert entry["headers"]["cache-control"] == "no-cache"
-        assert 'lang="ar"' in legacy["text"]
+        assert '<html lang="en" dir="ltr">' in entry["text"]
+        assert (old_link["status"], old_link["headers"]["location"]) == (308, "/")
         script = entry["text"].split('src="')[1].split('"')[0]
         asset = fetch(script)[script]
         assert asset["status"] == 200 and asset["headers"]["cache-control"] == IMMUTABLE

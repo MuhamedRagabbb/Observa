@@ -9,6 +9,8 @@
 
 .info {
   display: grid;
+  /* minmax(0, …): the action's nowrap label must not widen the column past the card. */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-3);
   padding-block-start: var(--space-5);
 }
@@ -70,7 +72,10 @@
     font-size: 1.25rem;
   }
 
+  /* A 159px card (375 phone) fits the 48px icon block and "Add to cart" only with less padding. */
   .action > * {
+    --button-label-padding: var(--space-3);
+
     width: 100%;
   }
 }

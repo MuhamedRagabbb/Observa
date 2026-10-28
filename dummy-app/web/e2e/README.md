@@ -123,3 +123,22 @@ These follow the approved outcome rules:
 - The store's pages are served at `/` on the Gateway from an explicit allowlist (`/`, `/checkout`, `/orders`, `/orders/<OBS-… or ATT-…>`, GET/HEAD); its files stay at `/ui/next/assets/`; `/ui/next/<page>` redirects (308). The mocked harness mirrors this (`STORE_PAGE_PATTERN`, kept equal to `services/shared/ui.py` `STORE_PAGE` by a pytest). Any other same-origin path still needs a mock, so an unexpected request from the app is still caught.
 - `STORE_URL` is now the origin root. The operator bundle stays at `/ui/next/` until P5.
 
+
+### Status after P4-I (stack mode, `storefront.stack.spec.ts`, `support/stack.ts`)
+- **Running:** start the preview project (README "Storefront preview"), apply its migrations, then recreate only its payments service with no baseline declines, and run:
+
+  ```sh
+  BASELINE_DECLINE_RATE=0 docker compose -f docker-compose.yml -f docker-compose.preview.yml up -d --no-deps --no-build --wait payments
+  E2E_STACK_URL=http://127.0.0.1:18000 npx playwright test     # in web/
+  ```
+
+  The stack declines 2% of payments by default (`BASELINE_DECLINE_RATE=0.02`, chosen by a hash of the payment key), which makes a "confirmed" test fail now and then. Stack mode runs one test at a time (a fault reaches every checkout in flight), with a 300 s test timeout.
+- **Safety:** every browser request off the preview Gateway's origin (for example the live :8000) is aborted before it is sent and fails the test; a guard test proves it. The controller URL (`E2E_STACK_CONTROLLER_URL`, default port 18090) refuses the live ports. A test that starts a fault stops it in teardown, and waits for the controller to accept a new fault first (after a fault the controller reports `recovering` until every service is healthy again, at most 180 s; with no traffic, services read `stale_metrics`). Each test has a fresh browser context, so a new anonymous customer.
+- **Covered on the real stack at 1440, 390 and 375 (7 tests):** checkout from the collection to a confirmed order, cart emptied, My Orders and the details page, reload of the confirmation (R4), exactly one POST; search and cart on the real catalogue; the answer lost after the Gateway placed the order (U2: `route.fetch` then abort) → Check status → confirmed, one order; the request never sent (U3) → reload keeps the reference (R2) → Check status → 404 → resolve → not placed → Try again with a new reference is confirmed; T4 across two tabs; F2 402 → Payment declined → fault stopped → Try again confirmed; the guard.
+- **Real versus mocks:** response shapes, `X-Request-ID` echo, trace IDs, 402/409/404/422 envelopes and `details` matched the typed mocks. Differences:
+  - A fenced (abandoned) attempt is **never** in `GET /api/orders`, so after Check status fences an unknown attempt on My Orders the row disappears in every tab with no "Not placed" message. The mocked T4 test (`orders.spec.ts`) lists the fenced attempt as Not placed, which the real Gateway never does; the stack T4 test asserts the real behaviour.
+  - Resolve on an attempt that already has a result answers **201** (the mocks use 200); both are read by the checkout classifier.
+  - F2 with `status_code` 503: real `state` is `payment_failed`, the mock says `payment_declined` (the client reads `outcome`, which matches).
+  - On the unknown screen the address stays `/checkout`; the reference comes back from the IndexedDB gate after a reload.
+- **Fixed in P4-I:** on phones (375, 390) the collection card's action overflowed its card by about 15px (the card's grid column took the nowrap label's width). `home.spec.ts` now checks every card's action stays inside its card with its label unclipped, at all three widths.
+- Not covered on the stack: processing/202 polling (needs a slow saga), T5 two tabs checking at once, F1 and F3.

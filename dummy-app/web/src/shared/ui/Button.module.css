@@ -63,7 +63,8 @@
   flex: 1;
   align-items: center;
   justify-content: center;
-  padding-inline: var(--space-5) var(--space-6);
+  /* --button-label-padding: one value for both sides, for a container that is narrow. */
+  padding-inline: var(--button-label-padding, var(--space-5)) var(--button-label-padding, var(--space-6));
   white-space: nowrap;
 }
 

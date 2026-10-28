@@ -123,6 +123,23 @@ test.describe("the collection", () => {
     for (const tile of tiles) expect(Math.round((tile.height / tile.width) * 100) / 100).toBe(1.25);
   });
 
+  test("each card's action stays inside its card, label fully shown (P4-I: phones overflowed by 15px)", async ({ page, api }) => {
+    serveProducts(api);
+    await page.goto(STORE_URL);
+    await expect(cards(page)).toHaveCount(5);
+    await page.evaluate(() => document.fonts.ready);
+    for (const card of await cards(page).all()) {
+      const [outer, action] = await Promise.all([box(card), box(card.getByRole("button"))]);
+      const name = await card.getByRole("heading", { level: 3 }).textContent();
+      expect(action.x, `${name}: action starts inside the card`).toBeGreaterThanOrEqual(outer.x - 0.5);
+      expect(action.x + action.width, `${name}: action ends inside the card`).toBeLessThanOrEqual(outer.x + outer.width + 0.5);
+      // The label is never clipped: it fits the button's own box.
+      const clipped = await card.getByRole("button").evaluate((button) => button.scrollWidth > button.clientWidth);
+      expect(clipped, `${name}: label clipped`).toBe(false);
+    }
+    expect(await noSideScroll(page)).toBe(true);
+  });
+
   test("says so while the products load", async ({ page, api, capture }) => {
     let release: () => void = () => undefined;
     const held = new Promise<void>((resolve) => (release = resolve));

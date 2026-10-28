@@ -23,7 +23,10 @@ export default defineConfig({
   outputDir: "e2e-output/test-results",
   fullyParallel: true,
   // More parallel browsers starve the two preview servers on a workstation and cause timeouts.
-  workers: 2,
+  // Stack mode runs one test at a time: a fault on the preview reaches every checkout in flight.
+  workers: stackUrl ? 1 : 2,
+  // Stack tests wait for real responses, and a fault test for the controller to finish recovering.
+  ...(stackUrl ? { timeout: 300_000, expect: { timeout: 15_000 } } : {}),
   forbidOnly: true,
   retries: 0,
   reporter: [["list"], ["html", { outputFolder: "e2e-output/report", open: "never" }]],
