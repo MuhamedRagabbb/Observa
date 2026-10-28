@@ -7,7 +7,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import facts from "../e2e/fixtures/controller-facts.json";
+import facts from "../e2e/fixtures/controller-facts.json" with { type: "json" };
 import { activity, activityEntry, CONTROLLER_NOW, controllerStatus, healthSnapshot, STATES } from "../e2e/fixtures/controller.ts";
 import { scenarioContract } from "../src/operator/fault-contract.ts";
 

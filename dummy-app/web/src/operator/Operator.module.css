@@ -1,0 +1,171 @@
+/*
+ * Operator Dashboard. Artboards: Operator idle / manual fault active / automatic cycle /
+ * recovering / fault status unknown / controller disconnected (1440), and 390 idle and fault
+ * active. [measured] on the 2x exports; [inferred] where the artboards give no exact value.
+ */
+
+/* Header: "● Controller connected  Storefront ↗"; on phones just the dot and the arrow. */
+.connection {
+  display: inline-flex;
+}
+
+.connection [data-tone] {
+  color: var(--color-ink);
+  font-size: var(--text-small);
+}
+
+.connection[data-connection="disconnected"] [data-tone] {
+  color: var(--color-fault);
+}
+
+.connection[data-connection="connecting"] [data-tone] {
+  color: var(--color-text-muted);
+}
+
+.storefront {
+  composes: link from "../shared/CrossAppLink.module.css";
+}
+
+/*
+ * Experiment banner [measured] 1440: card 1280 wide, about 150 tall, 32px padding; three columns.
+ * The action column is kept even when empty, so the timer sits in the same place in every state
+ * (about 720px from the left at 1440); the artboards' buttons are the 48px medium size.
+ */
+.banner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 22rem) 15rem;
+  align-items: center;
+  gap: var(--space-8);
+  padding: var(--space-8) var(--space-10);
+  border: 1.5px solid var(--color-line-strong);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+
+.banner[data-alert] {
+  border-color: var(--color-fault);
+}
+
+.bannerState {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--color-ink-accent);
+  font-size: var(--text-caption);
+  font-weight: 500;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+
+.bannerTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-heading-1);
+  font-weight: 400;
+  line-height: var(--leading-tight);
+  letter-spacing: -0.01em;
+}
+
+.bannerTitle:focus {
+  outline: none;
+}
+
+.bannerTitle:focus-visible {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 4px;
+}
+
+.bannerDescription {
+  margin: 0;
+  color: var(--color-ink-soft);
+  font-size: var(--text-body);
+  line-height: var(--leading-body);
+}
+
+.bannerTimer {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-2);
+}
+
+/* [measured] "03:42": mono, about 52px at 1440 */
+.clock {
+  margin: 0;
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: clamp(2.5rem, 2rem + 1.4vw, 3.25rem);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.timerCaption {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-small);
+}
+
+/* [measured] 1440: a 2px track about 480px wide; the elapsed share in ink */
+.progress {
+  width: 100%;
+  height: 2px;
+  margin-block-start: var(--space-2);
+  background: var(--color-line);
+}
+
+.progressFill {
+  display: block;
+  height: 100%;
+  background: var(--color-ink);
+  transition: width var(--motion-duration-base) linear;
+}
+
+/* "—" where no timer runs [measured] about 26 x 3px */
+.noTimer {
+  display: block;
+  width: 1.625rem;
+  height: 3px;
+  background: var(--color-text-subtle);
+}
+
+.bannerAction {
+  justify-self: end;
+}
+
+/* Phones (390 idle and fault active artboards): one column, the action full width. */
+@media (max-width: 47.99rem) {
+  .compactLabel {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  /* The arrow-only Storefront link is still a 44px touch target. */
+  .storefront {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .banner {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-5);
+    padding: var(--space-6) var(--space-5);
+  }
+
+  .bannerAction {
+    justify-self: stretch;
+  }
+
+  .bannerAction > button {
+    width: 100%;
+  }
+}

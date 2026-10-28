@@ -27,8 +27,16 @@
   line-height: 1.4;
 }
 
+.status {
+  margin-inline-start: auto;
+}
+
 .nav {
   margin-inline-start: auto;
+}
+
+.status + .nav {
+  margin-inline-start: var(--space-6);
 }
 
 .main {

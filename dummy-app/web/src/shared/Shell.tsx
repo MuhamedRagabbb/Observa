@@ -9,15 +9,18 @@ type ShellProps = {
   surface?: string;
   /** Header links, aligned to the end of the header. */
   nav?: ReactNode;
+  /** A status shown before the links (the operator's controller connection). Not navigation. */
+  status?: ReactNode;
   children?: ReactNode;
 };
 
-export function Shell({ regionLabel, surface, nav, children }: ShellProps) {
+export function Shell({ regionLabel, surface, nav, status, children }: ShellProps) {
   return (
     <div className={styles.page}>
       <header className={styles.header}>
         <Wordmark className={styles.wordmark} />
         {surface ? <span className={styles.surface}>{surface}</span> : null}
+        {status ? <div className={styles.status}>{status}</div> : null}
         {nav ? <nav className={styles.nav}>{nav}</nav> : null}
       </header>
       <main className={styles.main} aria-label={regionLabel}>

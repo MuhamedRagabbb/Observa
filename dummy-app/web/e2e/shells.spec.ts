@@ -1,5 +1,6 @@
 // P4-0 harness checks, run against the production builds served by vite preview, with every
 // API request answered by typed mocks.
+import { controllerStatus } from "./fixtures/controller.ts";
 import { PRODUCTS } from "./fixtures/gateway.ts";
 import { OPERATOR_URL, STORE_URL, expect, test } from "./support/harness.ts";
 
@@ -19,7 +20,9 @@ test.describe("bundle shells", () => {
     await capture("shell-store");
   });
 
-  test("the operator shell links back to the storefront on the preview gateway port", async ({ page, capture }) => {
+  test("the operator shell links back to the storefront on the preview gateway port", async ({ page, api, capture }) => {
+    // The operator page reads the controller's state (P5-A).
+    api.onController("GET", "/faults/status", () => ({ status: 200, body: controllerStatus("idle") }));
     await page.goto(OPERATOR_URL);
     await expect(page.getByRole("link", { name: "Storefront" })).toHaveAttribute(
       "href",

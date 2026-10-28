@@ -1,7 +1,7 @@
 // The fault and cycle settings the controller accepts (contracts/fault-parameters.json). The
 // ranges are not in OpenAPI, so the JSON is the shared source: pytest checks it against the
 // controller's validators and test/fault-contract.test.ts against the OpenAPI snapshot.
-import contract from "../../contracts/fault-parameters.json";
+import contract from "../../contracts/fault-parameters.json" with { type: "json" };
 import type { components } from "../api/generated/controller.ts";
 
 export type ScenarioId = components["schemas"]["Activation"]["scenario"];

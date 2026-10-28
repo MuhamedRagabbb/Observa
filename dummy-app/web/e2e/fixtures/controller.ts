@@ -3,7 +3,7 @@
 // names come from controller-facts.json, which pytest checks against the controller itself
 // (tests/unit/test_operator_fixtures.py). Times are on the controller's clock: CONTROLLER_NOW.
 import type { components } from "../../src/api/generated/controller.ts";
-import facts from "./controller-facts.json";
+import facts from "./controller-facts.json" with { type: "json" };
 
 export type ControllerStatus = components["schemas"]["ControllerStatus"];
 export type OperatorIncident = components["schemas"]["OperatorIncident"];
