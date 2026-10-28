@@ -60,3 +60,13 @@ export function crossAppUrl(
   url.hash = "";
   return url.href;
 }
+
+/** An observability tool on the page's host, using its configured public port. */
+export function toolUrl(config: UiConfig, port: UiPortName, page: URL | Location = window.location, path = "/"): string {
+  const url = new URL(page.href);
+  url.port = String(config.ports[port]);
+  url.pathname = path;
+  url.search = "";
+  url.hash = "";
+  return url.href;
+}

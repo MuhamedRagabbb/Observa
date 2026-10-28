@@ -23,8 +23,8 @@ export class ControllerUnreachable extends Error {
   }
 }
 
-const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
-const isNumber = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
+export const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
+export const isNumber = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
 
 /** A ControllerStatus this page can trust to describe the controller, or an error. */
 export function parseControllerStatus(body: unknown): ControllerStatus {
@@ -53,7 +53,13 @@ export function parseControllerStatus(body: unknown): ControllerStatus {
 
 export type StatusReading = { status: ControllerStatus; /** performance.now() when it arrived */ receivedAt: number };
 
-export async function fetchControllerStatus(signal?: AbortSignal): Promise<StatusReading> {
+/** A read shares the controller's timeout and cancellation rules; parsing stays with its caller. */
+export async function fetchControllerRead<T>(
+  read: (signal: AbortSignal) => Promise<{ data?: unknown; response: Response }>,
+  parse: (body: unknown) => T,
+  signal?: AbortSignal,
+  timeoutMs = STATUS_TIMEOUT_MS,
+): Promise<T> {
   const limit = new AbortController();
   const onAbort = () => limit.abort();
   if (signal?.aborted) limit.abort();
@@ -62,20 +68,38 @@ export async function fetchControllerStatus(signal?: AbortSignal): Promise<Statu
   const timer = setTimeout(() => {
     timedOut = true;
     limit.abort();
-  }, STATUS_TIMEOUT_MS);
+  }, timeoutMs);
   try {
     let result;
     try {
-      result = await createControllerClient().GET("/faults/status", { signal: limit.signal });
+      result = await read(limit.signal);
     } catch {
       throw new ControllerUnreachable(timedOut ? "timeout" : "network");
     }
     if (!result.response.ok) throw new ControllerUnreachable(`http_${result.response.status}`);
-    return { status: parseControllerStatus(result.data), receivedAt: performance.now() };
+    return parse(result.data);
   } finally {
     clearTimeout(timer);
     signal?.removeEventListener("abort", onAbort);
   }
+}
+
+/** New reads request text so malformed JSON is an invalid answer, not a network failure. */
+export function parseControllerJson(body: unknown): unknown {
+  if (typeof body !== "string") throw new ControllerUnreachable("invalid_response");
+  try {
+    return JSON.parse(body) as unknown;
+  } catch {
+    throw new ControllerUnreachable("invalid_response");
+  }
+}
+
+export function fetchControllerStatus(signal?: AbortSignal): Promise<StatusReading> {
+  return fetchControllerRead(
+    (signal) => createControllerClient().GET("/faults/status", { signal }),
+    (body) => ({ status: parseControllerStatus(body), receivedAt: performance.now() }),
+    signal,
+  );
 }
 
 export function useControllerStatus() {

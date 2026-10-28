@@ -1,10 +1,13 @@
-// The Operator Dashboard (P5). P5-A: the header's controller connection and the experiment banner,
-// from GET /faults/status. The fault controls, service health and activity follow in later slices.
+// The Operator Dashboard reads controller status, service health and session activity.
+// Fault controls follow in later slices; every request here is a GET.
 import { useEffect, useState } from "react";
 import { CrossAppLink } from "../shared/CrossAppLink.tsx";
 import { Shell } from "../shared/Shell.tsx";
 import { StatusMarker } from "../shared/ui/StatusMarker.tsx";
+import { SessionActivity } from "./activity/SessionActivity.tsx";
+import { ServiceHealth } from "./health/ServiceHealth.tsx";
 import styles from "./Operator.module.css";
+import { PlannedEnhancements } from "./PlannedEnhancements.tsx";
 import { useControllerStatus } from "./status/controller-status.ts";
 import { ExperimentBanner } from "./status/ExperimentBanner.tsx";
 import { experimentView, type Connection } from "./status/experiment.ts";
@@ -39,7 +42,11 @@ function ConnectionIndicator({ connection }: { connection: Connection }) {
 }
 
 export function OperatorPage() {
+  const [openedAt] = useState(() => performance.now());
   const { reading, connection, refreshing, refresh } = useControllerStatus();
+  const [sessionStart, setSessionStart] = useState<number | null>(null);
+  // Capture this visit's first answer, ignoring any cached reading from an earlier visit.
+  if (sessionStart === null && reading !== null && reading.receivedAt >= openedAt) setSessionStart(reading.status.now);
   const counting = connection === "connected" && reading !== null && (reading.status.state === "manual" || reading.status.state === "automatic");
   const now = useTicker(counting);
   const elapsed = reading ? Math.max(0, (now - reading.receivedAt) / 1000) : 0;
@@ -56,6 +63,11 @@ export function OperatorPage() {
       }
     >
       <ExperimentBanner banner={banner} refreshing={refreshing} onRefresh={refresh} />
+      <div className={styles.monitoring}>
+        <ServiceHealth disconnected={connection === "disconnected"} />
+        <SessionActivity sessionStart={sessionStart} />
+      </div>
+      <PlannedEnhancements />
     </Shell>
   );
 }

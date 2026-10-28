@@ -23,6 +23,18 @@ function setting(id: ScenarioId, parameters: Record<string, unknown>, name: stri
 
 const trim = (value: number) => String(Math.round(value * 100) / 100);
 
+/** Compact settings for activity entries, with the same defaults as the running fault. */
+export function faultSettingsSummary(id: ScenarioId, parameters: Record<string, unknown>): string {
+  switch (id) {
+    case "db_connection_exhaustion":
+      return `${trim(setting(id, parameters, "hold_seconds"))} s hold`;
+    case "payments_errors":
+      return `${Math.round(setting(id, parameters, "failure_rate") * 100)}% · HTTP ${setting(id, parameters, "status_code")}`;
+    case "bad_deployment":
+      return `${trim(setting(id, parameters, "delay_seconds"))} s delay`;
+  }
+}
+
 /** One sentence on what the running fault does, with its settings. */
 export function faultSummary(id: ScenarioId, parameters: Record<string, unknown>): string {
   switch (id) {

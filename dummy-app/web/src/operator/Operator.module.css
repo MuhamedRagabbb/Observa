@@ -136,6 +136,217 @@
   justify-self: end;
 }
 
+/* Monitoring follows the banner until the fault-control slices are added. */
+.monitoring {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: var(--space-12);
+  margin-block-start: var(--space-12);
+}
+
+.monitoringSection {
+  min-width: 0;
+  padding-block-start: var(--space-6);
+  border-block-start: 1px solid var(--color-line);
+  overflow-wrap: anywhere;
+}
+
+.sectionHeading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin-block-end: var(--space-2);
+}
+
+.sectionTitle,
+.plannedTitle {
+  min-width: 0;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-heading-2);
+  font-weight: 400;
+  line-height: var(--leading-tight);
+}
+
+.sectionIndex {
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+}
+
+.sectionDescription,
+.activityEmpty {
+  margin: 0 0 var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--text-small);
+  line-height: var(--leading-body);
+}
+
+.healthTable {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: var(--text-small);
+  line-height: var(--leading-body);
+}
+
+.healthTable th,
+.healthTable td {
+  padding: var(--space-4) var(--space-2);
+  border-block-end: 1px solid var(--color-line-soft);
+  text-align: start;
+  vertical-align: top;
+}
+
+.healthTable th:first-child {
+  width: 44%;
+  padding-inline-start: 0;
+}
+
+.healthTable thead th {
+  padding-block: var(--space-2);
+  border-color: var(--color-line);
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+  font-weight: 500;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+
+.healthTable tbody th {
+  font-family: var(--font-mono);
+  font-weight: 400;
+}
+
+.healthTable .lastCheck {
+  width: 24%;
+  padding-inline-end: 0;
+  color: var(--color-text-muted);
+  text-align: end;
+}
+
+.lastCheck time,
+.activityLog time {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.healthReasons {
+  display: block;
+  margin-block-start: var(--space-1);
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+
+.observabilityTools {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: var(--space-5) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.toolCard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-content: start;
+  gap: var(--space-1) var(--space-2);
+  min-height: var(--control-height-small);
+  height: 100%;
+  padding: var(--space-4);
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-control);
+  color: var(--color-ink-soft);
+  font-size: var(--text-small);
+  line-height: var(--leading-body);
+  text-decoration: none;
+}
+
+.toolCard:hover {
+  border-color: var(--color-text-muted);
+}
+
+.toolCard:focus-visible {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 4px;
+}
+
+.toolName {
+  font-weight: 500;
+}
+
+.toolArrow {
+  font-size: var(--text-caption);
+}
+
+.toolCaption {
+  grid-column: 1 / -1;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+
+.activityEmpty,
+.activityLog {
+  margin-block-start: var(--space-4);
+}
+
+.activityLog {
+  margin-block-end: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-small);
+  line-height: var(--leading-body);
+}
+
+.activityLog li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-4);
+  padding-block: var(--space-3);
+  border-block-end: 1px solid var(--color-line-soft);
+}
+
+.activityLog time {
+  color: var(--color-text-muted);
+}
+
+.plannedEnhancements {
+  margin-block-start: var(--space-16);
+  padding-block-start: var(--space-5);
+  border-block-start: 1px dashed var(--color-line);
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.plannedTitle {
+  color: var(--color-text-muted);
+  font-size: var(--text-heading-3);
+}
+
+.plannedBadge {
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-sunken);
+  font-size: var(--text-caption);
+  font-weight: 500;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+
+.plannedList {
+  margin: 0;
+  padding-inline-start: var(--space-5);
+  font-size: var(--text-small);
+  line-height: var(--leading-body);
+}
+
+.plannedList li + li {
+  margin-block-start: var(--space-1);
+}
+
 /* Phones (390 idle and fault active artboards): one column, the action full width. */
 @media (max-width: 47.99rem) {
   .compactLabel {
@@ -167,5 +378,21 @@
 
   .bannerAction > button {
     width: 100%;
+  }
+
+  .monitoring {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .healthTable .lastCheck {
+    display: none;
+  }
+
+  .healthTable th:first-child {
+    width: 56%;
+  }
+
+  .observabilityTools {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

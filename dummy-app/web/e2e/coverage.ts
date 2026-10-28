@@ -448,6 +448,31 @@ export const OPERATOR_COVERAGE: OperatorCoverageState[] = [
     derived: MOBILE,
     reference: phones(O.activeMobile),
   },
+  // P5-D: the artboards show health and activity only in their idle samples; these states are derived.
+  {
+    id: "operator-health-degraded",
+    slice: "P5-D",
+    screen: "Service health with a degraded, an unavailable and an unknown service, reasons, and the metrics notice",
+    approved: {},
+    derived: ["desktop-1440", ...MOBILE],
+    reference: { "desktop-1440": O.idle, ...phones(O.idleMobile) },
+  },
+  {
+    id: "operator-disconnected-health",
+    slice: "P5-D",
+    screen: "Controller unreachable: every service Unknown, the last snapshot not shown as current",
+    approved: {},
+    derived: ["desktop-1440", ...MOBILE],
+    reference: { "desktop-1440": "Operator — controller disconnected.png", ...phones(O.idleMobile) },
+  },
+  {
+    id: "operator-session-activity",
+    slice: "P5-D",
+    screen: "Session activity listing this session's controller events, newest first",
+    approved: {},
+    derived: ["desktop-1440", ...MOBILE],
+    reference: { "desktop-1440": O.active, ...phones(O.activeMobile) },
+  },
 ];
 
 /** Every captured state, storefront then operator (the capture helper and the review page). */

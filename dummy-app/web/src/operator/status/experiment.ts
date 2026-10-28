@@ -52,7 +52,7 @@ const formatSpan = (seconds: number) => {
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
 };
 
-function formatTime(iso: string | null | undefined, timeZone?: string): string | null {
+export function formatTime(iso: string | null | undefined, timeZone?: string): string | null {
   if (!iso) return null;
   const time = Date.parse(iso);
   if (Number.isNaN(time)) return null;

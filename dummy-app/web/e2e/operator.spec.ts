@@ -3,7 +3,7 @@
 // beside its artboard (npm run e2e:review). The page only reads: any request but the mocked GETs
 // (a POST to start or stop a fault, for example) is a harness violation and fails the test.
 import type { Page } from "@playwright/test";
-import { CONTROLLER_NOW, controllerStatus, type ControllerState } from "./fixtures/controller.ts";
+import { activity, activityEntry, CONTROLLER_NOW, controllerStatus, healthSnapshot, type ActivityEntry, type ControllerState, type HealthSnapshot } from "./fixtures/controller.ts";
 import { OPERATOR_URL, expect, test, type MockApi, type MockReply } from "./support/harness.ts";
 
 const banner = (page: Page) => page.getByRole("region", { name: "Experiment" });
@@ -11,8 +11,15 @@ const title = (page: Page) => banner(page).getByRole("heading", { level: 1 });
 const header = (page: Page) => page.getByRole("banner");
 const noSideScroll = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
 
+/** GET /services/health and /activity: healthy and empty, unless a test registers its own answer after this. */
+function serveMonitoring(api: MockApi) {
+  api.onController("GET", "/services/health", () => ({ status: 200, body: healthSnapshot() }));
+  api.onController("GET", "/activity", () => ({ status: 200, body: activity([]) }));
+}
+
 /** GET /faults/status answers with `reply()`; returns how many times it was read. */
 function serveStatus(api: MockApi, reply: () => MockReply) {
+  serveMonitoring(api);
   const reads = { count: 0 };
   api.onController("GET", "/faults/status", () => {
     reads.count += 1;
@@ -176,6 +183,264 @@ test.describe("accessibility", () => {
       const part = banner(page).getByText(text, { exact: true });
       await part.scrollIntoViewIfNeeded();
       await expect(part).toBeInViewport({ ratio: 1 });
+    }
+  });
+});
+
+// ---- P5-D: service health, observability links, session activity, planned enhancements ----
+
+const health = (page: Page) => page.getByRole("region", { name: "Service health" });
+const healthTable = (page: Page) => page.getByRole("table", { name: "Service health" });
+const tools = (page: Page) => page.getByRole("list", { name: "Observability tools" });
+const sessionLog = (page: Page) => page.getByRole("region", { name: "Session activity" });
+const healthyCount = (page: Page) => healthTable(page).getByText("Healthy", { exact: true }).count();
+
+/** Registered after serveStatus, so it wins over the default healthy/empty answers. */
+function serveHealth(api: MockApi, reply: () => MockReply) {
+  api.onController("GET", "/services/health", reply);
+}
+function serveActivity(api: MockApi, entries: () => ActivityEntry[] | "network-error") {
+  api.onController("GET", "/activity", () => {
+    const answer = entries();
+    return answer === "network-error" ? answer : { status: 200, body: activity(answer) };
+  });
+}
+const snapshot = (body: HealthSnapshot): MockReply => ({ status: 200, body });
+
+/** An entry `seconds` after the page opened (the first status answer is CONTROLLER_NOW). */
+const afterOpen = (event: string, seconds: number, extras: Record<string, unknown> = {}) => activityEntry(event, 120 + seconds, extras);
+
+test.describe("service health", () => {
+  test("idle: four real services, healthy, each with its last check; no sample data shown", async ({ page, api }, info) => {
+    serveStatus(api, () => ({ status: 200, body: controllerStatus("idle") }));
+    await open(page, "Idle");
+    await stepUntil(page, () => healthyCount(page), 4);
+    for (const name of ["api-gateway", "orders-service", "inventory-service", "payments-service"]) {
+      await expect(healthTable(page).getByRole("rowheader", { name, exact: true })).toBeVisible();
+    }
+    // Phones leave out Last check, as the 390 artboard does.
+    await expect(healthTable(page).getByRole("columnheader")).toHaveText(info.project.name === "desktop-1440" ? ["Service", "Status", "Last check"] : ["Service", "Status"]);
+    await expect(page.getByText(/sample data/i)).toHaveCount(0);
+    await expect(page.getByText("storefront-web")).toHaveCount(0);
+    expect(await noSideScroll(page)).toBe(true);
+  });
+
+  test("a degraded service says why, and metrics being down is explained", async ({ page, api, capture }) => {
+    serveStatus(api, () => ({ status: 200, body: controllerStatus("idle") }));
+    serveHealth(api, () =>
+      snapshot(
+        healthSnapshot(
+          {
+            "payments-service": { state: "degraded", reasons: ["high_error_ratio", "high_latency"] },
+            "orders-service": { state: "unavailable", reasons: ["probe_failed"] },
+            "inventory-service": { state: "unknown", reasons: ["stale_metrics"] },
+          },
+          "unavailable",
+        ),
+      ),
+    );
+    await open(page, "Idle");
+    await stepUntil(page, () => healthTable(page).getByText("Degraded", { exact: true }).count(), 1);
+    const row = (name: string) => healthTable(page).getByRole("row").filter({ has: page.getByRole("rowheader", { name, exact: true }) });
+    await expect(row("payments-service")).toContainText("Degraded");
+    await expect(row("payments-service")).toContainText("High error ratio · High latency");
+    await expect(row("orders-service")).toContainText("Unavailable");
+    await expect(row("orders-service")).toContainText("Health probe failed");
+    await expect(row("inventory-service")).toContainText("No recent traffic");
+    await expect(health(page)).toContainText("Metrics are unavailable, so only services the controller can check directly are judged.");
+    expect(await noSideScroll(page)).toBe(true);
+    await capture("operator-health-degraded");
+  });
+
+  test("the health read failing makes every row Unknown —, and the answer coming back restores them", async ({ page, api }) => {
+    let up = true;
+    serveStatus(api, () => ({ status: 200, body: controllerStatus("idle") }));
+    serveHealth(api, () => (up ? snapshot(healthSnapshot()) : "network-error"));
+    await open(page, "Idle");
+    await stepUntil(page, () => healthyCount(page), 4);
+    up = false;
+    await page.clock.runFor(5000);
+    await stepUntil(page, () => healthTable(page).getByText("Unknown", { exact: true }).count(), 4);
+    await expect(healthTable(page).getByText("Controller not reachable")).toHaveCount(4);
+    await expect(health(page)).toContainText("Can’t reach the controller, so service health is unknown.");
+    up = true;
+    await page.clock.runFor(5000);
+    await stepUntil(page, () => healthyCount(page), 4);
+  });
+
+  test("controller disconnected: every row is Unknown, nothing is guessed", async ({ page, api, capture }) => {
+    serveStatus(api, () => "network-error");
+    await open(page, "Unreachable");
+    await stepUntil(page, () => healthTable(page).getByText("Unknown", { exact: true }).count(), 4);
+    await expect(healthTable(page).getByText("Healthy")).toHaveCount(0);
+    expect(await noSideScroll(page)).toBe(true);
+    await capture("operator-disconnected-health");
+  });
+
+  test("the Last check column shows on desktop and is hidden on phones, where the reasons stay", async ({ page, api }, info) => {
+    serveStatus(api, () => ({ status: 200, body: controllerStatus("idle") }));
+    serveHealth(api, () => snapshot(healthSnapshot({ "payments-service": { state: "degraded", reasons: ["high_latency"] } })));
+    await open(page, "Idle");
+    await stepUntil(page, () => healthTable(page).getByText("Degraded", { exact: true }).count(), 1);
+    await expect(healthTable(page)).toContainText("High latency");
+    const lastCheck = healthTable(page).getByRole("columnheader", { name: "Last check" });
+    if (info.project.name === "desktop-1440") {
+      await expect(lastCheck).toBeVisible();
+      await expect(healthTable(page).locator("time")).toHaveCount(4);
+    } else {
+      await expect(lastCheck).toBeHidden();
+    }
+  });
+
+  test("reads /services/health every 5 s", async ({ page, api }) => {
+    let reads = 0;
+    serveStatus(api, () => ({ status: 200, body: controllerStatus("idle") }));
+    serveHealth(api, () => {
+      reads += 1;
+      return snapshot(healthSnapshot());
+    });
+    await open(page, "Idle");
+    await stepUntil(page, async () => reads >= 1, true);
+    const first = reads;
+    for (let next = 1; next <= 2; next++) {
+      await page.clock.runFor(5000);
+      await stepUntil(page, async () => reads >= first + next, true);
+    }
+  });
+});
+
+test.describe("observability links", () => {
+  test("Grafana, Prometheus, Loki (Grafana Explore) and Jaeger, on the page's host with the configured ports", async ({ page, api }) => {
+    serveStatus(api, () => ({ status: 200, body: controllerStatus("idle") }));
+    await open(page, "Idle");
+    const link = (name: RegExp) => tools(page).getByRole("link", { name });
+    await expect(link(/Grafana.*Dashboards/)).toHaveAttribute("href", "http://127.0.0.1:13000/");
+    await expect(link(/Prometheus.*Metrics/)).toHaveAttribute("href", "http://127.0.0.1:19090/");
+    await expect(link(/Loki.*Logs/)).toHaveAttribute("href", "http://127.0.0.1:13000/explore");
+    await expect(link(/Jaeger.*Traces/)).toHaveAttribute("href", "http://127.0.0.1:26686/");
+    await expect(tools(page).getByRole("link")).toHaveCount(4);
+  });
+
+  test("keyboard reaches every link in order with a visible focus ring", async ({ page, api }) => {
+    serveStatus(api, () => ({ status: 200, body: controllerStatus("idle") }));
+    await open(page, "Idle");
+    const links = tools(page).getByRole("link");
+    await links.first().focus();
+    for (let index = 0; index < 4; index++) {
+      const current = links.nth(index);
+      await expect(current).toBeFocused();
+      const ring = await current.evaluate((el) => {
+        const style = getComputedStyle(el);
+        return style.outlineStyle !== "none" && parseFloat(style.outlineWidth) >= 2;
+      });
+      expect(ring).toBe(true);
+      if (index < 3) await page.keyboard.press("Tab");
+    }
+  });
+
+  test("on phones every link is at least 44 x 44 px, two to a row", async ({ page, api }, info) => {
+    test.skip(info.project.name === "desktop-1440", "phone sizes only");
+    serveStatus(api, () => ({ status: 200, body: controllerStatus("idle") }));
+    await open(page, "Idle");
+    const boxes = await tools(page).getByRole("link").evaluateAll((els) => els.map((el) => el.getBoundingClientRect().toJSON()));
+    for (const box of boxes) {
+      expect(box.width).toBeGreaterThanOrEqual(44);
+      expect(box.height).toBeGreaterThanOrEqual(44);
+    }
+    expect(new Set(boxes.map((box) => Math.round(box.top))).size).toBe(2);
+  });
+});
+
+test.describe("session activity", () => {
+  test("empty at first: 'No activity in this session yet.'", async ({ page, api }) => {
+    serveStatus(api, () => ({ status: 200, body: controllerStatus("idle") }));
+    await open(page, "Idle");
+    await expect(sessionLog(page)).toContainText("No activity in this session yet.");
+    await expect(sessionLog(page).getByRole("list")).toHaveCount(0);
+  });
+
+  test("lists this session's entries newest first in English, never the ones from before the page opened", async ({ page, api, capture }) => {
+    serveStatus(api, () => ({ status: 200, body: controllerStatus("manual") }));
+    const requested = { scenario: "payments_errors", duration_seconds: 300, parameters: { failure_rate: 0.9, status_code: 503 } };
+    serveActivity(api, () => [
+      activityEntry("fault_requested", 60, requested),
+      afterOpen("fault_requested", 2, requested),
+      afterOpen("fault_active", 4, { scenario: "payments_errors" }),
+      afterOpen("service_health_changed", 9, { service: "payments-service", previous: "healthy", state: "degraded" }),
+      afterOpen("some_future_event", 10),
+    ]);
+    await open(page, "Payment Errors");
+    const log = sessionLog(page).getByRole("list", { name: "Session activity log" });
+    await stepUntil(page, () => log.getByRole("listitem").count(), 4);
+    await expect(log.getByRole("listitem")).toHaveText([
+      /14:00:10\s*Some future event/,
+      /14:00:09\s*payments-service · Healthy → Degraded/,
+      /14:00:04\s*Controller confirmed fault is active/,
+      /14:00:02\s*Fault requested · F2 Payment Errors · 90% · HTTP 503 · 300 s/,
+    ]);
+    await expect(sessionLog(page)).not.toContainText("No activity in this session yet.");
+    expect(await noSideScroll(page)).toBe(true);
+    await capture("operator-session-activity");
+  });
+
+  test("reads /activity?limit=200 every 5 s and shows a repeated entry once", async ({ page, api }) => {
+    const reads: string[] = [];
+    serveStatus(api, () => ({ status: 200, body: controllerStatus("idle") }));
+    api.onController("GET", "/activity", (request) => {
+      reads.push(request.query.get("limit") ?? "");
+      return { status: 200, body: activity([afterOpen("fault_active", 4, { scenario: "payments_errors" })]) };
+    });
+    await open(page, "Idle");
+    await stepUntil(page, async () => reads.length >= 1, true);
+    await page.clock.runFor(5000);
+    await stepUntil(page, async () => reads.length >= 2, true);
+    expect(new Set(reads)).toEqual(new Set(["200"]));
+    await expect(sessionLog(page).getByRole("listitem")).toHaveCount(1);
+  });
+
+  test("an unreadable log says so and keeps what was listed", async ({ page, api }) => {
+    let up = true;
+    serveStatus(api, () => ({ status: 200, body: controllerStatus("idle") }));
+    serveActivity(api, () => (up ? [afterOpen("fault_active", 4, { scenario: "payments_errors" })] : "network-error"));
+    await open(page, "Idle");
+    await stepUntil(page, () => sessionLog(page).getByRole("listitem").count(), 1);
+    up = false;
+    await page.clock.runFor(5000);
+    await stepUntil(page, () => sessionLog(page).getByText("Can’t read the controller’s activity log.", { exact: false }).count(), 1);
+    await expect(sessionLog(page).getByRole("listitem")).toHaveCount(1);
+  });
+});
+
+test.describe("planned enhancements", () => {
+  test("a static, non-interactive reference list, labelled not available yet", async ({ page, api }) => {
+    serveStatus(api, () => ({ status: 200, body: controllerStatus("idle") }));
+    await open(page, "Idle");
+    const planned = page.getByRole("region", { name: "Planned enhancements" });
+    await expect(planned).toContainText("Not available yet");
+    await expect(planned).toContainText("Listed for reference only. None of these can be used from this dashboard.");
+    await expect(planned.getByRole("listitem")).toHaveText([
+      "Severity presets with editable parameters",
+      "Affected-order rate for F3 Bad Deployment",
+      "Per-scenario parameters inside the automatic cycle",
+      "Traffic controls with safe operating limits",
+    ]);
+    await expect(planned.locator("button, a, input, select, textarea, [tabindex]")).toHaveCount(0);
+  });
+});
+
+test.describe("layout", () => {
+  test("at 200% zoom (720 CSS px wide) health, activity and the tool cards stay inside the page", async ({ page, api }, info) => {
+    test.skip(info.project.name !== "desktop-1440", "the desktop page zoomed");
+    serveStatus(api, () => ({ status: 200, body: controllerStatus("idle") }));
+    serveHealth(api, () => snapshot(healthSnapshot({ "payments-service": { state: "degraded", reasons: ["high_error_ratio", "high_latency"] } })));
+    serveActivity(api, () => [afterOpen("fault_requested", 2, { scenario: "payments_errors", duration_seconds: 300, parameters: { failure_rate: 0.9, status_code: 503 } })]);
+    await page.setViewportSize({ width: 720, height: 450 });
+    await open(page, "Idle");
+    await stepUntil(page, () => sessionLog(page).getByRole("listitem").count(), 1);
+    expect(await noSideScroll(page)).toBe(true);
+    for (const region of [health(page), sessionLog(page), tools(page)]) {
+      const box = await region.boundingBox();
+      expect((box?.x ?? -1) + (box?.width ?? 0)).toBeLessThanOrEqual(720);
     }
   });
 });
