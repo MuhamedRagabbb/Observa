@@ -47,3 +47,14 @@ export async function stepUntil<T>(page: Page, read: () => Promise<T>, expected:
     })
     .toEqual(expected);
 }
+
+/**
+ * `open`, then expands every collapsed section: on phones (and at 200% zoom) Manual fault injection
+ * and Automatic cycle start collapsed in some states, and the specs that test what is inside them
+ * should not each have to say so. Specs about the collapsed state itself use `open`.
+ */
+export async function openExpanded(page: Page, expected: string) {
+  await open(page, expected);
+  const collapsed = page.locator("button[data-disclosure-toggle][aria-expanded='false']");
+  while (await collapsed.count() > 0) await collapsed.first().click();
+}

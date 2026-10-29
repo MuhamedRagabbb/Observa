@@ -5,6 +5,8 @@ import { Notice } from "../../shared/ui/Notice.tsx";
 import { FAULT_CONTRACT, scenarioContract } from "../fault-contract.ts";
 import operatorStyles from "../Operator.module.css";
 import { SCENARIO_LABELS } from "../scenarios.ts";
+import { Disclosure } from "../mobile/Disclosure.tsx";
+import { lockedSummary, manualSummary } from "../mobile/summaries.ts";
 import type { Connection, ControllerStatus } from "../status/experiment.ts";
 import type { ActionOutcome } from "./fault-actions.ts";
 import { defaultForm, validateForm, type ActivationRequest } from "./fault-form.ts";
@@ -38,6 +40,7 @@ export function ManualFaultSection({ connection, status, busy, outcome, onStart,
     setInvalidField(null);
   }, [invalidField]);
   const view = manualView({ connection, status, draft, stale });
+  const controllerLocked = status !== null && status.controls.activate?.enabled !== true;
   const locked = view.locked || busy !== null;
   const edit = (name: string, value: string) => {
     if (locked) return;
@@ -47,10 +50,8 @@ export function ManualFaultSection({ connection, status, busy, outcome, onStart,
   };
   return (
     <section ref={section} className={operatorStyles.monitoringSection} aria-labelledby={id}>
-      <div className={operatorStyles.sectionHeading}>
-        <h2 id={id} className={operatorStyles.sectionTitle}>Manual fault injection</h2>
-        <span className={operatorStyles.sectionIndex} aria-hidden="true">01</span>
-      </div>
+      <Disclosure id={id} title="Manual fault injection" index="01" locked={controllerLocked} defaultOpen={!controllerLocked}
+        summary={lockedSummary(manualSummary(view.form), view.locked)}>
       {view.locked && view.lockNotice ? <div className={styles.lockNotice}><Icon name="lock" /><span>{view.lockNotice}</span></div> : null}
       <fieldset className={styles.scenarios}>
         <legend className="visually-hidden">Fault scenario</legend>
@@ -90,6 +91,7 @@ export function ManualFaultSection({ connection, status, busy, outcome, onStart,
           onStart(result.request, event.currentTarget);
         }}>Inject fault</Button>
       </div>
+      </Disclosure>
       {outcome ? <Notice key={`${outcome.kind}-${outcome.message}`} live icon={outcome.kind === "confirmed" ? "info" : "ring"}>{outcome.message}</Notice> : null}
     </section>
   );

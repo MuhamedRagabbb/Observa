@@ -8,6 +8,8 @@ import { blockKeyRepeat } from "../manual/no-key-repeat.ts";
 import type { FaultActionBusy } from "../manual/use-fault-actions.ts";
 import operatorStyles from "../Operator.module.css";
 import { SCENARIO_LABELS } from "../scenarios.ts";
+import { Disclosure } from "../mobile/Disclosure.tsx";
+import { cycleSummary, lockedSummary } from "../mobile/summaries.ts";
 import type { Connection, ControllerStatus } from "../status/experiment.ts";
 import { defaultCycleForm, validateCycle, type CycleForm, type CycleRequest } from "./cycle-form.ts";
 import { cycleView } from "./cycle-view.ts";
@@ -71,10 +73,8 @@ export function CycleSection({ connection, status, stale = false, busy, outcome,
   };
   return (
     <section ref={section} className={operatorStyles.monitoringSection} aria-labelledby={id}>
-      <div className={operatorStyles.sectionHeading}>
-        <h2 id={id} className={operatorStyles.sectionTitle}>Automatic cycle</h2>
-        <span className={operatorStyles.sectionIndex} aria-hidden="true">02</span>
-      </div>
+      <Disclosure id={id} title="Automatic cycle" index="02" locked={status !== null && status.controls.auto_start?.enabled !== true}
+        defaultOpen={false} summary={lockedSummary(cycleSummary(form), view.locked)}>
       {view.locked && view.lockNotice ? <div className={styles.lockNotice}><Icon name="lock" /><span>{view.lockNotice}</span></div> : null}
       <div className={styles.stepperGrid}>
         {FIELDS.map(({ name, label }) => <CycleStepper key={name} name={name} label={label} value={form[name]}
@@ -131,6 +131,7 @@ export function CycleSection({ connection, status, stale = false, busy, outcome,
           }}>Start cycle</Button>
         <span className={styles.total}>Total {schedule ? formatDuration(schedule.totalSeconds) : "—"}</span>
       </div>
+      </Disclosure>
       {outcome ? <Notice key={`${outcome.kind}-${outcome.message}`} live
         icon={outcome.kind === "confirmed" ? "info" : "ring"}>{outcome.message}</Notice> : null}
     </section>

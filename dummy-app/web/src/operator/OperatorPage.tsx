@@ -10,10 +10,14 @@ import { ServiceHealth } from "./health/ServiceHealth.tsx";
 import type { ActionOutcome } from "./manual/fault-actions.ts";
 import { ManualFaultSection } from "./manual/ManualFaultSection.tsx";
 import { useFaultActions } from "./manual/use-fault-actions.ts";
+import { StopBar } from "./mobile/StopBar.tsx";
+import { stopBar } from "./mobile/stop-bar.ts";
+import { usePhoneLayout } from "./mobile/use-phone-layout.ts";
 import styles from "./Operator.module.css";
 import { PlannedEnhancements } from "./PlannedEnhancements.tsx";
 import { useControllerStatus } from "./status/controller-status.ts";
 import { ExperimentBanner } from "./status/ExperimentBanner.tsx";
+import type { StopActions } from "./status/ExperimentStopButton.tsx";
 import { experimentView, STALE_AFTER_SECONDS, type Connection } from "./status/experiment.ts";
 
 /** performance.now(), refreshed once a second while connected (countdowns and freshness). */
@@ -46,6 +50,7 @@ function ConnectionIndicator({ connection }: { connection: Connection }) {
 }
 
 export function OperatorPage() {
+  const phone = usePhoneLayout();
   const [openedAt] = useState(() => performance.now());
   const { reading, connection, refreshing, refresh } = useControllerStatus();
   const currentReading = useRef(reading);
@@ -61,7 +66,8 @@ export function OperatorPage() {
   useEffect(() => {
     if (!answeredControl) return;
     const { control, confirmed } = answeredControl;
-    if (document.activeElement === document.body || (confirmed && document.activeElement === control)) {
+    if (document.activeElement === document.body || (confirmed && (document.activeElement === control
+      || document.activeElement?.hasAttribute("data-focus-moved")))) {
       heading.current?.focus({ preventScroll: true });
     }
     setAnsweredControl(null);
@@ -76,6 +82,19 @@ export function OperatorPage() {
   const elapsed = reading ? Math.max(0, (now - reading.receivedAt) / 1000) : 0;
   const stale = connection === "connected" && elapsed > STALE_AFTER_SECONDS;
   const banner = experimentView({ connection, status: reading?.status ?? null, elapsed });
+  const bar = phone ? stopBar(banner) : null;
+  const stopActions: StopActions = {
+    busy: actions.busy,
+    onUnavailablePress: (control) => {
+      void actions.refreshIfStale(banner.stop?.kind === "stop-cycle" ? "cycle-stop" : "stop").then((outcome) => rememberOutcome(outcome, control));
+    },
+    onStopCycle: (control) => {
+      void actions.stopCycle().then((outcome) => rememberOutcome(outcome, control));
+    },
+    onStop: (scenario, control) => {
+      void actions.stop(scenario).then((outcome) => rememberOutcome(outcome, control));
+    },
+  };
   return (
     <Shell
       regionLabel="Operator"
@@ -87,16 +106,7 @@ export function OperatorPage() {
         </CrossAppLink>
       }
     >
-      <ExperimentBanner banner={banner} refreshing={refreshing} onRefresh={refresh} headingRef={heading} busy={actions.busy}
-        onUnavailablePress={(control) => {
-          void actions.refreshIfStale(banner.stop?.kind === "stop-cycle" ? "cycle-stop" : "stop").then((outcome) => rememberOutcome(outcome, control));
-        }}
-        onStopCycle={(control) => {
-          void actions.stopCycle().then((outcome) => rememberOutcome(outcome, control));
-        }}
-        onStop={(scenario, control) => {
-          void actions.stop(scenario).then((outcome) => rememberOutcome(outcome, control));
-        }} />
+      <ExperimentBanner banner={banner} refreshing={refreshing} onRefresh={refresh} headingRef={heading} {...stopActions} />
       {stopOutcome ? <Notice key={`${stopOutcome.kind}-${stopOutcome.message}`} live
         icon={stopOutcome.kind === "confirmed" ? "info" : "ring"}>{stopOutcome.message}</Notice> : null}
       <div className={styles.controls}>
@@ -125,6 +135,7 @@ export function OperatorPage() {
         <SessionActivity sessionStart={sessionStart} />
       </div>
       <PlannedEnhancements />
+      {bar ? <StopBar bar={bar} {...stopActions} /> : null}
     </Shell>
   );
 }

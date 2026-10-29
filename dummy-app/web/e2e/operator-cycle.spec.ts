@@ -6,7 +6,7 @@
 import type { Locator, Page } from "@playwright/test";
 import { controllerStatus, type ControllerState, type ControllerStatus } from "./fixtures/controller.ts";
 import { expect, test, type MockApi, type MockReply, type MockRequest } from "./support/harness.ts";
-import { banner, noSideScroll, open, serveStatus, stepUntil, title } from "./support/operator-page.ts";
+import { banner, noSideScroll, openExpanded as open, serveStatus, stepUntil, title } from "./support/operator-page.ts";
 
 const panel = (page: Page) => page.getByRole("region", { name: "Automatic cycle" });
 const startCycle = (page: Page) => panel(page).getByRole("button", { name: "Start cycle" });
@@ -210,7 +210,7 @@ test.describe("starting a cycle", () => {
 });
 
 test.describe("a running cycle", () => {
-  test("shows the controller's own settings read-only, where it is, and Stop cycle", async ({ page, api, capture }) => {
+  test("shows the controller's own settings read-only, where it is, and Stop cycle", async ({ page, api, capture }, info) => {
     controller(api, "automatic");
     await open(page, "Payment Errors");
     await expect(panel(page)).toContainText("Cycle running. Settings are locked until it stops.");
@@ -229,7 +229,8 @@ test.describe("a running cycle", () => {
     await expect(stopCycle(page)).toBeVisible();
     await expect(startCycle(page)).toHaveAttribute("aria-disabled", "true");
     expect(await noSideScroll(page)).toBe(true);
-    await capture("operator-automatic-cycle");
+    // Phones capture this state collapsed in operator.spec.ts, beside the artboard.
+    if (info.project.name === "desktop-1440") await capture("operator-automatic-cycle");
   });
 
   test("Stop cycle sends one stop and shows it only once the controller confirms", async ({ page, api }) => {

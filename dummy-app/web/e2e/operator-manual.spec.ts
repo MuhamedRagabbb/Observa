@@ -6,7 +6,7 @@
 import type { Locator, Page } from "@playwright/test";
 import { controllerStatus, type ControllerState } from "./fixtures/controller.ts";
 import { expect, test, type MockApi, type MockReply, type MockRequest } from "./support/harness.ts";
-import { banner, noSideScroll, open, serveStatus, stepUntil, title } from "./support/operator-page.ts";
+import { banner, noSideScroll, openExpanded as open, serveStatus, stepUntil, title } from "./support/operator-page.ts";
 
 const section = (page: Page) => page.getByRole("region", { name: "Manual fault injection" });
 const inject = (page: Page) => section(page).getByRole("button", { name: "Inject fault" });
@@ -318,7 +318,7 @@ test.describe("locks follow the controller", () => {
     });
   }
 
-  test("manual: the running fault's own settings and an Active tag are shown", async ({ page, api, capture }) => {
+  test("manual: the running fault's own settings and an Active tag are shown", async ({ page, api, capture }, info) => {
     controller(api, "manual");
     await open(page, "Payment Errors");
     await expect(section(page).getByText("Active", { exact: true })).toBeVisible();
@@ -327,7 +327,8 @@ test.describe("locks follow the controller", () => {
     await expect(section(page)).toContainText("= 5 min");
     await expect(stopFault(page)).toBeVisible();
     expect(await noSideScroll(page)).toBe(true);
-    await capture("operator-manual-active");
+    // Phones capture this state collapsed in operator.spec.ts, beside the artboard.
+    if (info.project.name === "desktop-1440") await capture("operator-manual-active");
   });
 
   test("a controller that cannot be reached locks the section", async ({ page, api }) => {
