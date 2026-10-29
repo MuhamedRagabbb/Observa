@@ -448,6 +448,31 @@ export const OPERATOR_COVERAGE: OperatorCoverageState[] = [
     derived: MOBILE,
     reference: phones(O.activeMobile),
   },
+  // P5-C: the cycle panel in states the artboards do not show (no artboard).
+  {
+    id: "operator-cycle-configured",
+    slice: "P5-C",
+    screen: "Automatic cycle panel at the contract defaults: steppers, scenarios, shuffle, seed, planned schedule and total",
+    approved: {},
+    derived: ["desktop-1440", ...MOBILE],
+    reference: { "desktop-1440": O.idle, ...phones(O.idleMobile) },
+  },
+  {
+    id: "operator-cycle-start-unconfirmed",
+    slice: "P5-C",
+    screen: "Start cycle answered 503: the start is reported as unconfirmed, status unchanged",
+    approved: {},
+    derived: ["desktop-1440", ...MOBILE],
+    reference: { "desktop-1440": O.idle, ...phones(O.idleMobile) },
+  },
+  {
+    id: "operator-cycle-stop-unconfirmed",
+    slice: "P5-C",
+    screen: "Stop cycle answered 503: the fault the cycle started was not confirmed stopped; status unknown, Check status and Stop again",
+    approved: {},
+    derived: ["desktop-1440", ...MOBILE],
+    reference: { "desktop-1440": "Operator — fault status unknown.png", ...phones(O.activeMobile) },
+  },
   // P5-B: what a start or stop that the controller could not confirm looks like (no artboard).
   {
     id: "operator-start-unconfirmed",

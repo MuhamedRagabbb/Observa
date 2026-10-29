@@ -1,10 +1,11 @@
-// The Operator Dashboard reads live state and sends manual actions only on an explicit press.
+// The Operator Dashboard reads live state and sends actions only on an explicit press.
 import { useEffect, useRef, useState } from "react";
 import { CrossAppLink } from "../shared/CrossAppLink.tsx";
 import { Shell } from "../shared/Shell.tsx";
 import { StatusMarker } from "../shared/ui/StatusMarker.tsx";
 import { Notice } from "../shared/ui/Notice.tsx";
 import { SessionActivity } from "./activity/SessionActivity.tsx";
+import { CycleSection } from "./cycle/CycleSection.tsx";
 import { ServiceHealth } from "./health/ServiceHealth.tsx";
 import type { ActionOutcome } from "./manual/fault-actions.ts";
 import { ManualFaultSection } from "./manual/ManualFaultSection.tsx";
@@ -51,7 +52,7 @@ export function OperatorPage() {
   currentReading.current = reading;
   const isFresh = () => currentReading.current !== null
     && performance.now() - currentReading.current.receivedAt <= STALE_AFTER_SECONDS * 1000;
-  const actions = useFaultActions({ refresh, isFresh });
+  const actions = useFaultActions({ refresh });
   const heading = useRef<HTMLHeadingElement>(null);
   const [answeredControl, setAnsweredControl] = useState<{ control: HTMLButtonElement; confirmed: boolean } | null>(null);
   const [dismissedStop, setDismissedStop] = useState<ActionOutcome | null>(null);
@@ -60,7 +61,7 @@ export function OperatorPage() {
   useEffect(() => {
     if (!answeredControl) return;
     const { control, confirmed } = answeredControl;
-    if (!control.isConnected || document.activeElement === document.body || (confirmed && document.activeElement === control)) {
+    if (document.activeElement === document.body || (confirmed && document.activeElement === control)) {
       heading.current?.focus({ preventScroll: true });
     }
     setAnsweredControl(null);
@@ -88,7 +89,10 @@ export function OperatorPage() {
     >
       <ExperimentBanner banner={banner} refreshing={refreshing} onRefresh={refresh} headingRef={heading} busy={actions.busy}
         onUnavailablePress={(control) => {
-          void actions.refreshIfStale("stop").then((outcome) => rememberOutcome(outcome, control));
+          void actions.refreshIfStale(banner.stop?.kind === "stop-cycle" ? "cycle-stop" : "stop").then((outcome) => rememberOutcome(outcome, control));
+        }}
+        onStopCycle={(control) => {
+          void actions.stopCycle().then((outcome) => rememberOutcome(outcome, control));
         }}
         onStop={(scenario, control) => {
           void actions.stop(scenario).then((outcome) => rememberOutcome(outcome, control));
@@ -104,7 +108,16 @@ export function OperatorPage() {
             actions.clearStart();
             setDismissedStop(actions.stopOutcome);
           }} onStart={(request, control) => {
-            void actions.start(request).then((outcome) => rememberOutcome(outcome, control));
+            void actions.start(request, isFresh).then((outcome) => rememberOutcome(outcome, control));
+          }} />
+        <CycleSection connection={connection} status={reading?.status ?? null} stale={stale} busy={actions.busy}
+          outcome={actions.cycleStartOutcome} onEdit={() => {
+            actions.clearCycleStart();
+            setDismissedStop(actions.stopOutcome);
+          }} onUnavailablePress={(control) => {
+            void actions.refreshIfStale("cycle-start").then((outcome) => rememberOutcome(outcome, control));
+          }} onStart={(request, control) => {
+            void actions.startCycle(request, isFresh).then((outcome) => rememberOutcome(outcome, control));
           }} />
       </div>
       <div className={styles.monitoring}>

@@ -32,7 +32,7 @@ function validControls(controls: unknown): boolean {
     if (!Object.hasOwn(controls, key)) return true;
     const control = controls[key];
     return isRecord(control) && typeof control.enabled === "boolean"
-      && (control.reason === null || typeof control.reason === "string");
+      && (!Object.hasOwn(control, "reason") || control.reason === null || typeof control.reason === "string");
   });
 }
 
@@ -115,6 +115,7 @@ export function fetchControllerStatus(signal?: AbortSignal): Promise<StatusReadi
 export function useControllerStatus() {
   const query = useQuery({
     queryKey: ["controller-status"],
+    networkMode: "always",
     queryFn: ({ signal }) => fetchControllerStatus(signal),
     refetchInterval: STATUS_POLL_MS,
     refetchIntervalInBackground: false,

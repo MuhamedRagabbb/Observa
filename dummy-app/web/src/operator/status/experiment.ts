@@ -24,7 +24,7 @@ export type Banner = {
   alert: boolean;
   /** The banner's own read-only action. */
   action: "check-status" | "retry" | null;
-  stop: { kind: "stop-fault" | "stop-idle" | "stop-again"; label: string; enabled: boolean; scenario: ScenarioId | null } | null;
+  stop: { kind: "stop-fault" | "stop-idle" | "stop-again" | "stop-cycle"; label: string; enabled: boolean; scenario: ScenarioId | null } | null;
   /** Said once by screen readers when the state changes; never the ticking countdown. */
   announcement: string;
 };
@@ -133,7 +133,7 @@ export function experimentView({ connection, status, elapsed, timeZone }: Experi
         alert: true,
         action: null,
         announcement: acknowledged ? `Manual fault active: ${label(scenario)}.` : `Starting fault: ${label(scenario)}.`,
-        stop: known(scenario) ? { kind: "stop-fault", label: "Stop fault", enabled: status.controls.deactivate?.enabled === true && elapsed <= STALE_AFTER_SECONDS, scenario } : null,
+        stop: known(scenario) ? { kind: "stop-fault", label: "Stop fault", enabled: status.controls.deactivate?.enabled === true, scenario } : null,
       };
     }
     case "automatic": {
@@ -150,7 +150,7 @@ export function experimentView({ connection, status, elapsed, timeZone }: Experi
           alert: true,
           action: null,
           announcement: "Automatic cycle: stopping.",
-          stop: null,
+          stop: { kind: "stop-cycle", label: "Stop cycle", enabled: status.controls.auto_stop?.enabled === true, scenario: null },
         };
       }
       const order = `${auto.shuffle ? "shuffled" : "in order"} · seed ${auto.seed}`;
@@ -170,7 +170,7 @@ export function experimentView({ connection, status, elapsed, timeZone }: Experi
         alert: true,
         action: null,
         announcement: `Automatic cycle, repeat ${auto.repeat} of ${auto.repeats}: ${phase.title}.`,
-        stop: null,
+        stop: { kind: "stop-cycle", label: "Stop cycle", enabled: status.controls.auto_stop?.enabled === true, scenario: null },
       };
     }
     case "recovering": {
@@ -206,7 +206,9 @@ export function experimentView({ connection, status, elapsed, timeZone }: Experi
         alert: true,
         action: "check-status",
         announcement: "Fault status unknown.",
-        stop: known(scenario) ? { kind: "stop-again", label: "Stop again", enabled: status.controls.deactivate?.enabled === true && elapsed <= STALE_AFTER_SECONDS, scenario } : null,
+        stop: status.auto_running && status.controls.auto_stop?.enabled === true
+          ? { kind: "stop-cycle", label: "Stop cycle", enabled: true, scenario: null }
+          : known(scenario) ? { kind: "stop-again", label: "Stop again", enabled: status.controls.deactivate?.enabled === true, scenario } : null,
       };
     }
   }

@@ -33,14 +33,14 @@ function incident(status: string): OperatorIncident {
   };
 }
 
-/** Repeat 2 of 3, fault phase of F2, 01:18 left; F1 and F2, shuffled, seed 7341. */
+/** Repeat 2 of 3, fault phase of F2 (step 4 of 6), 01:18 left; F1 and F2, shuffled, seed 7341. */
 function cycle(): AutoStatus {
   return {
     phase: "fault",
     repeat: 2,
     repeats: 3,
-    step: 2,
-    steps: 2,
+    step: 4,
+    steps: 6,
     scenario: "payments_errors",
     phase_started_at: CONTROLLER_NOW - 42,
     phase_ends_at: CONTROLLER_NOW + 78,

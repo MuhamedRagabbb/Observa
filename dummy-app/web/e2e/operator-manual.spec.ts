@@ -295,7 +295,7 @@ test.describe("stopping a fault", () => {
 test.describe("locks follow the controller", () => {
   const LOCKS: [ControllerState, string, string][] = [
     ["manual", "Payment Errors", "One manual fault at a time. Stop the active fault to change parameters."],
-    ["automatic", "Payment Errors", "Unavailable while an automatic cycle is running."],
+    ["automatic", "Payment Errors", "Manual injection is paused while the automatic cycle runs."],
     ["recovering", "Waiting for services", "Unavailable while services recover from the last fault."],
     ["unknown", "Unknown", "Unavailable until the fault status is confirmed."],
   ];

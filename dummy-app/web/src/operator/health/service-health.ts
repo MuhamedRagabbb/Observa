@@ -39,6 +39,7 @@ export function fetchServiceHealth(signal?: AbortSignal): Promise<HealthSnapshot
 export function useServiceHealth(): { snapshot: HealthSnapshot | null; unreachable: boolean } {
   const query = useQuery({
     queryKey: ["service-health"],
+    networkMode: "always",
     queryFn: ({ signal }) => fetchServiceHealth(signal),
     refetchInterval: HEALTH_POLL_MS,
     refetchIntervalInBackground: false,

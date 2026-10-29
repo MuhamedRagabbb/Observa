@@ -145,5 +145,7 @@ describe("the controller's permissions must be real booleans (review)", () => {
     expect(() => parseControllerStatus({ ...status, controls: { ...status.controls, deactivate: null } })).toThrow();
     expect(() => parseControllerStatus({ ...status, controls: { ...status.controls, activate: { enabled: true, reason: 5 } } })).toThrow();
     expect(parseControllerStatus(status)).toEqual(status);
+    const withoutReason = { ...status, controls: { ...status.controls, activate: { enabled: true } } };
+    expect(parseControllerStatus(withoutReason).controls.activate?.enabled).toBe(true);
   });
 });

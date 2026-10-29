@@ -3,7 +3,7 @@ import { formFromActive, type FormValues } from "./fault-form.ts";
 
 const LOCK_NOTICES: Record<string, string> = {
   fault_active: "One manual fault at a time. Stop the active fault to change parameters.",
-  auto_running: "Unavailable while an automatic cycle is running.",
+  auto_running: "Manual injection is paused while the automatic cycle runs.",
   recovering: "Unavailable while services recover from the last fault.",
   status_unknown: "Unavailable until the fault status is confirmed.",
 };

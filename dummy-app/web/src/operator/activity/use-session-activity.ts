@@ -30,6 +30,7 @@ export function fetchActivity(signal?: AbortSignal): Promise<Activity> {
 export function useSessionActivity(sessionStart: number | null): { items: ActivityItem[]; unreachable: boolean } {
   const query = useQuery({
     queryKey: ["session-activity"],
+    networkMode: "always",
     queryFn: ({ signal }) => fetchActivity(signal),
     enabled: sessionStart !== null,
     refetchInterval: sessionStart === null ? false : ACTIVITY_POLL_MS,

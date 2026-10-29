@@ -10,7 +10,9 @@ import type { ActionOutcome } from "./fault-actions.ts";
 import { defaultForm, validateForm, type ActivationRequest } from "./fault-form.ts";
 import styles from "./ManualFault.module.css";
 import { manualView } from "./manual-view.ts";
+import { blockKeyRepeat } from "./no-key-repeat.ts";
 import { ScenarioFields } from "./ScenarioFields.tsx";
+import type { FaultActionBusy } from "./use-fault-actions.ts";
 
 const DESCRIPTIONS = {
   db_connection_exhaustion: "Holds orders database connections so requests queue.",
@@ -19,7 +21,7 @@ const DESCRIPTIONS = {
 };
 
 export function ManualFaultSection({ connection, status, busy, outcome, onStart, onEdit, stale = false, onUnavailablePress }: {
-  connection: Connection; status: ControllerStatus | null; busy: "start" | "stop" | null; outcome: ActionOutcome | null;
+  connection: Connection; status: ControllerStatus | null; busy: FaultActionBusy; outcome: ActionOutcome | null;
   stale?: boolean;
   onUnavailablePress?: (control: HTMLButtonElement) => void;
   onStart: (request: ActivationRequest, control: HTMLButtonElement) => void; onEdit: () => void;
@@ -72,7 +74,8 @@ export function ManualFaultSection({ connection, status, busy, outcome, onStart,
       </fieldset>
       <ScenarioFields form={view.form} locked={locked} errors={view.form === draft ? errors : {}} onEdit={edit} />
       <div className={styles.inject}>
-        <Button icon="play" unavailable={view.locked || busy === "stop"} loading={busy === "start"}
+        <Button icon="play" unavailable={view.locked || (busy !== null && busy !== "start")} loading={busy === "start"}
+          onKeyDown={blockKeyRepeat}
           onClickCapture={(event) => {
             if (view.locked && busy === null) onUnavailablePress?.(event.currentTarget);
           }} onClick={(event) => {

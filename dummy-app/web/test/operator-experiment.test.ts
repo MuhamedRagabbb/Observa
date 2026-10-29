@@ -213,9 +213,8 @@ describe("banner Stop actions (P5-B)", () => {
     expect(view(controllerStatus("unknown", { active: null })).stop).toBeNull();
   });
 
-  it("recovering, automatic, connecting and disconnected show no fault Stop", () => {
+  it("recovering, connecting and disconnected show no fault Stop (a running cycle has its own Stop cycle)", () => {
     expect(view(controllerStatus("recovering")).stop).toBeNull();
-    expect(view(controllerStatus("automatic")).stop).toBeNull();
     expect(view(null, 0, "connecting").stop).toBeNull();
     expect(view(controllerStatus("manual"), 0, "disconnected").stop).toBeNull();
   });
@@ -243,11 +242,43 @@ describe("a fault that is still starting (review: no success before the acknowle
   });
 });
 
-describe("Stop on an old answer (review: tab resumed)", () => {
-  it("is unavailable until the status has been read again", () => {
-    const stale = experimentView({ connection: "connected", status: controllerStatus("manual"), elapsed: 8, timeZone: "UTC" });
-    expect(stale.stop).toMatchObject({ kind: "stop-fault", enabled: false });
+describe("Stop on an old answer (a stop is always safe, so only starts wait for a fresh read)", () => {
+  it("stays available however old the answer is", () => {
+    const stale = experimentView({ connection: "connected", status: controllerStatus("manual"), elapsed: 80, timeZone: "UTC" });
+    expect(stale.stop).toMatchObject({ kind: "stop-fault", enabled: true });
     const fresh = experimentView({ connection: "connected", status: controllerStatus("manual"), elapsed: 3, timeZone: "UTC" });
     expect(fresh.stop).toMatchObject({ enabled: true });
+  });
+});
+
+describe("banner Stop cycle (P5-C)", () => {
+  it("a running cycle offers Stop cycle, enabled by the controller's own auto_stop control", () => {
+    expect(view(controllerStatus("automatic")).stop).toEqual({ kind: "stop-cycle", label: "Stop cycle", enabled: true, scenario: null });
+  });
+
+  it("follows the controller's auto_stop control and nothing else: not the phase, not the age of the answer", () => {
+    const base = controllerStatus("automatic");
+    const refused = controllerStatus("automatic", { controls: { ...base.controls, auto_stop: { enabled: false, reason: "auto_not_running" } } });
+    expect(view(refused).stop).toMatchObject({ kind: "stop-cycle", enabled: false });
+    expect(experimentView({ connection: "connected", status: base, elapsed: 80, timeZone: "UTC" }).stop).toMatchObject({ enabled: true });
+    expect(view(controllerStatus("automatic", { auto: { ...base.auto!, phase: "stopping" } })).stop).toMatchObject({ kind: "stop-cycle", enabled: true });
+    expect(view(controllerStatus("automatic", { auto: null })).stop).toMatchObject({ kind: "stop-cycle", enabled: true });
+  });
+
+  it("a cycle that is still running while a fault is unconfirmed keeps its Stop cycle (the controller allows it, and refuses Stop again)", () => {
+    const base = controllerStatus("unknown");
+    const status = controllerStatus("unknown", {
+      auto_running: true,
+      controls: { ...base.controls, auto_stop: { enabled: true, reason: null }, deactivate: { enabled: false, reason: "auto_running" } },
+    });
+    expect(view(status).stop).toEqual({ kind: "stop-cycle", label: "Stop cycle", enabled: true, scenario: null });
+  });
+
+  it("an unknown state without a cycle still offers Stop again", () => {
+    expect(view(controllerStatus("unknown")).stop).toMatchObject({ kind: "stop-again", enabled: true });
+  });
+
+  it("no other state offers Stop cycle", () => {
+    for (const state of ["idle", "manual", "recovering", "unknown"] as const) expect(view(controllerStatus(state)).stop?.kind).not.toBe("stop-cycle");
   });
 });

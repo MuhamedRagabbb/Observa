@@ -87,7 +87,7 @@ export function interpretStop(reply: Reply, scenario: ScenarioId): ActionOutcome
   return unconfirmed("The controller’s answer didn’t confirm the stop. The fault may still be running: check status.");
 }
 
-async function post(
+export async function post(
   send: (signal: AbortSignal) => Promise<{ data?: unknown; error?: unknown; response: Response }>,
   signal?: AbortSignal,
 ): Promise<Reply> {

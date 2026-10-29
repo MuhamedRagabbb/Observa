@@ -1,0 +1,286 @@
+/* Automatic cycle: paired steppers, scenario checks and the proportional schedule. */
+.lockNotice {
+  composes: lockNotice from "../manual/ManualFault.module.css";
+}
+
+.chip {
+  composes: chip from "../manual/ManualFault.module.css";
+}
+
+.field {
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+  min-width: 0;
+  font-size: var(--text-small);
+}
+
+.stepperGrid,
+.orderGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.stepperGrid {
+  margin-block: var(--space-5);
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  min-height: var(--control-height-small);
+  border: 1px solid var(--color-line-control);
+  border-radius: var(--radius-control);
+  background: var(--color-field);
+}
+
+.stepper button {
+  display: grid;
+  flex: none;
+  place-items: center;
+  min-width: var(--control-height-small);
+  min-height: var(--control-height-small);
+  padding: var(--space-2);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--color-ink-soft);
+  font-size: var(--text-body);
+  cursor: pointer;
+}
+
+.stepper input {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  min-height: var(--control-height-small);
+  padding: var(--space-2) 0;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--color-ink-soft);
+  font-family: var(--font-mono);
+  font-size: var(--text-small);
+  text-align: center;
+}
+
+.unit {
+  flex: none;
+  padding-inline-end: var(--space-1);
+  color: var(--color-text-muted);
+}
+
+.scenarios {
+  min-width: 0;
+  margin: 0 0 var(--space-5);
+  padding: 0;
+  border: 0;
+  font-size: var(--text-small);
+}
+
+.scenarios legend {
+  margin-block-end: var(--space-1);
+  padding: 0;
+}
+
+.scenario {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--control-height-small);
+  cursor: pointer;
+}
+
+.scenario input {
+  flex: none;
+  width: var(--space-4);
+  height: var(--space-4);
+  margin: 0;
+  accent-color: var(--color-ink);
+}
+
+.seed {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--control-height-small);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-line-control);
+  border-radius: var(--radius-control);
+  background: var(--color-field);
+  color: var(--color-ink-soft);
+  font-family: var(--font-mono);
+  font-size: var(--text-small);
+}
+
+.switch {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  min-height: var(--control-height-small);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--color-ink-soft);
+  font-family: var(--font-ui);
+  font-size: var(--text-small);
+  text-align: start;
+  cursor: pointer;
+}
+
+.switchTrack {
+  display: flex;
+  flex: none;
+  align-items: center;
+  width: var(--space-10);
+  height: var(--space-6);
+  padding: var(--space-1);
+  border-radius: var(--space-6);
+  background: var(--color-text-muted);
+}
+
+.switchTrack > span {
+  width: var(--space-4);
+  height: var(--space-4);
+  border-radius: 50%;
+  background: var(--color-on-ink);
+}
+
+.switch[aria-checked="true"] .switchTrack {
+  justify-content: flex-end;
+  background: var(--color-ink);
+}
+
+.hint,
+.total,
+.legend {
+  color: var(--color-text-muted);
+  font-size: var(--text-small);
+  line-height: var(--leading-body);
+}
+
+.hint {
+  margin: var(--space-2) 0 0;
+}
+
+.error {
+  margin: 0;
+  color: var(--color-fault);
+  font-size: var(--text-small);
+  line-height: var(--leading-body);
+}
+
+.schedule {
+  margin-block-start: var(--space-5);
+}
+
+.caption {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-small);
+}
+
+.scheduleBar {
+  display: flex;
+  gap: var(--space-1);
+  height: var(--space-3);
+}
+
+.scheduleBar > span {
+  flex-basis: 0;
+  min-width: 0;
+  border-radius: var(--radius-control);
+  background: var(--color-line);
+  box-shadow: inset 0 0 0 1px var(--color-text-subtle);
+}
+
+.scheduleBar > [data-kind="fault"] {
+  background: var(--color-fault-soft);
+  box-shadow: inset 0 0 0 1px var(--color-fault);
+}
+
+.scheduleBar > [data-state="done"] {
+  background: var(--color-text-subtle);
+  box-shadow: inset 0 0 0 1px var(--color-text-subtle);
+}
+
+.scheduleBar > [data-state="now"] {
+  background: var(--color-ink);
+  box-shadow: inset 0 0 0 1px var(--color-ink);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin-block-start: var(--space-2);
+  font-size: var(--text-caption);
+}
+
+.legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.quietSwatch,
+.faultSwatch,
+.nowSwatch {
+  display: inline-block;
+  flex: none;
+  width: var(--space-2);
+  height: var(--space-2);
+  border-radius: var(--radius-control);
+  background: var(--color-line);
+}
+
+.faultSwatch {
+  background: var(--color-fault-soft);
+}
+
+.nowSwatch {
+  background: var(--color-ink);
+}
+
+.startRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-5);
+  margin-block: var(--space-6) var(--space-4);
+}
+
+.stepper :focus-visible,
+.scenario input:focus-visible,
+.seed:focus-visible,
+.switch:focus-visible {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 4px;
+}
+
+/* Locks keep their focus targets and readable values; limit glyphs alone fade. */
+.stepper button[aria-disabled="true"] {
+  color: var(--color-glyph-disabled);
+  cursor: not-allowed;
+}
+
+.stepper:has(input[readonly]),
+.seed[readonly] {
+  background: var(--color-surface-sunken);
+}
+
+.scenario:has(input[aria-disabled="true"]),
+.seed[readonly],
+.switch[aria-disabled="true"],
+.stepper input[readonly] {
+  cursor: not-allowed;
+}
+
+/* Phones keep both stepper columns; the page grid supplies the single column. */
+@media (max-width: 47.99rem) {
+  .startRow > button {
+    width: 100%;
+  }
+}

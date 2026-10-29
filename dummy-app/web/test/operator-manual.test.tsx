@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // @vitest-environment-options {"url": "http://127.0.0.1:8090/ui/next/"}
-import { focusManager } from "@tanstack/react-query";
+import { focusManager, onlineManager } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -8,6 +8,7 @@ import { controllerStatus, type ControllerStatus } from "../e2e/fixtures/control
 import { OPERATOR_UI_CONFIG } from "../e2e/fixtures/gateway.ts";
 import { operatorRoutes } from "../src/operator/routes.tsx";
 import { postStart } from "../src/operator/manual/fault-actions.ts";
+import { resetFaultActionCooldown } from "../src/operator/manual/use-fault-actions.ts";
 import { AppProviders } from "../src/shared/AppProviders.tsx";
 
 type Answer<T> = T | "network-error" | "hang" | Response;
@@ -80,7 +81,7 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date", "performance"] });
   statuses = [controllerStatus("idle")]; activate = [{ status: 200, body: controllerStatus("manual") }];
   deactivate = [{ status: 200, body: controllerStatus("recovering") }];
-  calls.length = 0; held = null; stub(); focusManager.setFocused(true);
+  calls.length = 0; held = null; resetFaultActionCooldown(); stub(); focusManager.setFocused(true);
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); focusManager.setFocused(undefined); });
 
@@ -101,7 +102,7 @@ describe("manual fault controls", () => {
     edit("delay_seconds", "2"); edit("duration", "45"); fireEvent.click(startButton()); await flush();
     expect(posts("/faults/activate")[0]?.body).toEqual({ scenario: "bad_deployment", duration_seconds: 45, parameters: { delay_seconds: 2 } });
     // A fresh page lets us inspect the next scenario's independent defaults.
-    cleanup(); calls.length = 0; statuses = [controllerStatus("idle")]; stub(); await open();
+    cleanup(); calls.length = 0; resetFaultActionCooldown(); statuses = [controllerStatus("idle")]; stub(); await open();
     edit("duration", "45"); fireEvent.click(within(manual()).getByRole("radio", { name: "Bad Deployment" }));
     fireEvent.click(within(manual()).getByRole("radio", { name: "Database Exhaustion" }));
     expect(manual().querySelector<HTMLInputElement>('input[name="duration"]')?.value).toBe("45");
@@ -155,7 +156,7 @@ describe("manual fault controls", () => {
 
   it.each([
     ["manual", "One manual fault at a time. Stop the active fault to change parameters."],
-    ["automatic", "Unavailable while an automatic cycle is running."],
+    ["automatic", "Manual injection is paused while the automatic cycle runs."],
     ["recovering", "Unavailable while services recover from the last fault."],
     ["unknown", "Unavailable until the fault status is confirmed."],
   ] as const)("G locks controls for %s", async (state, notice) => {
@@ -239,6 +240,82 @@ describe("manual fault controls", () => {
     expect(screen.getByText("The controller didn’t answer. The fault may still be running: check status, then stop again.")).toBeTruthy();
     expect(within(banner()).queryByRole("button", { name: "Stop fault" })).toBeNull();
     expect(document.activeElement).toBe(within(banner()).getByRole("heading", { name: "Waiting for services" }));
+  });
+
+  it("U a Stop is never blocked by the page: it is sent while a start is still in flight", async () => {
+    activate = ["hang"]; await open();
+    fireEvent.click(startButton()); await flush(100);
+    statuses = [(() => { const base = controllerStatus("manual"); return controllerStatus("manual", { active: { ...base.active!, status: "activating", acknowledged_at: null } }); })()];
+    await flush(3000); // the poll now shows the fault the controller is starting
+    const stop = within(banner()).getByRole("button", { name: "Stop fault" });
+    expect(stop.getAttribute("aria-disabled")).not.toBe("true");
+    fireEvent.click(stop); await flush(100);
+    expect(posts("/faults/activate")).toHaveLength(1); expect(posts("/faults/deactivate")).toHaveLength(1);
+  });
+
+  it("V a Stop on an old answer is still sent (stopping is always safe; only starts wait for a fresh answer)", async () => {
+    statuses = [controllerStatus("manual")]; await open();
+    focusManager.setFocused(false); await flush(8000); // a hidden tab pauses polling: the answer on screen ages
+    const stop = within(banner()).getByRole("button", { name: "Stop fault" });
+    expect(stop.getAttribute("aria-disabled")).not.toBe("true");
+    fireEvent.click(stop); await flush(100);
+    expect(posts("/faults/deactivate")).toHaveLength(1);
+  });
+
+  it("W a read-back that cannot start (browser reports offline) does not leave the page busy, and still reads the controller", async () => {
+    statuses = [controllerStatus("manual")]; await open();
+    onlineManager.setOnline(false);
+    try {
+      statuses = [controllerStatus("recovering")];
+      const before = calls.filter((c) => c.method === "GET" && c.path === "/faults/status").length;
+      fireEvent.click(within(banner()).getByRole("button", { name: "Stop fault" })); await flush(100);
+      await flush(7000);
+      expect(calls.filter((c) => c.method === "GET" && c.path === "/faults/status").length).toBeGreaterThan(before);
+      expect(within(banner()).getByRole("heading", { name: "Waiting for services" })).toBeTruthy();
+    } finally { onlineManager.setOnline(true); }
+  });
+
+  it("X a confirmed start whose incident the read-back no longer shows is not left on screen", async () => {
+    const other = (() => { const base = controllerStatus("manual"); return controllerStatus("manual", { active: { ...base.active!, incident_id: "inc-00000000-0000-4000-8000-000000000099", status: "activating", acknowledged_at: null } }); })();
+    await open(); statuses = [other]; fireEvent.click(startButton()); await flush();
+    expect(screen.queryByText("Controller confirmed the fault is active.")).toBeNull();
+  });
+
+  it("Y a confirmed stop is not left on screen when the read-back shows a cycle with a fault", async () => {
+    const running = controllerStatus("automatic");
+    statuses = [controllerStatus("manual")]; await open(); statuses = [running];
+    fireEvent.click(within(banner()).getByRole("button", { name: "Stop fault" })); await flush();
+    expect(screen.queryByText("Controller confirmed the fault stopped.")).toBeNull();
+  });
+
+  it("Z a refresh-only press on an unavailable button leaves other notices alone", async () => {
+    activate = [{ status: 422, body: { error_code: "validation_error" } }]; statuses = [controllerStatus("idle")]; await open();
+    fireEvent.click(startButton()); await flush(100);
+    const message = "The controller rejected these settings. Check the values and try again.";
+    expect(screen.getByText(message)).toBeTruthy();
+    focusManager.setFocused(false); await flush(8000); fireEvent.click(within(banner()).getByRole("button", { name: "Stop" })); await flush(100);
+    expect(screen.getByText(message)).toBeTruthy();
+  });
+
+  it("AA the double-click guard survives a remount, and a held Enter key does not repeat an action", async () => {
+    resetFaultActionCooldown();
+    statuses = [controllerStatus("manual")]; deactivate = [{ status: 503, body: { error_code: "target_unavailable" } }, { status: 200, body: controllerStatus("recovering") }];
+    await open(); statuses = [controllerStatus("unknown")];
+    fireEvent.click(within(banner()).getByRole("button", { name: "Stop fault" })); await flush(100);
+    cleanup(); await open();
+    fireEvent.click(within(banner()).getByRole("button", { name: "Stop again" })); await flush(100);
+    expect(posts("/faults/deactivate")).toHaveLength(1);
+    const stopAgain = within(banner()).getByRole("button", { name: "Stop again" });
+    expect(fireEvent.keyDown(stopAgain, { key: "Enter", repeat: true })).toBe(false);
+    expect(fireEvent.keyDown(stopAgain, { key: "Enter" })).toBe(true);
+  });
+
+  it("AB focus the operator moved elsewhere is not taken back when the pressed button disappears", async () => {
+    statuses = [controllerStatus("manual")]; deactivate = ["network-error"]; await open(); statuses = [controllerStatus("recovering")];
+    const link = screen.getByRole("link", { name: /Storefront/ });
+    const stop = within(banner()).getByRole("button", { name: "Stop fault" }); stop.focus(); fireEvent.click(stop); link.focus(); await flush();
+    expect(within(banner()).queryByRole("button", { name: "Stop fault" })).toBeNull();
+    expect(document.activeElement).toBe(link);
   });
 
   it("J idle Stop is unavailable and keeps focus", async () => {

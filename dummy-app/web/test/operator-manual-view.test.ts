@@ -36,7 +36,7 @@ describe("a manual fault is running", () => {
 
 describe("every other lock comes from the controller's own reason", () => {
   it.each([
-    ["automatic", "Unavailable while an automatic cycle is running."],
+    ["automatic", "Manual injection is paused while the automatic cycle runs."],
     ["recovering", "Unavailable while services recover from the last fault."],
     ["unknown", "Unavailable until the fault status is confirmed."],
   ] as const)("%s", (state, notice) => {
