@@ -4,10 +4,10 @@
 // stack, only loopback http (the controller's origin guard refuses anything else anyway), and the
 // controller never on the Gateway's origin. In the browser, each request must stay on an allowed
 // origin: the Gateway's by default, the controller's for operator tests.
-import { describe, expect, it } from "vitest";
-import { allowedOrigin, contractTarget, stackTargets } from "../e2e/support/stack-safety.ts";
+import { describe, expect, it, vi } from "vitest";
+import { allowedOrigin, contractTarget, stackTargets, t2PreviewTargets } from "../e2e/support/stack-safety.ts";
 import ports from "../contracts/stack-ports.json" with { type: "json" };
-import { refuseLive } from "../preview-guard.ts";
+import { PREVIEW_STACK_PORTS, refuseLive } from "../preview-guard.ts";
 
 describe("live and preview ports (contracts/stack-ports.json)", () => {
   it("lists every live-published port, sorted and unique, apart from the preview's", () => {
@@ -136,6 +136,102 @@ describe("stack targets", () => {
     ["the controller on the Gateway's own origin", { E2E_STACK_URL: "http://127.0.0.1:18000", E2E_STACK_CONTROLLER_URL: "http://127.0.0.1:18000" }, /same origin/],
   ])("refuses %s", (_name, env, message) => {
     expect(() => stackTargets(env)).toThrow(message);
+  });
+});
+
+describe("T2 preview targets (image-served operator only)", () => {
+  const env = { E2E_STACK_URL: "http://127.0.0.1:18000", E2E_T2_EXCLUSIVE: "1" };
+  const targets = { gateway: "http://127.0.0.1:18000", controller: "http://127.0.0.1:18090" };
+
+  it.each([undefined, "", "0", "true", " 1", "yes"])(
+    "requires the exact exclusive-preview attestation E2E_T2_EXCLUSIVE=1 (got %j)",
+    (value) => {
+      expect(() => t2PreviewTargets({ ...env, E2E_T2_EXCLUSIVE: value })).toThrow(/exclusive/i);
+    },
+  );
+
+  it("accepts the default preview controller on port 18090", () => {
+    expect(t2PreviewTargets(env)).toEqual(targets);
+  });
+
+  it("accepts an explicit preview controller with a trailing slash", () => {
+    expect(t2PreviewTargets({ ...env, E2E_STACK_CONTROLLER_URL: "http://127.0.0.1:18090/" })).toEqual(targets);
+  });
+
+  it("accepts empty bundle and contract variables", () => {
+    expect(t2PreviewTargets({ ...env, E2E_STACK_BUNDLE: "", E2E_CONTRACT: "" })).toEqual(targets);
+  });
+
+  it.each(["localhost", "[::1]"])("accepts loopback host %s", (host) => {
+    expect(t2PreviewTargets({ ...env, E2E_STACK_URL: `http://${host}:18000` })).toEqual({
+      gateway: `http://${host}:18000`, controller: `http://${host}:18090`,
+    });
+  });
+
+  it.each([undefined, ""])("requires E2E_STACK_URL (got %j)", (value) => {
+    expect(() => t2PreviewTargets({ ...env, E2E_STACK_URL: value })).toThrow(/T2 needs E2E_STACK_URL/);
+  });
+
+  it("refuses the live Gateway port 8000", () => {
+    expect(() => t2PreviewTargets({ ...env, E2E_STACK_URL: "http://127.0.0.1:8000" })).toThrow(/live stack port/);
+  });
+
+  it.each(ports.live)("refuses live controller port %i", (port) => {
+    expect(() => t2PreviewTargets({ ...env, E2E_STACK_CONTROLLER_URL: `http://127.0.0.1:${port}` })).toThrow(/live stack port/);
+  });
+
+  it.each([18190, 18191, 18000, 13000, 26686, 19090, 28090, 80, 65535])("refuses controller port %i instead of 18090", (port) => {
+    expect(() => t2PreviewTargets({ ...env, E2E_STACK_URL: "http://localhost:18000", E2E_STACK_CONTROLLER_URL: `http://127.0.0.1:${port}` })).toThrow(/preview CONTROLLER origin on port 18090/);
+  });
+
+  it("refuses a controller without an explicit port 18090", () => {
+    expect(() => t2PreviewTargets({ ...env, E2E_STACK_CONTROLLER_URL: "http://127.0.0.1" })).toThrow(/preview CONTROLLER origin on port 18090/);
+  });
+
+  it("refuses port 18090 when absent from PREVIEW_STACK_PORTS", () => {
+    const has = vi.spyOn(PREVIEW_STACK_PORTS, "has").mockReturnValue(false);
+    try {
+      expect(() => t2PreviewTargets(env)).toThrow(/preview CONTROLLER origin on port 18090/);
+      expect(has).toHaveBeenCalledWith("18090");
+    } finally {
+      has.mockRestore();
+    }
+  });
+
+  it.each([
+    ["https Gateway", { ...env, E2E_STACK_URL: "https://127.0.0.1:18000" }, /http:/],
+    ["https controller", { ...env, E2E_STACK_CONTROLLER_URL: "https://127.0.0.1:18090" }, /http:/],
+    ["a non-loopback Gateway IP", { ...env, E2E_STACK_URL: "http://192.168.1.5:18000" }, /loopback/],
+    ["a non-loopback Gateway hostname", { ...env, E2E_STACK_URL: "http://example.com:18000" }, /loopback/],
+    ["a non-loopback controller IP", { ...env, E2E_STACK_CONTROLLER_URL: "http://192.168.1.5:18090" }, /loopback/],
+    ["a non-loopback controller hostname", { ...env, E2E_STACK_CONTROLLER_URL: "http://example.com:18090" }, /loopback/],
+  ])("refuses %s", (_name, value, message) => {
+    expect(() => t2PreviewTargets(value)).toThrow(message);
+  });
+
+  it.each([
+    ["user info", "http://user:pw@127.0.0.1:18090"],
+    ["a path", "http://127.0.0.1:18090/x"],
+    ["a query", "http://127.0.0.1:18090?a=1"],
+    ["a hash", "http://127.0.0.1:18090#x"],
+    ["a normalized path", "http://127.0.0.1:18090/x/.."],
+    ["an empty query", "http://127.0.0.1:18090?"],
+    ["an empty hash", "http://127.0.0.1:18090#"],
+    ["empty user info", "http://@127.0.0.1:18090"],
+  ])("refuses %s on E2E_STACK_CONTROLLER_URL", (_name, url) => {
+    expect(() => t2PreviewTargets({ ...env, E2E_STACK_CONTROLLER_URL: url })).toThrow(/origin only/);
+  });
+
+  it("refuses the controller on the Gateway's origin even on port 18090", () => {
+    expect(() => t2PreviewTargets({ ...env, E2E_STACK_URL: targets.controller, E2E_STACK_CONTROLLER_URL: targets.controller })).toThrow(/same origin/);
+  });
+
+  it("refuses E2E_STACK_BUNDLE=local", () => {
+    expect(() => t2PreviewTargets({ ...env, E2E_STACK_BUNDLE: "local" })).toThrow(/image-served operator.*unset E2E_STACK_BUNDLE/);
+  });
+
+  it("refuses E2E_CONTRACT=1", () => {
+    expect(() => t2PreviewTargets({ ...env, E2E_CONTRACT: "1" })).toThrow(/unset E2E_CONTRACT/);
   });
 });
 

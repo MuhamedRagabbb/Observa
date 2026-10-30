@@ -21,6 +21,28 @@ export function stackTargets(env: Record<string, string | undefined>): { gateway
   return { gateway, controller };
 }
 
+/** T2 verifies only the image-served operator on the preview controller. */
+export function t2PreviewTargets(env: Record<string, string | undefined>): { gateway: string; controller: string } {
+  const targets = stackTargets(env); // refuses live ports, non-loopback and non-http URLs
+  if (!env.E2E_STACK_URL || !targets) throw new Error("T2 needs E2E_STACK_URL for an isolated preview project; NEVER use the live stack");
+  if (env.E2E_T2_EXCLUSIVE !== "1") throw new Error("T2 requires exclusive preview access attested by E2E_T2_EXCLUSIVE=1");
+  const controller = new URL(targets.controller);
+  if (!PREVIEW_STACK_PORTS.has(controller.port) || controller.port !== "18090") {
+    throw new Error("T2 requires a loopback http preview CONTROLLER origin on port 18090, distinct from the Gateway; live/harness/other preview ports are forbidden");
+  }
+  const value = env.E2E_STACK_CONTROLLER_URL ?? targets.controller;
+  const configured = new URL(value);
+  // Check the spelling too: URL normalizes /x/.., empty ?/# and empty user info.
+  const parts = /^[^:]+:\/\/([^/?#]*)(.*)$/.exec(value);
+  if (configured.username || configured.password || configured.pathname !== "/" || configured.search || configured.hash
+      || !parts || /[?#@\\]/.test(value) || (parts[2] !== "" && parts[2] !== "/")) {
+    throw new Error("T2 requires E2E_STACK_CONTROLLER_URL to be an origin only (no user info, path, query or hash)");
+  }
+  if (env.E2E_STACK_BUNDLE) throw new Error("T2 requires the P5-G image-served operator at /; unset E2E_STACK_BUNDLE");
+  if (env.E2E_CONTRACT) throw new Error("T2 requires preview stack mode; unset E2E_CONTRACT");
+  return targets;
+}
+
 /** Whether a browser request may go to `url`: only to one of the allowed origins. */
 export function allowedOrigin(url: string, allowed: readonly string[]): boolean {
   try {
