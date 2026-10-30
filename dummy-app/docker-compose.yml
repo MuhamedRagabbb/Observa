@@ -1,0 +1,225 @@
+name: observa-dummy
+x-app: &app
+  build: .
+  image: observa-dummy:local
+  restart: unless-stopped
+  init: true
+  stop_grace_period: 25s
+  mem_limit: 256m
+  cpus: 0.5
+  networks: [business]
+  healthcheck: &app-health
+    test: [CMD, python, scripts/healthcheck.py]
+    interval: 10s
+    timeout: 3s
+    retries: 5
+    start_period: 30s
+x-environment: &environment
+  ENVIRONMENT: ${ENVIRONMENT:-local}
+  OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://collector:4318}
+  TRACE_SAMPLE_RATIO: ${TRACE_SAMPLE_RATIO:-1}
+  DB_POOL_MAX: ${DB_POOL_MAX:-4}
+  DB_POOL_TIMEOUT: ${DB_POOL_TIMEOUT:-0.5}
+  DB_QUERY_TIMEOUT: ${DB_QUERY_TIMEOUT:-3}
+  DEPENDENCY_TIMEOUT: ${DEPENDENCY_TIMEOUT:-4}
+  CONTROL_TOKEN: ${CONTROL_TOKEN:-local-control-only}
+  PUBLIC_GATEWAY_PORT: ${GATEWAY_PORT:-8000}
+  PUBLIC_CONTROLLER_PORT: ${CONTROLLER_PORT:-8090}
+  PUBLIC_GRAFANA_PORT: ${GRAFANA_PORT:-3000}
+  PUBLIC_JAEGER_PORT: ${JAEGER_PORT:-16686}
+  PUBLIC_PROMETHEUS_PORT: ${PROMETHEUS_PORT:-9090}
+services:
+  postgres:
+    image: postgres:16.6-bookworm
+    restart: unless-stopped
+    mem_limit: 256m
+    cpus: 1
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local-admin-only}
+      ORDERS_DB_PASSWORD: ${ORDERS_DB_PASSWORD:-local-orders-only}
+      INVENTORY_DB_PASSWORD: ${INVENTORY_DB_PASSWORD:-local-inventory-only}
+      PAYMENTS_DB_PASSWORD: ${PAYMENTS_DB_PASSWORD:-local-payments-only}
+    ports: ["127.0.0.1:${POSTGRES_PORT:-5432}:5432"]
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./scripts/init-db.sh:/docker-entrypoint-initdb.d/01-init-db.sh:ro
+      - ./scripts/init-db.sql:/opt/init-db.sql:ro
+    networks: [business]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U postgres -d postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  gateway:
+    <<: *app
+    environment:
+      <<: *environment
+      SERVICE: gateway
+      PORT: 8000
+      DEPENDENCY_TIMEOUT: ${GATEWAY_DEPENDENCY_TIMEOUT:-12}
+      ORDERS_URL: ${ORDERS_URL:-http://orders:8001}
+      INVENTORY_URL: ${INVENTORY_URL:-http://inventory:8002}
+    ports: ["127.0.0.1:${GATEWAY_PORT:-8000}:8000"]
+    depends_on:
+      orders: {condition: service_healthy}
+      inventory: {condition: service_healthy}
+  orders:
+    <<: *app
+    environment:
+      <<: *environment
+      SERVICE: orders
+      PORT: 8001
+      DATABASE_URL: postgresql://orders_app:${ORDERS_DB_PASSWORD:-local-orders-only}@postgres:5432/orders_db
+      INVENTORY_URL: ${INVENTORY_URL:-http://inventory:8002}
+      PAYMENTS_URL: ${PAYMENTS_URL:-http://payments:8003}
+      # Background reconciler: off unless explicitly enabled after orders migrations 001-003.
+      RECONCILER_ENABLED: ${RECONCILER_ENABLED:-false}
+    ports: ["127.0.0.1:${ORDERS_PORT:-8001}:8001"]
+    networks: [business, control]
+    depends_on:
+      postgres: {condition: service_healthy}
+      inventory: {condition: service_healthy}
+      payments: {condition: service_healthy}
+  inventory:
+    <<: *app
+    environment:
+      <<: *environment
+      SERVICE: inventory
+      PORT: 8002
+      DATABASE_URL: postgresql://inventory_app:${INVENTORY_DB_PASSWORD:-local-inventory-only}@postgres:5432/inventory_db
+    ports: ["127.0.0.1:${INVENTORY_PORT:-8002}:8002"]
+    depends_on:
+      postgres: {condition: service_healthy}
+  payments:
+    <<: *app
+    environment:
+      <<: *environment
+      SERVICE: payments
+      PORT: 8003
+      BASELINE_DECLINE_RATE: ${BASELINE_DECLINE_RATE:-0.02}
+      DATABASE_URL: postgresql://payments_app:${PAYMENTS_DB_PASSWORD:-local-payments-only}@postgres:5432/payments_db
+    ports: ["127.0.0.1:${PAYMENTS_PORT:-8003}:8003"]
+    networks: [business, control]
+    depends_on:
+      postgres: {condition: service_healthy}
+  traffic-generator:
+    <<: *app
+    command: [python, -m, controllers.traffic_generator.main]
+    environment:
+      TRAFFIC_RPS: ${TRAFFIC_RPS:-4}
+      TRAFFIC_CONCURRENCY: ${TRAFFIC_CONCURRENCY:-16}
+      TRAFFIC_SEED: ${TRAFFIC_SEED:-42}
+      # legacy (single-item POST /api/orders) or checkout (multi-item carts, replays); live stays legacy.
+      TRAFFIC_FLOW: ${TRAFFIC_FLOW:-legacy}
+      # Optional 0-65535: pins checkout attempt references; empty means random per run.
+      TRAFFIC_RUN_PREFIX: ${TRAFFIC_RUN_PREFIX:-}
+      GATEWAY_URL: http://gateway:8000
+    healthcheck:
+      disable: true
+    depends_on:
+      gateway: {condition: service_healthy}
+  fault-injector:
+    <<: *app
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
+    # Evaluation infrastructure deliberately has no OTLP exporter.
+    environment:
+      SERVICE: controller
+      PORT: 8090
+      CONTROL_TOKEN: ${CONTROL_TOKEN:-local-control-only}
+      GROUND_TRUTH_PATH: /ground-truth/incidents.jsonl
+      ORDERS_CONTROL_URL: http://orders:8001
+      PAYMENTS_CONTROL_URL: http://payments:8003
+      PUBLIC_GATEWAY_PORT: ${GATEWAY_PORT:-8000}
+      PUBLIC_CONTROLLER_PORT: ${CONTROLLER_PORT:-8090}
+      PUBLIC_GRAFANA_PORT: ${GRAFANA_PORT:-3000}
+      PUBLIC_JAEGER_PORT: ${JAEGER_PORT:-16686}
+      PUBLIC_PROMETHEUS_PORT: ${PROMETHEUS_PORT:-9090}
+      # Operator health view: probes plus Prometheus request metrics (read-only queries).
+      PROMETHEUS_URL: http://prometheus:9090
+    ports: ["127.0.0.1:${CONTROLLER_PORT:-8090}:8090"]
+    # Host folder for the ground-truth journal; a throwaway fault-test project points this elsewhere.
+    volumes: ["${GROUND_TRUTH_DIR:-./ground-truth}:/ground-truth"]
+    # observability: read-only Prometheus queries. With no OTEL_* settings it exports nothing.
+    networks: [control, observability]
+    depends_on:
+      orders: {condition: service_healthy}
+      payments: {condition: service_healthy}
+  collector:
+    image: otel/opentelemetry-collector-contrib:0.116.1
+    command: ["--config=/etc/otelcol/config.yaml"]
+    restart: unless-stopped
+    mem_limit: 192m
+    cpus: 0.5
+    volumes: ["./telemetry/otel-collector.yaml:/etc/otelcol/config.yaml:ro"]
+    ports:
+      - "127.0.0.1:${OTLP_GRPC_PORT:-4317}:4317"
+      - "127.0.0.1:${OTLP_HTTP_PORT:-4318}:4318"
+      - "127.0.0.1:${COLLECTOR_METRICS_PORT:-8889}:8889"
+    networks: [business, observability]
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=24h"]
+    restart: unless-stopped
+    mem_limit: 192m
+    cpus: 0.5
+    volumes:
+      - ./telemetry/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports: ["127.0.0.1:${PROMETHEUS_PORT:-9090}:9090"]
+    networks: [observability]
+  jaeger:
+    image: jaegertracing/all-in-one:1.65.0
+    command: ["--memory.max-traces=${JAEGER_MAX_TRACES:-2000}"]
+    restart: unless-stopped
+    mem_limit: 256m
+    cpus: 0.5
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+      SPAN_STORAGE_TYPE: memory
+      GOMEMLIMIT: 192MiB
+      GOMAXPROCS: "1"
+    ports: ["127.0.0.1:${JAEGER_PORT:-16686}:16686"]
+    networks: [observability]
+  loki:
+    image: grafana/loki:3.3.2
+    command: ["-config.file=/etc/loki/config.yaml"]
+    restart: unless-stopped
+    mem_limit: 256m
+    cpus: 0.5
+    volumes:
+      - ./telemetry/loki.yaml:/etc/loki/config.yaml:ro
+      - loki-data:/loki
+    ports: ["127.0.0.1:${LOKI_PORT:-3100}:3100"]
+    networks: [observability]
+  telemetry-health:
+    <<: *app
+    command: [python, -c, "import time; time.sleep(2147483647)"]
+    environment:
+      HEALTH_URLS: http://collector:13133/,http://prometheus:9090/-/ready,http://jaeger:16686/,http://loki:3100/ready
+    networks: [business, observability]
+    mem_limit: 64m
+    depends_on: [collector, prometheus, jaeger, loki]
+  grafana:
+    image: grafana/grafana:11.5.0
+    profiles: [ui]
+    restart: unless-stopped
+    mem_limit: 256m
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_SECURITY_ADMIN_PASSWORD: local-grafana-only
+    volumes:
+      - ./telemetry/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./telemetry/grafana/dashboard.json:/var/lib/grafana/dashboards/overview.json:ro
+    ports: ["127.0.0.1:${GRAFANA_PORT:-3000}:3000"]
+    networks: [observability]
+volumes:
+  postgres-data:
+  prometheus-data:
+  loki-data:
+networks:
+  business:
+  control:
+    driver: bridge
+  observability:

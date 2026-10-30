@@ -1,0 +1,35 @@
+{
+  "controls": {
+    "idle": {
+      "activate": { "enabled": true, "reason": null },
+      "auto_start": { "enabled": true, "reason": null },
+      "deactivate": { "enabled": false, "reason": "no_active_fault" },
+      "auto_stop": { "enabled": false, "reason": "auto_not_running" }
+    },
+    "manual": {
+      "activate": { "enabled": false, "reason": "fault_active" },
+      "auto_start": { "enabled": false, "reason": "fault_active" },
+      "deactivate": { "enabled": true, "reason": null },
+      "auto_stop": { "enabled": false, "reason": "auto_not_running" }
+    },
+    "automatic": {
+      "activate": { "enabled": false, "reason": "auto_running" },
+      "auto_start": { "enabled": false, "reason": "auto_running" },
+      "deactivate": { "enabled": false, "reason": "auto_running" },
+      "auto_stop": { "enabled": true, "reason": null }
+    },
+    "recovering": {
+      "activate": { "enabled": false, "reason": "recovering" },
+      "auto_start": { "enabled": false, "reason": "recovering" },
+      "deactivate": { "enabled": false, "reason": "no_active_fault" },
+      "auto_stop": { "enabled": false, "reason": "auto_not_running" }
+    },
+    "unknown": {
+      "activate": { "enabled": false, "reason": "status_unknown" },
+      "auto_start": { "enabled": false, "reason": "status_unknown" },
+      "deactivate": { "enabled": true, "reason": null },
+      "auto_stop": { "enabled": false, "reason": "auto_not_running" }
+    }
+  },
+  "health_services": ["api-gateway", "orders-service", "inventory-service", "payments-service"]
+}

@@ -1,0 +1,17 @@
+.venv
+.cache
+.git
+**/__pycache__
+**/*.pyc
+.pytest_cache
+.ruff_cache
+.env
+ground-truth
+test-results
+# Frontend: dependencies and builds are produced inside the image's web stage.
+web/node_modules
+web/dist
+**/node_modules
+services/ui/dist
+web/e2e-output
+.preview

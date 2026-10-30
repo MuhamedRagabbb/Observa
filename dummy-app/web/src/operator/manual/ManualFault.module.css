@@ -1,0 +1,294 @@
+/* Manual controls: the config artboards' scenario rows and inset parameters card. */
+.lockNotice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-block-start: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-sunken);
+  color: var(--color-text-muted);
+  font-size: var(--text-small);
+  line-height: var(--leading-body);
+}
+
+.lockNotice svg {
+  flex: none;
+  font-size: var(--text-body-large);
+}
+
+.scenarios {
+  min-width: 0;
+  margin: var(--space-4) 0 var(--space-6);
+  padding: 0;
+  border: 0;
+}
+
+.scenario {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  min-height: var(--control-height-small);
+  padding-block: var(--space-4);
+  border-block-end: 1px solid var(--color-line-soft);
+  cursor: pointer;
+}
+
+.scenario input {
+  flex: none;
+  width: var(--space-4);
+  height: var(--space-4);
+  margin: var(--space-1) 0 0;
+  accent-color: var(--color-ink);
+}
+
+.scenarioText {
+  display: grid;
+  flex: 1;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.scenarioHeading {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  color: var(--color-ink-soft);
+  font-size: var(--text-control);
+  font-weight: 500;
+}
+
+.chip {
+  flex: none;
+  padding-inline: var(--space-1);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-sunken);
+  color: var(--color-ink-accent);
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  font-weight: 500;
+  line-height: var(--leading-body);
+}
+
+.active {
+  margin-inline-start: auto;
+  color: var(--color-fault);
+  font-size: var(--text-small);
+}
+
+.description,
+.hint {
+  color: var(--color-text-muted);
+  font-size: var(--text-small);
+  line-height: var(--leading-body);
+}
+
+.parameters {
+  display: grid;
+  gap: var(--space-6);
+  min-width: 0;
+  padding: var(--space-5);
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+}
+
+.panelTitle {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--color-ink-accent);
+  font-family: var(--font-ui);
+  font-size: var(--text-caption);
+  font-weight: 500;
+  letter-spacing: var(--tracking-caps);
+  line-height: var(--leading-body);
+}
+
+.field {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.fieldHeading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  font-size: var(--text-small);
+  line-height: var(--leading-body);
+}
+
+.caption,
+.note {
+  margin-inline-start: auto;
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+}
+
+.caption {
+  font-family: var(--font-mono);
+}
+
+.numberRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 7rem);
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.numberRow input[type="range"] {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--control-height-small);
+  margin: 0;
+  accent-color: var(--color-ink);
+  cursor: pointer;
+}
+
+.numberInput {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  min-height: var(--control-height-small);
+  padding-inline-end: var(--space-3);
+  border: 1px solid var(--color-line-control);
+  border-radius: var(--radius-control);
+  background: var(--color-field);
+}
+
+.numberInput input {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--control-height-small);
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--color-ink-soft);
+  font-family: var(--font-mono);
+  font-size: var(--text-body);
+  text-align: end;
+}
+
+.numberInput > span {
+  color: var(--color-text-muted);
+  font-size: var(--text-small);
+}
+
+.durationRow {
+  width: 11rem;
+  max-width: 100%;
+}
+
+.hint,
+.error {
+  margin: 0;
+}
+
+.error {
+  color: var(--color-fault);
+  font-size: var(--text-small);
+  line-height: var(--leading-body);
+}
+
+.segments {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: var(--space-1);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-sunken);
+}
+
+.segment {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.segment input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.segmentLabel {
+  display: grid;
+  flex: 1;
+  align-content: center;
+  justify-items: center;
+  min-height: var(--control-height-small);
+  padding: var(--space-2) var(--space-1);
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+  line-height: var(--leading-body);
+  text-align: center;
+}
+
+.segmentLabel > span:first-child {
+  color: var(--color-ink-soft);
+  font-family: var(--font-mono);
+  font-size: var(--text-small);
+}
+
+.segment input:checked + .segmentLabel {
+  border-color: var(--color-line-strong);
+  background: var(--color-surface-raised);
+}
+
+.fixed {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: var(--control-height-small);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-sunken);
+  color: var(--color-text-muted);
+  font-size: var(--text-small);
+}
+
+.inject {
+  margin-block: var(--space-6) var(--space-4);
+}
+
+.scenario input:focus-visible,
+.numberRow input:focus-visible,
+.durationRow input:focus-visible,
+.segment input:focus-visible + .segmentLabel {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 4px;
+}
+
+/* Locked controls keep keyboard focus and readable information. */
+.scenario:has(input[aria-disabled="true"]),
+.segment:has(input[aria-disabled="true"]),
+.numberRow input[aria-disabled="true"] {
+  cursor: not-allowed;
+}
+
+.numberInput:has(input[readonly]) {
+  background: var(--color-surface-sunken);
+}
+
+@media (max-width: 47.99rem) {
+  .parameters {
+    padding: var(--space-4);
+  }
+
+  .durationRow,
+  .inject > button {
+    width: 100%;
+  }
+}

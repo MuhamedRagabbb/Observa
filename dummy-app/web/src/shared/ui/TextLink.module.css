@@ -1,0 +1,49 @@
+/* Artboards: Checkout "Return to cart", Cart drawer "Remove". Grey underline that darkens on hover. */
+.text {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-ink-soft);
+  font-size: inherit;
+  text-decoration: none;
+}
+
+.label {
+  text-decoration: underline;
+  text-decoration-color: var(--color-line-control);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 5px;
+  transition: text-decoration-color var(--motion-duration-fast) var(--motion-ease);
+}
+
+.text:not(:disabled):hover .label {
+  text-decoration-color: currentColor;
+}
+
+/* A 44px-tall touch target around the words, invisible and without moving anything. */
+.text::after {
+  content: "";
+  position: absolute;
+  inset: 50% -0.5rem auto;
+  height: 2.75rem;
+  translate: 0 -50%;
+}
+
+.icon {
+  flex: none;
+  font-size: 1.125em;
+}
+
+.button {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+}
+
+.button:disabled {
+  color: var(--color-text-subtle);
+  cursor: not-allowed;
+}

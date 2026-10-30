@@ -1,0 +1,10 @@
+{
+  "mode": "store",
+  "ports": {
+    "store": 8000,
+    "control": 8090,
+    "grafana": 3000,
+    "jaeger": 16686,
+    "prometheus": 9090
+  }
+}

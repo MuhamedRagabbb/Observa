@@ -1,0 +1,138 @@
+/*
+ * Artboards: Product Collection 1440 (asymmetric grid) and 390 (one large tile, then two
+ * columns). Desktop, measured at 1440: row one is a 3:2 pair, the second tile dropped by about
+ * 37% of its width; row two is three equal tiles, the middle one dropped about 24% and the last
+ * about 8%. Products beyond five continue in rows of three.
+ */
+.collection {
+  padding-block: var(--space-16) var(--space-16);
+  scroll-margin-block-start: var(--space-4);
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-block-end: clamp(2rem, 1rem + 3.5vw, 5rem);
+}
+
+.title {
+  font-size: var(--text-display);
+  letter-spacing: -0.01em;
+}
+
+.title:focus {
+  outline: none;
+}
+
+.title:focus-visible {
+  outline: 2px solid var(--color-ink);
+}
+
+.count {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-small);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  column-gap: var(--space-4);
+  row-gap: var(--space-10);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item:first-child {
+  grid-column: span 2;
+}
+
+@media (min-width: 60rem) {
+  .grid {
+    grid-template-columns: repeat(15, minmax(0, 1fr));
+    column-gap: var(--space-8);
+    row-gap: 7rem;
+  }
+
+  .item:first-child {
+    grid-column: span 9;
+  }
+
+  .item:nth-child(2) {
+    grid-column: span 6;
+    margin-block-start: 37%;
+  }
+
+  .item:nth-child(n + 3) {
+    grid-column: span 5;
+  }
+
+  .item:nth-child(4) {
+    margin-block-start: 24%;
+  }
+
+  .item:nth-child(5) {
+    margin-block-start: 8%;
+  }
+}
+
+/*
+ * Search results: a plain grid in API order. The artboards' asymmetric offsets belong to the
+ * full collection; with a few matches they would only look like gaps.
+ */
+.grid[data-filtered] .item:nth-child(n) {
+  grid-column: span 1;
+  margin-block-start: 0;
+}
+
+@media (min-width: 60rem) {
+  .grid[data-filtered] .item:nth-child(n) {
+    grid-column: span 5;
+  }
+}
+
+/* Loading: the same frames, empty, so nothing moves when the products arrive. */
+.skeletonImage {
+  aspect-ratio: 4 / 5;
+  background: var(--color-tile);
+}
+
+.skeletonLine {
+  height: 1.25rem;
+  margin-block-start: var(--space-5);
+  width: 60%;
+  border-radius: var(--radius-control);
+  background: var(--color-control-disabled);
+}
+
+.skeletonShort {
+  width: 30%;
+  margin-block-start: var(--space-3);
+}
+
+/* Error and empty: a short statement, then what to do. No artboard; derived from the type scale. */
+.message {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-3);
+  max-width: 32rem;
+  padding-block: var(--space-8);
+}
+
+.messageTitle {
+  margin: 0;
+  overflow-wrap: anywhere; /* a long search term is echoed here */
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: var(--text-heading-2);
+  line-height: var(--leading-tight);
+}
+
+.messageBody {
+  margin: 0 0 var(--space-3);
+  color: var(--color-text-muted);
+}

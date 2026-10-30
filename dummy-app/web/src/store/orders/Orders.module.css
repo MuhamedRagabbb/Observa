@@ -1,0 +1,518 @@
+/* My Orders and order details (artboards: My Orders list 1440 and 375, empty, loading, error,
+   order detail confirmed and status unknown). Desktop content sits in about 1072px, indented
+   like the artboards; phones use the full width between the gutters. */
+
+.page {
+  max-width: 67rem;
+  margin-inline: auto;
+  padding-block-start: var(--space-6);
+}
+
+.head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding-block-end: var(--space-8);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-display);
+  letter-spacing: -0.01em;
+}
+
+.title:focus,
+.detailTitle:focus {
+  outline: none;
+}
+
+.count {
+  margin: 0 0 var(--space-3);
+  color: var(--color-text-muted);
+}
+
+/* A list that loaded earlier but could not be reread: kept on screen, with a way to retry. */
+.refreshFailed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-block-end: var(--space-6);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-card);
+  background: var(--color-surface-sunken);
+}
+
+.refreshFailed p {
+  margin: 0;
+}
+
+.limit {
+  margin: 0 0 var(--space-4);
+  color: var(--color-text-muted);
+  font-size: var(--text-small);
+}
+
+.muted {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+/* Empty and error: a short block under a rule (empty and error artboards). */
+.state {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-3);
+  max-width: 31rem;
+  padding-block-start: var(--space-12);
+  border-block-start: 1px solid var(--color-line);
+}
+
+.state > :last-child {
+  margin-block-start: var(--space-5);
+}
+
+.stateTitle {
+  margin: 0;
+  font-size: var(--text-heading-2);
+}
+
+.emptyMark {
+  width: 2.5rem;
+  height: auto;
+  margin-block-end: var(--space-4);
+  color: var(--color-glyph-disabled);
+}
+
+.heldSection {
+  margin-block-start: var(--space-16);
+}
+
+.sectionTitle {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-heading-3);
+}
+
+/* Loading: three placeholder rows shaped like the table (loading artboard). */
+.loading {
+  display: grid;
+}
+
+.loadingRow {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr 1.3fr 0.9fr 1.3fr 1fr;
+  align-items: center;
+  gap: var(--space-6);
+  padding-block: var(--space-10);
+  border-block-end: 1px solid var(--color-line);
+}
+
+.bar {
+  height: 0.85rem;
+  border-radius: var(--radius-control);
+  background: var(--color-surface-sunken);
+}
+
+.bar[data-cell="0"] {
+  width: 85%;
+}
+
+.bar[data-cell="5"] {
+  width: 60%;
+  justify-self: end;
+}
+
+/* The table. */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.thead th {
+  padding: 0 var(--space-4) var(--space-5) 0;
+  border-block-end: 1px solid var(--color-line-strong);
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-align: start;
+  text-transform: uppercase;
+}
+
+.row td {
+  padding: var(--space-8) var(--space-4) var(--space-8) 0;
+  border-block-end: 1px solid var(--color-line);
+  vertical-align: middle;
+}
+
+.refStack {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-1);
+}
+
+/* Statuses read at body size in the list and details (My Orders artboards). */
+.statusCell > span,
+.detailBody > span:first-child {
+  font-size: var(--text-body);
+}
+
+.reference {
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: var(--text-body-large);
+}
+
+.reference[data-muted] {
+  color: var(--color-text-muted);
+}
+
+a.reference {
+  text-decoration: none;
+}
+
+a.reference:hover {
+  text-decoration: underline;
+}
+
+.tag {
+  color: var(--color-text-muted);
+  font-size: var(--text-caption);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.phoneUnits {
+  display: none;
+}
+
+.itemsCell {
+  white-space: nowrap;
+}
+
+.thumbs {
+  display: inline-flex;
+  margin-inline-end: var(--space-3);
+  vertical-align: middle;
+}
+
+.thumb {
+  width: 2.25rem;
+}
+
+.totalCell {
+  white-space: nowrap;
+}
+
+.total {
+  display: block;
+  color: var(--color-ink);
+  font-weight: 500;
+}
+
+.total[data-muted] {
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+
+.totalNote {
+  display: block;
+  color: var(--color-text-muted);
+  font-size: var(--text-small);
+  font-weight: 400;
+}
+
+.statusCell {
+  white-space: nowrap;
+}
+
+.actionCell {
+  text-align: end;
+}
+
+.row td:last-child {
+  padding-inline-end: 0;
+}
+
+.view {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-ink-soft);
+  text-decoration: none;
+}
+
+.view:hover {
+  text-decoration: underline;
+}
+
+.viewIcon {
+  font-size: 1.1em;
+}
+
+.check {
+  display: inline-grid;
+  justify-items: end;
+  gap: var(--space-2);
+}
+
+.check[data-block] {
+  display: grid;
+  justify-items: stretch;
+}
+
+.checkNote {
+  color: var(--color-fault);
+  font-size: var(--text-small);
+}
+
+.checkNote:empty {
+  display: none;
+}
+
+/* A never-placed attempt (a reminder kept by this browser): what changed for the cart, and the way on. */
+.statusCell > .cartNote {
+  display: block;
+  max-width: 14rem;
+  margin-block-start: var(--space-1);
+  color: var(--color-text-muted);
+  font-size: var(--text-small);
+  white-space: normal;
+}
+
+.closedActions {
+  display: inline-grid;
+  justify-items: end;
+  gap: var(--space-2);
+}
+
+/* Dismiss is a 44px touch target at every width. */
+.closedActions > button {
+  min-height: 2.75rem;
+}
+
+/* Phones: each row is a card (375 mobile list artboard). */
+@media (max-width: 47.99rem) {
+  .thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .table,
+  .table tbody {
+    display: block;
+  }
+
+  .row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "status total"
+      "ref ref"
+      "date date"
+      "action action";
+    row-gap: var(--space-3);
+    padding-block: var(--space-8);
+    border-block-end: 1px solid var(--color-line);
+  }
+
+  .row td {
+    display: block;
+    padding: 0;
+    border: 0;
+  }
+
+  .statusCell {
+    grid-area: status;
+    align-self: center;
+  }
+
+  .totalCell {
+    grid-area: total;
+    text-align: end;
+  }
+
+  .total {
+    font-size: var(--text-heading-3);
+  }
+
+  .refCell {
+    grid-area: ref;
+  }
+
+  .dateCell {
+    grid-area: date;
+    color: var(--color-text-muted);
+  }
+
+  .phoneUnits {
+    display: inline;
+  }
+
+  .itemsCell {
+    display: none !important;
+  }
+
+  .actionCell {
+    grid-area: action;
+    text-align: start;
+  }
+
+  /* A comfortable touch target for View on phones (44px tall). */
+  .view {
+    min-height: 2.75rem;
+  }
+
+  .row:not([data-status="unknown"]) .actionCell:has(.view) {
+    margin-block-start: calc(-1 * var(--space-2));
+  }
+
+  .check {
+    display: grid;
+    justify-items: stretch;
+  }
+
+  .check > button {
+    width: 100%;
+  }
+
+  /* Try again fills the card's width; Dismiss is a comfortable 44px target under it. */
+  .closedActions {
+    display: grid;
+    justify-items: stretch;
+  }
+
+  .closedActions > button {
+    justify-self: start;
+  }
+
+  .statusCell > .cartNote {
+    max-width: none;
+  }
+
+  /* Order details: the full-width Check status of the 375 detail artboard. */
+  .detailBody > .check {
+    justify-self: stretch;
+  }
+
+  .loadingRow {
+    grid-template-columns: 1fr 1fr;
+    padding-block: var(--space-8);
+  }
+
+  .bar[data-cell="2"],
+  .bar[data-cell="3"],
+  .bar[data-cell="4"],
+  .bar[data-cell="5"] {
+    display: none;
+  }
+}
+
+/* Order details (order detail artboards): one column of about 732px. */
+.detail {
+  max-width: 46rem;
+  padding-block-start: var(--space-8);
+  margin-inline: auto;
+}
+
+@media (min-width: 60rem) {
+  .detail {
+    margin-inline: 0 auto;
+    padding-inline-start: 4.5rem;
+  }
+}
+
+.detailBody {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-4);
+  margin-block-start: var(--space-10);
+}
+
+.detailTitle {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-display);
+  letter-spacing: -0.01em;
+}
+
+.detailRef {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-body-large);
+}
+
+.note {
+  justify-self: stretch;
+  margin-block: var(--space-4);
+  padding: var(--space-5) var(--space-6);
+  border-radius: var(--radius-card);
+  background: var(--color-surface-sunken);
+  color: var(--color-ink-soft);
+}
+
+.note p {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.noteRef {
+  margin-block-start: var(--space-2) !important;
+  font-family: var(--font-mono);
+}
+
+.lines {
+  justify-self: stretch;
+  margin: var(--space-8) 0 0;
+  padding: 0;
+  list-style: none;
+  border-block-start: 1px solid var(--color-line-strong);
+}
+
+.line {
+  display: grid;
+  grid-template-columns: 4.5rem 1fr auto;
+  align-items: center;
+  gap: var(--space-6);
+  padding-block: var(--space-5);
+  border-block-end: 1px solid var(--color-line);
+}
+
+.lineImage {
+  width: 4.5rem;
+}
+
+.lineInfo {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.lineName {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-heading-3);
+}
+
+.lineTotal {
+  margin: 0;
+}
+
+.detailTotal {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  justify-self: stretch;
+  padding-block-start: var(--space-6);
+  font-weight: 500;
+}
+
+.detailTotalValue {
+  display: grid;
+  justify-items: end;
+  font-size: var(--text-heading-2);
+  font-weight: 500;
+}

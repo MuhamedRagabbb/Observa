@@ -1,0 +1,316 @@
+/*
+ * Artboards: Cart drawer (desktop: ready, with unavailable item, empty, loading, error) and
+ * Cart sheet 375. Measured at 1440: a 460px panel on the right over a dimmed page, 32px side
+ * padding, title row about 94px with a rule below, 88x110 thumbnails, footer with a rule above.
+ * Phones get a full-height sheet with 20px padding and 72x90 thumbnails. The panel slides in;
+ * reduced motion makes it appear at once (global rule in tokens.css).
+ */
+.layer {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+}
+
+/* [sampled] the page behind the drawer reads #b7b8b2: ink at 28% over the paper. */
+.backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgb(21 22 20 / 0.28);
+  animation: fade var(--motion-duration-base) var(--motion-ease);
+}
+
+.panel:focus {
+  outline: none;
+}
+
+.panel {
+  --cart-pad: var(--space-5);
+  --thumb: 4.5rem;
+
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-field);
+  animation: rise var(--motion-duration-base) var(--motion-ease);
+}
+
+.head {
+  display: flex;
+  flex: none;
+  align-items: baseline;
+  gap: var(--space-3);
+  margin-inline: var(--cart-pad);
+  padding-block: var(--space-5) var(--space-4);
+  border-bottom: 1px solid var(--color-line);
+}
+
+.title {
+  font-size: 2.25rem;
+  letter-spacing: -0.01em;
+}
+
+.title:focus {
+  outline: none;
+}
+
+.title:focus-visible {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 4px;
+}
+
+.summary {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-control);
+}
+
+.close {
+  display: grid;
+  place-items: center;
+  align-self: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin-inline-start: auto;
+  margin-inline-end: calc(var(--space-3) * -1);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--color-ink);
+  font-size: 1.375rem;
+  cursor: pointer;
+}
+
+.body {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-inline: var(--cart-pad);
+}
+
+.notice {
+  padding-block-start: var(--space-6);
+}
+
+.lines {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.line {
+  display: flex;
+  gap: var(--space-5);
+  padding-block: var(--space-6);
+  border-bottom: 1px solid var(--color-line-soft);
+}
+
+.line:last-child {
+  border-bottom: 0;
+}
+
+.thumb {
+  flex: none;
+  width: var(--thumb);
+}
+
+.lineInfo {
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "name total"
+    "unit unit"
+    "controls controls";
+  align-content: start;
+  column-gap: var(--space-4);
+  row-gap: var(--space-1);
+  min-width: 0;
+}
+
+.lineName {
+  grid-area: name;
+  font-size: 1.375rem;
+  letter-spacing: -0.01em;
+}
+
+.lineTotal {
+  grid-area: total;
+  margin: 0;
+  padding-block-start: 0.2em;
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.line[data-unavailable] .lineTotal {
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+
+.lineUnit {
+  grid-area: unit;
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-control);
+}
+
+.lineControls {
+  display: flex;
+  grid-area: controls;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-block-start: var(--space-4);
+}
+
+.foot {
+  display: grid;
+  flex: none;
+  gap: var(--space-2);
+  padding: var(--space-6) var(--cart-pad) var(--space-8);
+  border-top: 1px solid var(--color-line);
+}
+
+.subtotal {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 0;
+  color: var(--color-ink);
+}
+
+.muted {
+  color: var(--color-text-muted);
+}
+
+.amount {
+  font-size: 1.625rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+/* While a new quote loads (keeps the row's height; no motion). */
+.updating {
+  color: var(--color-text-muted);
+  font-size: var(--text-control);
+  font-weight: 400;
+}
+
+.proceed {
+  margin-block-start: var(--space-4);
+}
+
+.note {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-small);
+}
+
+.hint {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: var(--space-2) 0 0;
+  color: var(--color-ink-soft);
+  font-size: var(--text-control);
+}
+
+.ring {
+  flex: none;
+  width: 0.4375rem;
+  height: 0.4375rem;
+  border: 1.5px solid var(--color-text-subtle);
+  border-radius: 50%;
+}
+
+/* Empty and error: the mark, a short statement, one action, centred (Cart drawer empty / error). */
+.message {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-8) var(--cart-pad);
+  text-align: center;
+}
+
+.mark {
+  width: 3rem;
+  margin-block-end: var(--space-4);
+  color: var(--color-glyph-disabled);
+}
+
+.messageTitle {
+  margin: 0;
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: var(--text-heading-2);
+  line-height: var(--leading-tight);
+}
+
+.messageBody {
+  margin: 0 0 var(--space-6);
+  color: var(--color-text-muted);
+}
+
+.skeleton,
+.skeletonTile {
+  border-radius: var(--radius-control);
+  background: var(--color-surface-sunken);
+}
+
+.skeletonTile {
+  aspect-ratio: 4 / 5;
+  border-radius: 0;
+}
+
+.skeletonRow {
+  display: flex;
+  justify-content: space-between;
+}
+
+/* Skeleton bars span the line's grid (they have no named areas). */
+.lineInfo > .skeleton {
+  grid-column: 1 / -1;
+}
+
+.lineInfo > .skeleton:last-child {
+  margin-block-start: var(--space-4);
+}
+
+@media (min-width: 60rem) {
+  .panel {
+    --cart-pad: var(--space-8);
+    --thumb: 5.5rem;
+
+    inset: 0 0 0 auto;
+    width: min(28.75rem, 100%);
+    box-shadow: -24px 0 48px rgb(21 22 20 / 0.08);
+    animation-name: slide;
+  }
+
+  .head {
+    padding-block: var(--space-6) var(--space-5);
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes rise {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes slide {
+  from {
+    transform: translateX(100%);
+  }
+}

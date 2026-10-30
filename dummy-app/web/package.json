@@ -1,0 +1,47 @@
+{
+  "name": "observa-web",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "vite build --config vite.store.config.ts && vite build --config vite.operator.config.ts",
+    "gen:api": "node scripts/gen-api.ts",
+    "check:api": "node scripts/gen-api.ts --check",
+    "test": "vitest run",
+    "verify": "npm run typecheck && npm run check:api && npm run test",
+    "e2e": "npm run build && npm run build:gallery && playwright test",
+    "build:gallery": "vite build --config vite.gallery.config.ts",
+    "e2e:review": "node e2e/review/build-review.ts",
+    "dev:store": "vite --config vite.store.config.ts",
+    "dev:operator": "vite --config vite.operator.config.ts"
+  },
+  "dependencies": {
+    "@fontsource-variable/inter": "5.3.0",
+    "@fontsource-variable/jetbrains-mono": "5.3.0",
+    "@fontsource/instrument-serif": "5.3.0",
+    "@tanstack/react-query": "5.104.2",
+    "openapi-fetch": "0.17.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-router": "8.4.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.0",
+    "@testing-library/dom": "10.4.2",
+    "@testing-library/react": "16.3.3",
+    "@types/node": "24.19.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "fake-indexeddb": "6.2.5",
+    "jsdom": "30.1.2",
+    "openapi-typescript": "7.13.0",
+    "typescript": "5.9.3",
+    "vite": "8.3.4",
+    "vitest": "5.0.3"
+  }
+}

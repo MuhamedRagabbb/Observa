@@ -1,0 +1,47 @@
+.bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-inline: calc(-1 * var(--layout-gutter));
+  margin-block-start: var(--space-6);
+  padding: var(--space-3) var(--layout-gutter);
+  padding-block-end: max(var(--space-3), env(safe-area-inset-bottom));
+  border-block-start: 1px solid var(--color-line-strong);
+  background: var(--color-surface);
+}
+
+.text {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+.title,
+.detail {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.detail {
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-small);
+  font-variant-numeric: tabular-nums;
+}
+
+.bar > button {
+  flex: none;
+  min-height: 2.75rem;
+}
+
+/* The shared button's fill and busy indicator stay still in this surface. */
+.bar,
+.bar * {
+  animation: none;
+  transition: none;
+}

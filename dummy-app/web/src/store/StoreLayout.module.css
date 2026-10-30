@@ -1,0 +1,15 @@
+.page {
+  min-height: 100vh;
+  width: min(var(--layout-max), 100% - 2 * var(--layout-gutter));
+  margin-inline: auto;
+}
+
+/* Checkout and its outcomes sit in a narrower frame (Checkout 1440: about 1112px). */
+.page[data-focused] {
+  width: min(70rem, 100% - 2 * var(--layout-gutter));
+}
+
+/* Pages own their vertical rhythm: the home hero starts right under the header. */
+.main {
+  padding-block-end: var(--space-16);
+}

@@ -1,0 +1,63 @@
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 128
+    spike_limit_mib: 32
+  # Defense in depth: reject evaluation infrastructure even if someone accidentally enables its exporter.
+  filter/application_only:
+    error_mode: ignore
+    logs:
+      log_record:
+        - 'resource.attributes["service.name"] == "fault-controller"'
+        - 'resource.attributes["service.name"] == "traffic-generator"'
+    traces:
+      span:
+        - 'resource.attributes["service.name"] == "fault-controller"'
+        - 'resource.attributes["service.name"] == "traffic-generator"'
+    metrics:
+      metric:
+        - 'resource.attributes["service.name"] == "fault-controller"'
+        - 'resource.attributes["service.name"] == "traffic-generator"'
+  batch:
+    timeout: 1s
+    send_batch_size: 256
+exporters:
+  otlp/jaeger:
+    endpoint: jaeger:4317
+    tls:
+      insecure: true
+    sending_queue:
+      queue_size: 512
+  otlphttp/loki:
+    endpoint: http://loki:3100/otlp
+    sending_queue:
+      queue_size: 512
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    resource_to_telemetry_conversion:
+      enabled: true
+service:
+  extensions: [health_check]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, filter/application_only, batch]
+      exporters: [otlp/jaeger]
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, filter/application_only, batch]
+      exporters: [prometheus]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, filter/application_only, batch]
+      exporters: [otlphttp/loki]

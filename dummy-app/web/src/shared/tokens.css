@@ -1,0 +1,117 @@
+/*
+ * OBSERVA design tokens, derived from the approved artboards (docs/design/artboards,
+ * 2x PNG exports). The designer delivered no source tokens (audit item 3), so every
+ * value here is derived and should be replaced by designer tokens if they arrive.
+ *
+ *   [sampled]  exact pixel colour from the named artboards
+ *   [measured] measured on the artboards in CSS pixels (export scale 2x)
+ *   [inferred] judged from the artboards; no exact measurement possible
+ *
+ * Light only: the approved direction is light editorial; there is no dark artboard.
+ */
+:root {
+  color-scheme: light;
+
+  /* Colour: neutrals [sampled] Checkout 1440, Operator idle 1440, Outcome 4 */
+  --color-paper: #f6f6f3; /* page background */
+  --color-surface: #fcfcfa; /* cards and panels */
+  --color-field: #fafaf8; /* inputs */
+  --color-surface-raised: #ffffff; /* selected segment, raised controls */
+  --color-surface-sunken: #efeee9; /* notices, segmented-control track */
+  --color-line: #e6e6e1; /* dividers */
+  --color-line-strong: #e4e4df; /* field and card borders */
+  --color-line-soft: #ecece8; /* table rows */
+
+  /* Colour: controls and imagery [sampled] Product Collection 1440, Cart drawer (empty, unavailable), My Orders 1440 */
+  --color-tile: #edede9; /* product image tiles and placeholders */
+  --color-control-disabled: #e6e6e1; /* "Sold out", disabled "Proceed to Checkout", secondary icon block */
+  --color-line-control: #cfcfc9; /* secondary button outline */
+  --color-divider: #d6d6d1; /* header rule between Experiments and Search */
+  --color-text-disabled-label: #5e5f5b; /* "Sold out" label */
+  --color-glyph-disabled: #b5b5af; /* stepper minus at the minimum */
+
+  /* Colour: ink and text [sampled] same artboards */
+  --color-ink: #151614; /* headings, primary button */
+  --color-ink-soft: #1b1c1a; /* body text on light */
+  --color-ink-accent: #40413c; /* primary button icon block, strong secondary text */
+  --color-text-muted: #55564f; /* supporting text */
+  --color-text-subtle: #8a8b86; /* disabled and tertiary text */
+  --color-on-ink: #ffffff; /* text on the ink button [inferred] */
+
+  /* Colour: status [sampled] Operator idle, fault active, status unknown, disconnected */
+  --color-success: #4f7457; /* healthy, controller connected */
+  --color-fault: #9a4a35; /* active fault, disconnected, unknown */
+  --color-fault-strong: #8a3f2d;
+  --color-fault-soft: #c9a79b; /* fault segments in the planned schedule */
+  /* No amber or warning colour appears in any artboard, so none is defined. */
+
+  /* Type families (approved 2026-10-26, blocker B4); fallbacks are system faces */
+  --font-display: "Instrument Serif", "Iowan Old Style", "Times New Roman", serif;
+  --font-ui: "Inter Variable", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, "Cascadia Mono", Consolas, monospace;
+
+  /* Type scale [measured] headline glyphs: about 48px at 375, about 72px at 1440; rest [inferred] */
+  --text-hero: clamp(2.75rem, 0.5rem + 5.9vw, 7.5rem); /* [measured] Hero headline about 120px at 1920 */
+  --text-display: clamp(3rem, 2.25rem + 3.2vw, 4.5rem); /* page titles ("Checkout") */
+  --text-heading-1: clamp(2.25rem, 1.9rem + 1.5vw, 3rem); /* state titles ("Idle") */
+  --text-heading-2: clamp(1.75rem, 1.6rem + 0.6vw, 2.125rem); /* section titles */
+  --text-heading-3: 1.5rem; /* product names, card titles */
+  --text-card-name-feature: clamp(1.75rem, 1.4rem + 1vw, 2.25rem); /* [measured] Journal / Notebook: 36px at 1440, 28px at 390 */
+  --text-card-name: 1.75rem; /* [measured] collection card names at 1440 */
+  --text-lede: clamp(1.0625rem, 1rem + 0.25vw, 1.1875rem); /* [measured] hero lede about 19px at 1920 */
+  --text-body-large: 1.125rem; /* primary button label */
+  --text-body: 1rem;
+  --text-small: 0.875rem;
+  --text-caption: 0.75rem; /* uppercase eyebrows and table headers */
+  --leading-tight: 1.1;
+  --leading-body: 1.5;
+  --tracking-caps: 0.08em; /* [inferred] "EXPERIMENT", "OPERATOR" */
+
+  /* Space: 4px base [inferred]; gutter [measured] 20px at 375 and 390, 80px at 1440 */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --layout-max: 80rem; /* [measured] Operator 1440: 80px gutters around 1280px */
+  --layout-gutter: clamp(1.25rem, 5.56vw, 5rem);
+
+  /* Controls [measured] Hero and Checkout buttons 60px, collection buttons 48px, stepper 44px; label size [inferred] */
+  --control-height-large: 3.75rem;
+  --control-height-medium: 3rem;
+  --control-height-small: 2.75rem;
+  --text-control: 0.9375rem;
+
+  /* Shape and depth [inferred] Checkout summary card, primary button */
+  --radius-control: 4px;
+  --radius-card: 8px;
+  --shadow-card: 0 24px 48px rgb(21 22 20 / 0.06);
+  --shadow-button: 0 12px 24px rgb(21 22 20 / 0.18);
+
+  /* Motion [inferred]: the audit asks for subtle, reversible directional fills */
+  --motion-duration-fast: 0.15s;
+  --motion-duration-base: 0.24s;
+  --motion-ease: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* Audit: "respect reduced motion". Tokens drop to zero, and anything else that moves stops. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-duration-fast: 0s;
+    --motion-duration-base: 0s;
+  }
+
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0s !important;
+    scroll-behavior: auto !important;
+  }
+}

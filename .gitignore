@@ -1,0 +1,36 @@
+# Python, tooling and test artifacts
+.venv/
+.cache/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+test-results/
+node_modules/
+dist/
+# Playwright screenshots, traces and the visual review page; the preview project's journal
+e2e-output/
+.playwright-mcp/
+.preview/
+
+# Local secrets (keep .env.example tracked)
+.env
+
+# Evaluation ground truth is local-only
+**/ground-truth/*.jsonl
+**/ground-truth/*.tmp
+!**/ground-truth/.gitkeep
+
+# Claude Code / agent-local files (not project documentation)
+CLAUDE.md
+CLAUDE.local.md
+handoff.md
+CLAUDE_CODE_SKILLS_AND_MCP_WORKFLOW_*.md
+.claude/
+.mcp.json
+.claude-mem/
+docs/superpowers/
+
+# Team reference documents and design exports stay local unless approved
+docs/project-reference/
+docs/design/
