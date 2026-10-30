@@ -1,11 +1,26 @@
 # OBSERVA dummy commerce environment
 
-A runnable local test bed generating correlated JSON logs, OpenTelemetry metrics and distributed traces. Four Python 3.12/FastAPI services use PostgreSQL 16, with separate databases and credentials. Includes reproducible traffic, three independent reversible failures, an English storefront and a separate evaluation-only operator interface (Arabic, until P5). No OBSERVA agents are included.
+A runnable local test bed generating correlated JSON logs, OpenTelemetry metrics and distributed traces. Four Python 3.12/FastAPI services use PostgreSQL 16, with separate databases and credentials. Includes reproducible traffic, three independent reversible failures, an English storefront and a separate evaluation-only operator interface (a React operator at `/ui/next/` and, until the planned P5-G cutover, the original Arabic one at `/`). No OBSERVA agents are included.
 
-See [VALIDATION.md](VALIDATION.md) for the recorded commands, observed live telemetry, acceptance results and practical limits from the implementation run.
+See [VALIDATION.md](VALIDATION.md) for the recorded commands, observed live telemetry, acceptance results and practical limits of the first implementation run (2026-10-24; it predates the React UIs).
 
-> **Location:** this app lives in `dummy-app/` inside the OBSERVA repository. The project overview is in the [root README](../README.md). Run every command below from `dummy-app/`. The approved English storefront, multi-item cart and operator redesign are specified in [IMPLEMENTATION_SPEC.md §12](IMPLEMENTATION_SPEC.md#12-approved-design-reconciliation) and aren't implemented yet.
+> **Location:** this app lives in `dummy-app/` inside the OBSERVA repository. The project overview is in the [root README](../README.md). Run every command below from `dummy-app/`. The English storefront, multi-item cart and operator redesign are specified in [IMPLEMENTATION_SPEC.md §12](IMPLEMENTATION_SPEC.md#12-approved-design-reconciliation).
 >
+> **Working on a feature such as F1 Alert Detection & Grouping?** Read [For OBSERVA feature teams](#for-observa-feature-teams-eg-f1-alert-detection--grouping). Note that "F1/F2/F3" below are the three injected *fault scenarios* of this test bed, not the OBSERVA features F1-F7.
+
+## Project status
+
+| Area | Status |
+| --- | --- |
+| Backend: multi-item checkout, My Orders, checkout reconciler (off by default), controller status / service health / activity, browser request guard | Done and tested (P0-P2, P5-0) |
+| React storefront, served at `http://localhost:8000/` | Done and user-approved (P3-P4) |
+| React operator, served at `http://localhost:8090/ui/next/` (status and experiment banner, service health and links, manual faults, automatic cycle, phone layouts) | Built and tested against mocks (P5-A to P5-E); P5-E awaits formal acceptance |
+| Operator against the **real controller** (browser contract tests and one real fault on an isolated preview) | **Pending (P5-F).** Not yet verified; treat the operator's behaviour with a real controller as unconfirmed |
+| Operator moves to `http://localhost:8090/` and the Arabic operator and `services/ui/` files are removed | **Pending (P5-G).** Until then `:8090/` is still the Arabic operator |
+| Final docs reconciliation and validation | Pending (P6) |
+
+A long-running stack built from an older image can still show the Arabic storefront at `:8000/`; a fresh `docker compose up --build` from this code serves the React storefront.
+
 > **Live tests and host ports:** the tests read ports such as `POSTGRES_PORT` from the shell environment, not from `.env`. If you changed a port in `.env`, for example because another PostgreSQL already uses 5432, export the same value before running `pytest`.
 
 ## Start
@@ -19,7 +34,7 @@ docker compose ps
 python scripts/smoke.py
 ```
 
-On PowerShell, use `Copy-Item .env.example .env`. Python 3.12 is only required on the host for scripts/tests; all services run in containers. Images and Python dependencies (including transitive dependencies) are pinned. Allow several minutes for the first download/build. Allocate roughly 2–3 GB to Docker. Container memory/concurrency limits keep this small enough for a laptop.
+On PowerShell, use `Copy-Item .env.example .env`. Prerequisites: Docker with Compose v2 (and network access for the first build); Python 3.12 on the host only for scripts and tests; Node 24 or newer on the host only for developing the React UIs in `web/` (the image builds them in its own Node stage). All services run in containers. Images and Python dependencies (including transitive dependencies) are pinned. Allow several minutes for the first download/build. Allocate roughly 2–3 GB to Docker. Container memory/concurrency limits keep this small enough for a laptop.
 
 On Linux, set `LOCAL_UID`/`LOCAL_GID` in `.env` to your `id -u`/`id -g` so the controller can write the bind-mounted `ground-truth` directory. Windows Docker Desktop works with the defaults.
 
@@ -28,7 +43,8 @@ Traffic begins automatically at 4 requests/second with seed 42. All exposed port
 | Entry point | Default address |
 | --- | --- |
 | Storefront (English, React) | http://localhost:8000/ |
-| Operator interface (evaluation only) | http://localhost:8090/ |
+| Operator, React (evaluation only; P5-F/P5-G verification pending) | http://localhost:8090/ui/next/ |
+| Operator, original Arabic UI (evaluation only; removed at P5-G) | http://localhost:8090/ |
 | Gateway Swagger/OpenAPI | http://localhost:8000/docs / http://localhost:8000/openapi.json |
 | Orders / Inventory / Payments Swagger | http://localhost:8001/docs / http://localhost:8002/docs / http://localhost:8003/docs |
 | Fault controller Swagger (evaluation only) | http://localhost:8090/docs |
@@ -44,7 +60,11 @@ Optional Grafana, preconfigured with a dashboard, Loki-to-Jaeger links and all t
 docker compose --profile ui up -d
 ```
 
-Open http://localhost:3000/d/observa-overview (anonymous viewing enabled). `telemetry-health` checks the real readiness endpoints for Collector, Prometheus, Jaeger and Loki; application health checks include database readiness. Applications start and continue working without healthy telemetry backends.
+Open http://localhost:3000/d/observa-overview (anonymous viewing enabled).
+
+The telemetry stack as configured: services export OTLP to the Collector (`:4317` gRPC / `:4318` HTTP); **metrics** go to the Collector's Prometheus endpoint (`:8889`), which Prometheus scrapes every 3 s and keeps for 24 h; **logs** go to Loki; **traces** go to Jaeger (all-in-one, in-memory, 2,000 traces, reset on restart). Grafana only reads these three. There is **no Tempo, no Alertmanager and no Prometheus alert or recording rules**: alert detection is not provided by this test bed.
+
+`telemetry-health` checks the real readiness endpoints for Collector, Prometheus, Jaeger and Loki; application health checks include database readiness. Applications start and continue working without healthy telemetry backends.
 
 ## Business API
 
@@ -52,13 +72,13 @@ The storefront at `http://localhost:8000/` is the English React app built from `
 
 The Gateway serves the storefront's entry page only at an explicit allowlist: `/`, `/checkout`, `/orders` and `/orders/<OBS-… or ATT-… reference>`, for GET and HEAD. There is no catch-all: any other path (an unknown route, `/unavailable`, a typo) is a plain, instrumented 404. Only those page requests and `/ui/` files are left out of application telemetry, and only on the Gateway; the orders service's own `/orders` API is unaffected. The bundle's files stay at `/ui/next/assets/`, and an old `/ui/next/<page>` link redirects (308) to `/<page>`. The legacy Arabic storefront was removed in P4-H.
 
-The operator interface at `http://localhost:8090/` calls the controller on its own origin. It includes all three manual scenarios with duration/parameter inputs, live state and expiry countdown, stop controls, and automatic warmup/duration/recovery/repeat/seed/scenario settings. Its session activity list contains actions from that page only. It is evaluation infrastructure and must not be scraped or ingested by the investigating agent.
+The original (Arabic) operator interface at `http://localhost:8090/` calls the controller on its own origin; the React operator at `http://localhost:8090/ui/next/` replaces it at P5-G (see Project status). The Arabic one includes all three manual scenarios with duration/parameter inputs, live state and expiry countdown, stop controls, and automatic warmup/duration/recovery/repeat/seed/scenario settings. Its session activity list contains actions from that page only. It is evaluation infrastructure and must not be scraped or ingested by the investigating agent.
 
-The legacy operator UI's HTML, CSS, JavaScript and SVG assets ship inside the image under `services/ui/` and are served by the controller only. They need no Node build, CDN, added service, or extra container. Storefront and operator pages use separate origins, and the storefront does not proxy fault-control calls through Gateway. Static UI requests and `/ui/config` are excluded from application telemetry, while shopping API requests retain normal instrumentation. Public navigation links follow the Compose port settings through a non-sensitive UI config endpoint. All mock-credential and loopback-only boundaries still apply.
+The legacy operator UI's HTML, CSS, JavaScript and SVG assets ship inside the image under `services/ui/` and are served by the controller only. These legacy files need no build, CDN, added service, or extra container (the React bundles are built in the image's Node stage, below). Storefront and operator pages use separate origins, and the storefront does not proxy fault-control calls through Gateway. Static UI requests and `/ui/config` are excluded from application telemetry, while shopping API requests retain normal instrumentation. Public navigation links follow the Compose port settings through a non-sensitive UI config endpoint. All mock-credential and loopback-only boundaries still apply.
 
 ### React UIs (`web/`)
 
-The React interfaces are built in `web/`. The storefront's pages are at `http://localhost:8000/` (see above); the operator build is at `http://localhost:8090/ui/next/` beside the Arabic operator UI until P5. Both bundles' files are served under `/ui/next/` on their own origin, each origin serves only its own build, and `/ui/` requests are excluded from application telemetry.
+The React interfaces are built in `web/`. The storefront's pages are at `http://localhost:8000/` (see above); the operator build is at `http://localhost:8090/ui/next/` beside the Arabic operator UI until the P5-G cutover (the operator's page and controls are built, P5-A to P5-E; its verification against a real controller is pending, P5-F). Both bundles' files are served under `/ui/next/` on their own origin, each origin serves only its own build, and `/ui/` requests are excluded from application telemetry.
 
 The Dockerfile builds both bundles in a Node stage (`npm ci`, typecheck, `npm run build`) and copies only `web/dist` into `services/ui/dist` of the Python runtime image; Node does not ship. A running stack serves `/ui/next/` only after its image is rebuilt from this code. Image builds, including `docker compose build` and `up --build`, now pull `node:24` and reach the npm registry, so the first build is slower and needs network access. Compose builds every app service as `observa-dummy:local`, so a Compose build replaces the image a running stack uses, and recreating the stack deploys it. To check an image without touching a running stack, build it under its own tag and run the opt-in image tests. They use throwaway containers with no network:
 
@@ -71,7 +91,7 @@ Without Docker, build in `web/` (`npm ci`, then `npm run build`) and run the Gat
 
 ### Storefront preview (isolated from the live stack)
 
-Use one of these while the new storefront is built. None of them touches the live `observa-dummy` project or the `observa-dummy:local` image.
+Use one of these to review the React storefront and operator. None of them touches the live `observa-dummy` project or the `observa-dummy:local` image.
 
 1. **Mocked browser tests and visual review:** in `web/`, run `npm run e2e`, then `npm run e2e:review`. Screenshots at 1440, 390 and 375 sit beside the approved artboards. Details: `web/e2e/README.md`.
 2. **A throwaway preview project:** `docker-compose.preview.yml` is used on top of `docker-compose.yml`. It sets:
@@ -245,6 +265,36 @@ LogQL in Grafana Explore:
 
 In Jaeger choose `api-gateway` → `POST /api/orders`, or open `http://localhost:16686/trace/TRACE_ID` using a response/log trace ID. One successful checkout includes all four services, client/server spans and DB operations. Sampling defaults to 100%; `TRACE_SAMPLE_RATIO` adjusts parent-based head sampling.
 
+## For OBSERVA feature teams (e.g. F1 Alert Detection & Grouping)
+
+**Naming:** in this README F1 `db_connection_exhaustion`, F2 `payments_errors` and F3 `bad_deployment` are the test bed's injected *fault scenarios*. The OBSERVA features F1-F7 (for example the branch `F1_Intelligent-Alert-Detection-&-Grouping`) are separate work that consumes this test bed's telemetry.
+
+**Run it and make an incident** (Docker; the faults are real but affect only your own local stack):
+
+```sh
+cp .env.example .env
+docker compose --profile ui up --build -d     # Grafana is optional
+python scripts/smoke.py                       # health and a sample checkout
+python scripts/faults.py activate payments_errors --duration 120
+python scripts/faults.py deactivate payments_errors
+```
+
+**What a feature may read** (read-only, local HTTP; the four business services are `api-gateway`, `orders-service`, `inventory-service`, `payments-service`):
+
+| Signal | Where | Contract |
+| --- | --- | --- |
+| Metrics | Prometheus `:9090` (PromQL above) | e.g. `http_server_requests_total`, `http_server_duration_seconds_bucket`, `dependency_failures_total`, `db_pool_active` / `db_pool_max`, `db_pool_timeouts_total`, `payments_failed_total`; labels `service_name`, `http_route`, `http_status_code`; durations in seconds |
+| Logs | Loki `:3100` (`{service_name="orders-service"} \| json`) | one JSON object per line: `timestamp`, `level`, `service.name`, `event`, `message`, `trace_id`, `span_id`, `request_id`, `operation`, `dependency`, `http.route`, `http.status_code`, `duration_ms`, `error.type`; events such as `request_completed`, `dependency_request_failed`, `payment_failed`, `db_pool_timeout`, `release_changed`, `order_reconciliation_required` |
+| Traces | Jaeger `:16686` (its UI and query API) | one trace per request across Gateway, Orders, Inventory, Payments and DB spans; `trace_id` matches the logs |
+
+The full contract is [IMPLEMENTATION_SPEC.md §4](IMPLEMENTATION_SPEC.md#4-observability--mandatory-not-optional) (logs, metrics, traces) and §6 (what each fault produces). An alert or grouping feature must **not** read the controller (`:8090`), `ground-truth/incidents.jsonl` or the controller/traffic logs: those are the answer key, to be used only offline to score results. This test bed ships no alerts, so detection rules are the feature's own work.
+
+**Develop before integrating:**
+
+- *With fixtures (no Docker):* the log line shape in spec §4.1, the PromQL above and the per-fault signatures in the table under Manual failures are enough to write fixtures and unit-test grouping logic (F1 pool exhaustion: Orders `db_pool_timeout`, pool utilisation near 1, Orders 5xx; F2: payment failures and 5xx with a healthy pool; F3: Orders latency up by 1-2 s, `release_changed`, `OrderPersistenceCompatibilityError`). No recorded telemetry captures are committed yet; once a stack runs, save small query results (a `query_range` JSON, a LogQL JSON, a Jaeger trace JSON) in your feature branch.
+- *Needs the real stack:* scrape and export delays (wait about 6-10 s after traffic), Loki structured metadata, the volatile Jaeger store, behaviour during a Collector outage, and the exact numbers an incident produces.
+- The generated HTTP API snapshots are `web/openapi/gateway.json` and `web/openapi/controller.json` (refresh with `python -m scripts.export_openapi`); they matter only to API clients, not to telemetry consumers.
+
 ## Evaluation isolation and data
 
 `ground-truth/incidents.jsonl` has **one record per injection session**. It is written at activation with a null end, then updated atomically/fsynced at cleanup with `ended_at`, reason, parameters, target and expected signals. It survives controller restarts and is mounted **only** in the controller. Interrupted sessions are marked rather than silently lost.
@@ -274,7 +324,7 @@ The unit suite also checks UI delivery, public-port configuration, and exclusion
 node --test tests/ui/client.test.mjs
 ```
 
-Those checks cover a single checkout transmission, correlation IDs, translated payment failures, ambiguous network outcomes without automatic checkout retries, and safe rendering of trace metadata. Node is only needed for these optional development checks; the running interfaces require no Node process or frontend build.
+Those checks cover a single checkout transmission, correlation IDs, translated payment failures, ambiguous network outcomes without automatic checkout retries, and safe rendering of trace metadata. Node is only needed on the host for these checks and for `web/` development; the running containers include no Node process (the React bundles are built in the image's Node stage).
 
 With Compose running, use a quiet evaluation window (the traffic generator can remain active because stock assertions use `sku-005`). Against the live project this runs the non-fault live checks; the F1/F2/F3 fault scenarios are skipped unless `RUN_FAULT_TESTS=1` and `COMPOSE_PROJECT_NAME` names a throwaway project, because they strand legacy orders in the database they hit. See [Fault testing on a throwaway project](scripts/migrations/README.md#fault-testing-on-a-throwaway-project) for the full suite, and the [migration runbook](scripts/migrations/README.md) before applying schema migrations to the live databases:
 

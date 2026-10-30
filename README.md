@@ -16,5 +16,8 @@ By combining these signals, OBSERVA aims to identify abnormal system behavior, i
 ### Tech Stack
 Python · LangGraph · LangChain · LLMs · Prometheus · OpenTelemetry · Docker
 
+### Repository layout
+- [`dummy-app/`](dummy-app/README.md): the local test bed OBSERVA investigates (four FastAPI services, PostgreSQL, Collector, Prometheus, Loki, Jaeger, a traffic generator and three injectable faults). Start there to run it. Feature work such as F1 Alert Detection & Grouping reads its logs, metrics and traces; see "For OBSERVA feature teams" in that README.
+
 ### Project Status
 🚧 **Under Development**
