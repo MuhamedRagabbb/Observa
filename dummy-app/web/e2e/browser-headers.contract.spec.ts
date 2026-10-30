@@ -5,7 +5,7 @@ test("requests the fixture re-issues are labelled and are not browser-header evi
   if (!CONTRACT) throw new Error("Contract tests need E2E_CONTRACT=1");
   // Discard the Node cleanup requests made by the automatic clean fixture before this test.
   await control.reset();
-  await page.goto(`${CONTRACT.controller}/ui/next/`);
+  await page.goto(`${CONTRACT.controller}/`);
   await expect(page.getByRole("heading", { name: "Idle", exact: true })).toBeVisible();
   expect(await isolation.takeViolations()).toEqual({ offOrigin: [], leaks: [] });
   const recorded = await control.requests();
@@ -18,7 +18,7 @@ test("requests the fixture re-issues are labelled and are not browser-header evi
 test("a genuine Chromium POST carries the browser's own Origin and Sec-Fetch headers", async ({ page, control, isolation }) => {
   if (!CONTRACT) throw new Error("Contract tests need E2E_CONTRACT=1");
   await control.reset();
-  await page.goto(`${CONTRACT.controller}/ui/next/`);
+  await page.goto(`${CONTRACT.controller}/`);
   await expect(page.getByRole("heading", { name: "Idle", exact: true })).toBeVisible();
   isolation.genuine("POST", `${CONTRACT.controller}/faults/auto/stop`);
   const status = await page.evaluate(async () => (await fetch("/faults/auto/stop", { method: "POST" })).status);
@@ -39,7 +39,7 @@ test("a genuine Chromium POST carries the browser's own Origin and Sec-Fetch hea
 test("the same POST without a pass is re-issued and labelled", async ({ page, control, isolation }) => {
   if (!CONTRACT) throw new Error("Contract tests need E2E_CONTRACT=1");
   await control.reset();
-  await page.goto(`${CONTRACT.controller}/ui/next/`);
+  await page.goto(`${CONTRACT.controller}/`);
   await expect(page.getByRole("heading", { name: "Idle", exact: true })).toBeVisible();
   const status = await page.evaluate(async () => (await fetch("/faults/auto/stop", { method: "POST" })).status);
   expect(status).toBe(200);

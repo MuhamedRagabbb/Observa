@@ -5,8 +5,9 @@
   page: no catch-all, so an API error, /unavailable or a typo is still a 404 with telemetry.
 - Only those page requests (and the /ui/ files) are left out of business telemetry, and only on
   the Gateway: the orders service has real API routes at /orders and /orders/{order_id}.
-- The legacy Arabic store is removed; the Arabic operator UI on the controller and its shared
-  files stay. The bundle keeps its /ui/next/assets/ URLs; old /ui/next/ page links redirect.
+- The legacy Arabic store is removed. The Arabic operator's files stay on disk, unserved since
+  P5-G1 (test_operator_cutover.py). The bundle keeps its /ui/next/assets/ URLs; old /ui/next/
+  page links redirect.
 
 Builds are fakes written to a temporary folder named by UI_BUNDLE_DIR (fixture ``builds``).
 """
@@ -190,20 +191,25 @@ def test_only_the_legacy_store_files_are_removed():
     assert "store.js" not in entry
 
 
-async def test_the_legacy_operator_ui_and_its_shared_files_still_work(controller):
+async def test_the_legacy_operator_ui_is_kept_on_disk_but_no_longer_served(controller, builds):
     page = await controller.get("/")
     assert page.status_code == 200
-    assert 'lang="ar" dir="rtl"' in page.text and 'data-page="control"' in page.text
+    assert 'lang="ar" dir="rtl"' not in page.text and 'data-page="control"' not in page.text
     for name in ("app.js", "common.js", "control.js", "style.css", "icons.svg", "mark.svg"):
-        assert (await controller.get("/ui/assets/" + name)).status_code == 200, name
+        assert (LEGACY / "static" / name).is_file(), name
+        assert (await controller.get("/ui/assets/" + name)).status_code == 404, name
     assert (await controller.get("/ui/assets/store.js")).status_code == 404
     assert (await controller.get("/ui/config")).json()["mode"] == "control"
 
 
-async def test_the_controller_keeps_the_operator_bundle_at_ui_next_and_has_no_store_pages(controller, builds):
-    assert "<title>operator</title>" in (await controller.get("/ui/next/")).text
+async def test_the_controller_serves_the_operator_at_its_root_and_has_no_store_pages(controller, builds):
+    assert "<title>operator</title>" in (await controller.get("/")).text
+    old = await controller.get("/ui/next/")
+    assert old.status_code == 308 and old.headers["location"] == "/"
     for path in ("/checkout", "/orders", "/orders/ATT-5A0E-0001"):
-        assert (await controller.get(path)).status_code == 404, path
+        response = await controller.get(path)
+        assert response.status_code == 404, path
+        assert "<title>store</title>" not in response.text, path
 
 
 def test_the_page_allowlist_is_one_shared_predicate():

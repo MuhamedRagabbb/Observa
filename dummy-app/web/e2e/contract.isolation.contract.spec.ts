@@ -27,7 +27,7 @@ async function followRedirect(page: Page, url: string): Promise<"ok" | "error"> 
 
 test("the routed layer refuses the redirect before delivering it to Chromium", async ({ page, control, isolation }) => {
   if (!CONTRACT) throw new Error("Contract tests need E2E_CONTRACT=1");
-  await page.goto(`${CONTRACT.controller}/ui/next/`);
+  await page.goto(`${CONTRACT.controller}/`);
   // Prove the route handler alone: delivering a 302 would now reach the exempt sentinel and its ledger.
   await isolation.relaxBoundaryForSentinel();
   const redirectUrl = `${CONTRACT.controller}/__harness__/redirect?to=${encodeURIComponent(`${CONTRACT.control}/sentinel`)}&status=302&nonce=${await control.redirectNonce()}`;
@@ -46,7 +46,7 @@ test("the routed layer refuses the redirect before delivering it to Chromium", a
 
 test("the browser boundary prevents a genuine redirect from reaching the sentinel", async ({ page, control, isolation }) => {
   if (!CONTRACT) throw new Error("Contract tests need E2E_CONTRACT=1");
-  await page.goto(`${CONTRACT.controller}/ui/next/`);
+  await page.goto(`${CONTRACT.controller}/`);
   const destination = `${CONTRACT.control}/sentinel`;
   const redirectUrl = `${CONTRACT.controller}/__harness__/redirect?to=${encodeURIComponent(destination)}&status=302&nonce=${await control.redirectNonce()}`;
   isolation.genuine("GET", redirectUrl);
@@ -70,7 +70,7 @@ test("the browser boundary prevents a genuine redirect from reaching the sentine
 
 test("a direct page fetch cannot reach the harness sentinel", async ({ page, control, isolation }) => {
   if (!CONTRACT) throw new Error("Contract tests need E2E_CONTRACT=1");
-  await page.goto(`${CONTRACT.controller}/ui/next/`);
+  await page.goto(`${CONTRACT.controller}/`);
   const destination = `${CONTRACT.control}/sentinel`;
   const result = await page.evaluate(async (target) => {
     try {
@@ -98,7 +98,7 @@ test("decoded JSON ground truth is recorded by the browser isolation fixture", a
   }), { times: 1 });
   const requested = page.waitForRequest((request) => request.url() === statusUrl);
   const answered = page.waitForResponse((response) => response.url() === statusUrl);
-  await page.goto(`${CONTRACT.controller}/ui/next/`);
+  await page.goto(`${CONTRACT.controller}/`);
   await requested;
   await (await answered).finished();
   const violations = await isolation.takeViolations();
@@ -110,7 +110,7 @@ test("a WebSocket is closed and recorded before it connects", async ({ page, con
   if (!CONTRACT) throw new Error("Contract tests need E2E_CONTRACT=1");
   const socketUrl = new URL("/sentinel", CONTRACT.control);
   socketUrl.protocol = "ws:";
-  await page.goto(`${CONTRACT.controller}/ui/next/`);
+  await page.goto(`${CONTRACT.controller}/`);
   await page.evaluate((url) => new Promise<void>((resolve, reject) => {
     const timer = window.setTimeout(() => reject(new Error("Blocked WebSocket did not close")), 5_000);
     const socket = new WebSocket(url);
@@ -151,7 +151,7 @@ async function probe(page: Page, url: string): Promise<{ delivered: boolean; tex
 
 test("a re-issued response the page cancels before it is delivered is scanned in Node and is no violation", async ({ page, control, isolation }) => {
   if (!CONTRACT) throw new Error("Contract tests need E2E_CONTRACT=1");
-  await page.goto(`${CONTRACT.controller}/ui/next/`);
+  await page.goto(`${CONTRACT.controller}/`);
   await expect(page.getByRole("heading", { name: "Idle", exact: true })).toBeVisible();
   // Forty held clean probes: the harness answers none of them until released, so every request is provably
   // unfinished when the page cancels it. The page's background polling never uses the probe path, so counting by
@@ -191,7 +191,7 @@ test("a re-issued response the page cancels before it is delivered is scanned in
 
 test("ground truth in a re-issued response is withheld from the browser and recorded", async ({ page, isolation }) => {
   if (!CONTRACT) throw new Error("Contract tests need E2E_CONTRACT=1");
-  await page.goto(`${CONTRACT.controller}/ui/next/`);
+  await page.goto(`${CONTRACT.controller}/`);
   await expect(page.getByRole("heading", { name: "Idle", exact: true })).toBeVisible();
   const url = `${CONTRACT.controller}/__harness__/ground-truth-probe`;
   expect(await probe(page, url)).toEqual({ delivered: false, text: "" });
@@ -202,7 +202,7 @@ test("ground truth in a re-issued response is withheld from the browser and reco
 
 test("a re-issued JSON response that cannot be read is withheld and recorded (fail-closed)", async ({ page, isolation }) => {
   if (!CONTRACT) throw new Error("Contract tests need E2E_CONTRACT=1");
-  await page.goto(`${CONTRACT.controller}/ui/next/`);
+  await page.goto(`${CONTRACT.controller}/`);
   await expect(page.getByRole("heading", { name: "Idle", exact: true })).toBeVisible();
   const url = `${CONTRACT.controller}/__harness__/ground-truth-probe?kind=invalid`;
   expect(await probe(page, url)).toEqual({ delivered: false, text: "" });
@@ -213,7 +213,7 @@ test("a re-issued JSON response that cannot be read is withheld and recorded (fa
 
 test("a genuine Chromium pass is still scanned in the browser: ground truth is detected, not prevented", async ({ page, isolation }) => {
   if (!CONTRACT) throw new Error("Contract tests need E2E_CONTRACT=1");
-  await page.goto(`${CONTRACT.controller}/ui/next/`);
+  await page.goto(`${CONTRACT.controller}/`);
   await expect(page.getByRole("heading", { name: "Idle", exact: true })).toBeVisible();
   const url = `${CONTRACT.controller}/__harness__/ground-truth-probe`;
   isolation.genuine("GET", url);
@@ -230,7 +230,7 @@ test("a genuine Chromium pass is still scanned in the browser: ground truth is d
 
 test("an inspection still running when the test ends is joined before the verdict", async ({ page, control, isolation }) => {
   if (!CONTRACT) throw new Error("Contract tests need E2E_CONTRACT=1");
-  await page.goto(`${CONTRACT.controller}/ui/next/`);
+  await page.goto(`${CONTRACT.controller}/`);
   await expect(page.getByRole("heading", { name: "Idle", exact: true })).toBeVisible();
   // The harness holds this probe's answer until the test releases it (6 s at most; the steps below take well under
   // 4 s), so its Node inspection is provably still pending when the verdict is asked for. The fetch is not
@@ -259,7 +259,7 @@ test("an inspection still running when the test ends is joined before the verdic
 for (const encoding of ["gzip", "deflate"] as const) {
   test(`a ${encoding} JSON response reaches the browser as the value Node scanned`, async ({ page, isolation }) => {
     if (!CONTRACT) throw new Error("Contract tests need E2E_CONTRACT=1");
-    await page.goto(`${CONTRACT.controller}/ui/next/`);
+    await page.goto(`${CONTRACT.controller}/`);
     await expect(page.getByRole("heading", { name: "Idle", exact: true })).toBeVisible();
     const url = `${CONTRACT.controller}/__harness__/ground-truth-probe?kind=clean&encoding=${encoding}`;
     const answer = await probe(page, url);
@@ -270,7 +270,7 @@ for (const encoding of ["gzip", "deflate"] as const) {
 
   test(`ground truth in a ${encoding} JSON response is withheld and recorded`, async ({ page, isolation }) => {
     if (!CONTRACT) throw new Error("Contract tests need E2E_CONTRACT=1");
-    await page.goto(`${CONTRACT.controller}/ui/next/`);
+    await page.goto(`${CONTRACT.controller}/`);
     await expect(page.getByRole("heading", { name: "Idle", exact: true })).toBeVisible();
     const url = `${CONTRACT.controller}/__harness__/ground-truth-probe?kind=leak&encoding=${encoding}`;
     expect(await probe(page, url)).toEqual({ delivered: false, text: "" });

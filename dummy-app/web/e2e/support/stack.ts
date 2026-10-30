@@ -141,7 +141,11 @@ export const test = base.extend<StackFixtures>({
           async (route) => {
             const request = route.request();
             if (!allowedOrigin(request.url(), allowedOrigins)) return route.fallback();
-            const file = operatorBundleFile(request.method(), new URL(request.url()).pathname);
+            const url = new URL(request.url());
+            if ((request.method() === "GET" || request.method() === "HEAD") && (url.pathname === "/ui/next" || url.pathname === "/ui/next/")) {
+              return route.fulfill({ status: 308, headers: { location: "/" + url.search } });
+            }
+            const file = operatorBundleFile(request.method(), url.pathname);
             if (file === null) return route.fallback();
             const path = join(OPERATOR_DIST, file);
             if (!existsSync(path)) return route.fallback();

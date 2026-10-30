@@ -6,7 +6,7 @@ const livePorts = new Set<number>((JSON.parse(readFileSync(new URL("../contracts
 
 test("the real controller serves the operator and publishes no live ports", async ({ page, controller }) => {
   if (!CONTRACT) throw new Error("Contract tests need E2E_CONTRACT=1");
-  await page.goto(`${CONTRACT.controller}/ui/next/`);
+  await page.goto(`${CONTRACT.controller}/`);
   await expect(page.getByRole("heading", { name: "Idle", exact: true })).toBeVisible();
   await expect(page.getByRole("banner").getByText("Controller connected", { exact: true })).toBeVisible();
   const config = await controller.config();
@@ -25,7 +25,7 @@ test("idle browsing only reads controller APIs and reports no console errors", a
   });
   page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.goto(`${CONTRACT.controller}/ui/next/`);
+  await page.goto(`${CONTRACT.controller}/`);
   await expect(page.getByRole("heading", { name: "Idle", exact: true })).toBeVisible();
   await expect(page.getByRole("banner").getByText("Controller connected", { exact: true })).toBeVisible();
   await expect.poll(() => [...new Set(reads.map((read) => read.path))].sort()).toEqual([...paths].sort());

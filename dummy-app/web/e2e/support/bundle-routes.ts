@@ -1,7 +1,7 @@
 /** Only the operator entry point and single, safe asset filenames can replace a response. */
 export function operatorBundleFile(method: string, pathname: string): string | null {
   if (method !== "GET" && method !== "HEAD") return null;
-  if (pathname === "/ui/next/") return "index.html";
+  if (pathname === "/") return "index.html";
   const match = /^\/ui\/next\/((?:assets|licenses)\/([A-Za-z0-9][A-Za-z0-9._-]*))$/.exec(pathname);
   if (!match || match[2]!.includes("..")) return null;
   const file = match[1]!;

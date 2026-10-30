@@ -12,7 +12,7 @@ Playwright 1.64.0 (exact pin). Chromium only. Every state is captured at **1440,
 All output (`e2e-output/`) is git-ignored and kept out of the Docker build context.
 
 ## Harness rules (`support/harness.ts`)
-- **Strict mocks:** only the built bundle (`/ui/next/…`, served from `dist/` on disk by the real server's rules: assets and licences as files, any other path the entry page, unknown files 404), `/favicon.ico` (404) and `/ui/config` (from fixtures) are answered without a mock. The `vite preview` servers only give each origin an address: going through them stalled for about 10 s now and then under parallel load. Every other request needs a typed handler for its own origin: `api.onGateway(method, "<Gateway OpenAPI path>", …)` answers only on the storefront origin, and `api.onController(…)` only on the operator origin. These are aborted and recorded:
+- **Strict mocks:** the built bundles are served from `dist/` on disk by the real server's rules: allowlisted store pages and the single operator page at `/`, assets and licences under `/ui/next/`, old page links redirected (308), unknown files 404. The gallery stays at `/ui/next/`. These, `/favicon.ico` (404) and `/ui/config` (from fixtures) are answered without a mock. The `vite preview` servers only give each origin an address: going through them stalled for about 10 s now and then under parallel load. Every other request needs a typed handler for its own origin: `api.onGateway(method, "<Gateway OpenAPI path>", …)` answers only on the storefront origin, and `api.onController(…)` only on the operator origin. These are aborted and recorded:
   - an unmocked same-origin request;
   - any request to another origin, such as the live gateway on :8000;
   - any WebSocket.
@@ -121,7 +121,7 @@ These follow the approved outcome rules:
 
 ### Status after P4-H (cutover to `/`)
 - The store's pages are served at `/` on the Gateway from an explicit allowlist (`/`, `/checkout`, `/orders`, `/orders/<OBS-… or ATT-…>`, GET/HEAD); its files stay at `/ui/next/assets/`; `/ui/next/<page>` redirects (308). The mocked harness mirrors this (`STORE_PAGE_PATTERN`, kept equal to `services/shared/ui.py` `STORE_PAGE` by a pytest). Any other same-origin path still needs a mock, so an unexpected request from the app is still caught.
-- `STORE_URL` is now the origin root. The operator bundle stays at `/ui/next/` until P5.
+- `STORE_URL` and `OPERATOR_URL` are their origin roots in this code. The operator's old `/ui/next/` page links redirect to `/` (308); its assets keep their `/ui/next/assets/` URLs. G1 code is done; the live stack still runs the old image until P5-G Stage 3 deployment. T2 remains pending in Stage 2.
 
 
 ### Status after P4-I (stack mode, `storefront.stack.spec.ts`, `support/stack.ts`)

@@ -21,7 +21,7 @@ from controllers.fault_injector.health import HealthSnapshot, default_health
 from services.shared.errors import AppError
 from services.shared.models import ERRORS, ErrorBody
 from services.shared.telemetry import utcnow
-from services.shared.ui import register_bundle, register_ui
+from services.shared.ui import register_bundle, register_operator_pages, register_ui
 
 Scenario = Literal["db_connection_exhaustion", "payments_errors", "bad_deployment"]
 SCENARIO_NAMES = typing.get_args(Scenario)
@@ -658,7 +658,8 @@ def create_app(*, path=None, client=None, health=None, health_interval=None):
     app.add_middleware(ControlRequestGuard)
     refused = {403: {"model": ErrorBody, "description": "Not from the controller's own page"}}
     register_ui(app, "control")
-    register_bundle(app, "operator")
+    register_operator_pages(app)
+    register_bundle(app, "operator", pages_at_root=True)
     app.state.controller = controller
 
     @app.exception_handler(AppError)

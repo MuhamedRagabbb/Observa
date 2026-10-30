@@ -14,7 +14,7 @@ export const phoneBar = (page: Page) => page.getByRole("region", { name: "Run in
 
 export async function openOperator(page: Page, expectedTitle: string) {
   if (!CONTRACT) throw new Error("Contract tests need E2E_CONTRACT=1");
-  await page.goto(`${CONTRACT.controller}/ui/next/`);
+  await page.goto(`${CONTRACT.controller}/`);
   await expect(title(page)).toHaveText(expectedTitle, { timeout: 10_000 });
   await expect(page.getByRole("banner").getByText("Controller connected", { exact: true })).toBeVisible({ timeout: 10_000 });
 }

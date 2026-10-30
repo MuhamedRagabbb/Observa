@@ -3,6 +3,7 @@
 // live stack's ports: a dev preview against live would create real orders and faults.
 import { spawnSync } from "node:child_process";
 import { join } from "node:path";
+import type { ConfigEnv, UserConfigExport } from "vite";
 import { describe, expect, it } from "vitest";
 import { bundleConfig } from "../vite.bundle.ts";
 
@@ -47,17 +48,28 @@ describe("preview and stack-mode guards", () => {
     expect(bundleConfig("operator", {}).preview?.proxy).toEqual({});
   });
 
-  it("builds both bundles' files under /ui/next/; only the store's dev server serves its pages at /", async () => {
+  it("builds both bundles' files under /ui/next/; both dev servers serve their pages at /", async () => {
     expect(bundleConfig("store", {}).base).toBe("/ui/next/");
     expect(bundleConfig("operator", {}).base).toBe("/ui/next/");
     expect(bundleConfig("store", {}, "serve").base).toBe("/");
-    expect(bundleConfig("operator", {}, "serve").base).toBe("/ui/next/");
+    expect(bundleConfig("operator", {}, "serve").base).toBe("/");
     // `vite preview` serves the built files, so it keeps the build's base.
     const { default: storeConfig } = await import("../vite.store.config.ts");
     const resolve = storeConfig as unknown as (env: { command: "serve" | "build"; mode: string; isPreview?: boolean }) => { base?: string };
     expect(resolve({ command: "serve", mode: "development" }).base).toBe("/");
     expect(resolve({ command: "serve", mode: "production", isPreview: true }).base).toBe("/ui/next/");
     expect(resolve({ command: "build", mode: "production" }).base).toBe("/ui/next/");
+  });
+
+  it.each<[string, ConfigEnv, string]>([
+    ["dev", { command: "serve", mode: "development", isPreview: false }, "/"],
+    ["preview", { command: "serve", mode: "production", isPreview: true }, "/ui/next/"],
+    ["build", { command: "build", mode: "production", isPreview: false }, "/ui/next/"],
+  ])("the exported operator config uses the correct base for %s", async (_name, env, base) => {
+    const { default: operatorConfig } = await import("../vite.operator.config.ts");
+    const resolve = async (exported: UserConfigExport) => typeof exported === "function" ? exported(env) : exported;
+    const resolved = await resolve(operatorConfig);
+    expect(resolved.base).toBe(base);
   });
 
   it("refuses to run stack-mode browser tests against the live gateway", () => {

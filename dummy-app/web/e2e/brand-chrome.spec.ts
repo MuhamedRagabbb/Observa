@@ -34,7 +34,7 @@ test.describe("storefront header as shipped", () => {
     await expect(home).toHaveAttribute("href", "/"); // the storefront is at / since P4-H
     await expect(banner.getByRole("link", { name: "Experiments" })).toHaveAttribute(
       "href",
-      "http://127.0.0.1:18090/ui/next/",
+      "http://127.0.0.1:18090/",
     );
     await expect(banner.getByRole("button", { name: "Cart, 0 items" })).toBeVisible();
     // Search (P4-G) is a button: it opens a field above the collection.

@@ -118,8 +118,14 @@ def test_controller_serves_only_the_operator_build(probe):
         probe["scripts"]["store"],
         probe["scripts"]["operator"],
     )
-    page = controller["/ui/next/"]
+    page = controller["/"]
     assert (page["status"], page["title"], page["cache"]) == (200, "OBSERVA Operator", "no-cache")
+    for path in ("/ui/next", "/ui/next/"):
+        assert (controller[path]["status"], controller[path]["location"]) == (308, "/"), path
+    for path in ("/ui/next/orders/ATT-1", "/ui/next/missing.js"):
+        assert controller[path]["status"] == 404, path
+    for name in ("app.js", "common.js", "control.js", "style.css", "icons.svg", "mark.svg"):
+        assert controller[f"/ui/assets/{name}"]["status"] == 404, name
     assert (
         controller[f"/ui/next/assets/{operator_js}"]["status"],
         controller[f"/ui/next/assets/{store_js}"]["status"],
@@ -129,11 +135,11 @@ def test_controller_serves_only_the_operator_build(probe):
     )
 
 
-def test_legacy_arabic_ui_keeps_only_the_controller_root(probe):
-    # P4-H: the Gateway's / is the English store; the Arabic operator UI stays until P5.
+def test_both_roots_serve_the_english_react_pages(probe):
+    # P5-G1: both app roots serve React; the legacy Arabic operator files remain unserved.
     gateway, controller = probe["gateway"]["/"], probe["controller"]["/"]
     assert (gateway["status"], gateway["title"], gateway["arabic"]) == (200, "OBSERVA", False)
-    assert (controller["status"], controller["arabic"]) == (200, True)
+    assert (controller["status"], controller["arabic"]) == (200, False)
 
 
 def test_bundle_requests_carry_no_trace_but_api_calls_do(probe):

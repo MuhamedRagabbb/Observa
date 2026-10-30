@@ -50,12 +50,12 @@ afterEach(() => {
 describe("crossAppUrl", () => {
   it("keeps the page's scheme and host and swaps in the target app's port", () => {
     const page = new URL("http://192.168.1.20:8000/ui/next/orders?x=1#top");
-    expect(crossAppUrl(config("store"), "control", page)).toBe("http://192.168.1.20:18090/ui/next/");
-    expect(crossAppUrl(config("control"), "store", new URL("https://demo.test:18090/ui/next/"))).toBe(
+    expect(crossAppUrl(config("store"), "control", page)).toBe("http://192.168.1.20:18090/");
+    expect(crossAppUrl(config("control"), "store", new URL("https://demo.test:18090/"))).toBe(
       "https://demo.test:18000/",
     );
     expect(crossAppUrl(config("store"), "control", new URL("http://[::1]:8000/ui/next/"))).toBe(
-      "http://[::1]:18090/ui/next/",
+      "http://[::1]:18090/",
     );
   });
 });
@@ -65,7 +65,7 @@ describe("cross-app links", () => {
     const configCalls = stubFetch(async () => Response.json(config("store")));
     renderShell(storeRoutes);
     const link = await screen.findByRole("link", { name: "Experiments" });
-    expect(link.getAttribute("href")).toBe("http://192.168.1.20:18090/ui/next/");
+    expect(link.getAttribute("href")).toBe("http://192.168.1.20:18090/");
     expect(configCalls).toEqual(["/ui/config"]);
   });
 

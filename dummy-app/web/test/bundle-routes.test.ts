@@ -7,8 +7,8 @@ import { operatorBundleActive, operatorBundleFile } from "../e2e/support/bundle-
 
 describe("operatorBundleFile", () => {
   it.each([
-    ["GET", "/ui/next/", "index.html"],
-    ["HEAD", "/ui/next/", "index.html"],
+    ["GET", "/", "index.html"],
+    ["HEAD", "/", "index.html"],
     ["GET", "/ui/next/assets/index-abc123.js", "assets/index-abc123.js"],
     ["GET", "/ui/next/assets/index-Zx_9-q.css", "assets/index-Zx_9-q.css"],
     ["GET", "/ui/next/assets/inter-latin-wght-normal-1a2b3c.woff2", "assets/inter-latin-wght-normal-1a2b3c.woff2"],
@@ -27,7 +27,7 @@ describe("operatorBundleFile", () => {
     "/activity",
     "/ui/config",
     "/health",
-    "/",
+    "/ui/next/",
     "/ui/next",
     "/ui/next/index.html",
     "/ui/next/other.html",
@@ -52,7 +52,7 @@ describe("operatorBundleFile", () => {
   });
 
   it.each(["POST", "PUT", "DELETE", "PATCH", "OPTIONS", "get"])("never answers a %s", (method) => {
-    expect(operatorBundleFile(method, "/ui/next/")).toBeNull();
+    expect(operatorBundleFile(method, "/")).toBeNull();
     expect(operatorBundleFile(method, "/ui/next/assets/index-abc123.js")).toBeNull();
   });
 });

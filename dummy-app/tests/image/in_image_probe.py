@@ -47,6 +47,7 @@ async def requests(app, paths, *, lifespan=False):
                     "cache": response.headers.get("cache-control"),
                     "type": response.headers.get("content-type"),
                     "trace": "x-trace-id" in response.headers,
+                    "location": response.headers.get("location"),
                     "title": response.text.split("<title>")[1].split("</title>")[0]
                     if "<title>" in response.text
                     else None,
@@ -69,6 +70,7 @@ async def main():
     gateway_paths = common + pages + [f"/ui/next/assets/{n}" for n in store_js + operator_js + fonts[:1]]
     gateway_paths += ["/ui/next/licenses/inter-OFL.txt", "/api/products"]
     controller_paths = common + [f"/ui/next/assets/{n}" for n in operator_js + store_js]
+    controller_paths += [f"/ui/assets/{n}" for n in ("app.js", "common.js", "control.js", "style.css", "icons.svg", "mark.svg")]
 
     gateway = gateway_app(Settings(otlp_endpoint=""))
     with tempfile.TemporaryDirectory() as scratch:
