@@ -1,6 +1,12 @@
-// The live stack publishes the Gateway on 8000 and the controller on 8090. Nothing in web/
-// (dev proxy, browser tests) may target them: that would place real orders or inject real faults.
-const LIVE_PORTS = new Set(["8000", "8090"]);
+import { readFileSync } from "node:fs";
+
+// Shared with the Python harness; fs + import.meta.url also works in Vite's config loader.
+const ports = JSON.parse(readFileSync(new URL("./contracts/stack-ports.json", import.meta.url), "utf8")) as {
+  live: number[];
+  preview: Record<string, number>;
+};
+const LIVE_PORTS = new Set(ports.live.map(String));
+export const PREVIEW_STACK_PORTS = new Set(Object.values(ports.preview).map(String));
 
 /** Returns `url` without a trailing slash, or throws if it points at a live stack port. */
 export function refuseLive(name: string, url: string): string {
