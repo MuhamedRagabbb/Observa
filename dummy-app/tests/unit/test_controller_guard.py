@@ -223,7 +223,7 @@ async def test_the_operator_page_and_the_cli_still_control_faults(app_client):
     assert len(target_calls) > calls_before
 
 
-async def test_reads_answer_on_loopback_and_refuse_a_rebound_name(app_client):
+async def test_reads_answer_on_loopback_and_refuse_a_rebound_name(app_client, builds):
     _, client, _, _ = app_client
     for path in ("/health", "/faults/status", "/services/health", "/activity", "/", "/ui/config"):
         assert (await client.get(path, headers={"origin": "https://evil.example"})).status_code == 200, path

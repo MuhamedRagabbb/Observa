@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// @vitest-environment-options {"url": "http://127.0.0.1:8090/ui/next/"}
+// @vitest-environment-options {"url": "http://127.0.0.1:8090/"}
 // P5-A: the Operator Dashboard reads GET /faults/status every 2.5 s while the page is visible,
 // shows the controller's state in the header and the experiment banner, and turns honest when the
 // controller cannot be reached (a failed, timed-out or unreadable answer). Retry connection and

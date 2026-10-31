@@ -1,5 +1,5 @@
 ﻿// @vitest-environment jsdom
-// @vitest-environment-options {"url": "http://127.0.0.1:8090/ui/next/"}
+// @vitest-environment-options {"url": "http://127.0.0.1:8090/"}
 import { focusManager } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";

@@ -36,7 +36,7 @@ export function parseUiConfig(value: unknown): UiConfig {
   return { mode, ports: parsed };
 }
 
-/** GET /ui/config from the page's own origin (absolute path, so it works under /ui/next/). */
+/** GET /ui/config from the page's own origin (absolute path, independent of the page path). */
 export async function fetchUiConfig(): Promise<UiConfig> {
   const response = await fetch("/ui/config", { headers: { Accept: "application/json" } });
   if (!response.ok) throw new Error(`Unexpected /ui/config response: HTTP ${response.status}`);

@@ -1,6 +1,6 @@
 # OBSERVA dummy commerce environment
 
-A runnable local test bed generating correlated JSON logs, OpenTelemetry metrics and distributed traces. Four Python 3.12/FastAPI services use PostgreSQL 16, with separate databases and credentials. Includes reproducible traffic, three independent reversible failures, an English storefront and a separate evaluation-only operator interface (a React operator at `/ui/next/` and, until the planned P5-G cutover, the original Arabic one at `/`). No OBSERVA agents are included.
+A runnable local test bed generating correlated JSON logs, OpenTelemetry metrics and distributed traces. Four Python 3.12/FastAPI services use PostgreSQL 16, with separate databases and credentials. Includes reproducible traffic, three independent reversible failures, an English storefront and a separate evaluation-only React operator interface at `/`, deployed live in P5-G Stage 3. No OBSERVA agents are included.
 
 See [VALIDATION.md](VALIDATION.md) for the recorded commands, observed live telemetry, acceptance results and practical limits of the first implementation run (2026-10-24; it predates the React UIs).
 
@@ -14,9 +14,10 @@ See [VALIDATION.md](VALIDATION.md) for the recorded commands, observed live tele
 | --- | --- |
 | Backend: multi-item checkout, My Orders, checkout reconciler (off by default), controller status / service health / activity, browser request guard | Done and tested (P0-P2, P5-0) |
 | React storefront, served at `http://localhost:8000/` | Done and user-approved (P3-P4) |
-| React operator, served at `http://localhost:8090/ui/next/` (status and experiment banner, service health and links, manual faults, automatic cycle, phone layouts) | Built and tested against mocks (P5-A to P5-E); P5-E awaits formal acceptance |
-| Operator against the **real controller** (browser contract tests and one real fault on an isolated preview) | **Pending (P5-F).** Not yet verified; treat the operator's behaviour with a real controller as unconfirmed |
-| Operator moves to `http://localhost:8090/` and the Arabic operator and `services/ui/` files are removed | **Pending (P5-G).** Until then `:8090/` is still the Arabic operator |
+| React operator, at `http://localhost:8090/` in this code (status and experiment banner, service health and links, manual faults, automatic cycle, phone layouts) | Built and tested against mocks (P5-A to P5-E); P5-E awaits formal acceptance |
+| Operator against the **real controller** (browser contract tests and one real fault on an isolated preview) | **Verified.** Browser contract tests passed (P5-F); T2 on the isolated preview passed in P5-G Stage 2 |
+| Operator at `http://localhost:8090/`; old `/ui/next/` page links redirect | **Deployed live (P5-G Stage 3).** Rollback uses `observa-dummy:rollback-a7db314` |
+| Legacy operator files removed; operator Grafana link opens the OBSERVA dashboard | **Done in code (P5-G Stage 4); deployment pending.** The live image still links Grafana to its Home page |
 | Final docs reconciliation and validation | Pending (P6) |
 
 A long-running stack built from an older image can still show the Arabic storefront at `:8000/`; a fresh `docker compose up --build` from this code serves the React storefront.
@@ -43,8 +44,7 @@ Traffic begins automatically at 4 requests/second with seed 42. All exposed port
 | Entry point | Default address |
 | --- | --- |
 | Storefront (English, React) | http://localhost:8000/ |
-| Operator, React (evaluation only; P5-F/P5-G verification pending) | http://localhost:8090/ui/next/ |
-| Operator, original Arabic UI (evaluation only; removed at P5-G) | http://localhost:8090/ |
+| Operator, React (evaluation only) | http://localhost:8090/ (`/ui/next/` redirects) |
 | Gateway Swagger/OpenAPI | http://localhost:8000/docs / http://localhost:8000/openapi.json |
 | Orders / Inventory / Payments Swagger | http://localhost:8001/docs / http://localhost:8002/docs / http://localhost:8003/docs |
 | Fault controller Swagger (evaluation only) | http://localhost:8090/docs |
@@ -72,15 +72,15 @@ The storefront at `http://localhost:8000/` is the English React app built from `
 
 The Gateway serves the storefront's entry page only at an explicit allowlist: `/`, `/checkout`, `/orders` and `/orders/<OBS-… or ATT-… reference>`, for GET and HEAD. There is no catch-all: any other path (an unknown route, `/unavailable`, a typo) is a plain, instrumented 404. Only those page requests and `/ui/` files are left out of application telemetry, and only on the Gateway; the orders service's own `/orders` API is unaffected. The bundle's files stay at `/ui/next/assets/`, and an old `/ui/next/<page>` link redirects (308) to `/<page>`. The legacy Arabic storefront was removed in P4-H.
 
-The original (Arabic) operator interface at `http://localhost:8090/` calls the controller on its own origin; the React operator at `http://localhost:8090/ui/next/` replaces it at P5-G (see Project status). The Arabic one includes all three manual scenarios with duration/parameter inputs, live state and expiry countdown, stop controls, and automatic warmup/duration/recovery/repeat/seed/scenario settings. Its session activity list contains actions from that page only. It is evaluation infrastructure and must not be scraped or ingested by the investigating agent.
+In this code, the React operator is at `http://localhost:8090/` and old `/ui/next/` page links redirect there (308, query kept). Only `/` is an operator page, for GET and HEAD; other page paths return 404. It calls the controller on its own origin. T2 on the isolated preview passed in P5-G Stage 2, and Stage 3 deployed the React operator live. The operator is evaluation infrastructure and must not be scraped or ingested by the investigating agent.
 
-The legacy operator UI's HTML, CSS, JavaScript and SVG assets ship inside the image under `services/ui/` and are served by the controller only. These legacy files need no build, CDN, added service, or extra container (the React bundles are built in the image's Node stage, below). Storefront and operator pages use separate origins, and the storefront does not proxy fault-control calls through Gateway. Static UI requests and `/ui/config` are excluded from application telemetry, while shopping API requests retain normal instrumentation. Public navigation links follow the Compose port settings through a non-sensitive UI config endpoint. All mock-credential and loopback-only boundaries still apply.
+P5-G Stage 4 removed the legacy operator files; rollback uses the Docker tag `observa-dummy:rollback-a7db314`. `/ui/assets/*` still returns 404. The React bundles are built in the image's Node stage, below. Storefront and operator pages use separate origins, and the storefront does not proxy fault-control calls through Gateway. Static UI requests and `/ui/config` are excluded from application telemetry, while shopping API requests retain normal instrumentation. Public navigation links follow the Compose port settings through a non-sensitive UI config endpoint. In this code the operator's Grafana link opens the OBSERVA dashboard at `/d/observa-overview` (pending deployment: the live image still opens Grafana Home); Loki opens Grafana Explore. All mock-credential and loopback-only boundaries still apply.
 
 ### React UIs (`web/`)
 
-The React interfaces are built in `web/`. The storefront's pages are at `http://localhost:8000/` (see above); the operator build is at `http://localhost:8090/ui/next/` beside the Arabic operator UI until the P5-G cutover (the operator's page and controls are built, P5-A to P5-E; its verification against a real controller is pending, P5-F). Both bundles' files are served under `/ui/next/` on their own origin, each origin serves only its own build, and `/ui/` requests are excluded from application telemetry.
+The React interfaces are built in `web/`. In this code, the storefront's pages are at `http://localhost:8000/` (see above) and the operator page is at `http://localhost:8090/`, with `/ui/next/` redirecting to `/`. Both bundles' files are served under `/ui/next/` on their own origin, each origin serves only its own build, and `/ui/` requests are excluded from application telemetry. T2 passed in P5-G Stage 2; Stage 3 deployed this operator routing live.
 
-The Dockerfile builds both bundles in a Node stage (`npm ci`, typecheck, `npm run build`) and copies only `web/dist` into `services/ui/dist` of the Python runtime image; Node does not ship. A running stack serves `/ui/next/` only after its image is rebuilt from this code. Image builds, including `docker compose build` and `up --build`, now pull `node:24` and reach the npm registry, so the first build is slower and needs network access. Compose builds every app service as `observa-dummy:local`, so a Compose build replaces the image a running stack uses, and recreating the stack deploys it. To check an image without touching a running stack, build it under its own tag and run the opt-in image tests. They use throwaway containers with no network:
+The Dockerfile builds both bundles in a Node stage (`npm ci`, typecheck, `npm run build`) and copies only `web/dist` into `services/ui/dist` of the Python runtime image; Node does not ship. A running stack gets this routing only after its image is rebuilt from this code and deployed. Image builds, including `docker compose build` and `up --build`, now pull `node:24` and reach the npm registry, so the first build is slower and needs network access. Compose builds every app service as `observa-dummy:local`, so a Compose build replaces the image a running stack uses, and recreating the stack deploys it. To check an image without touching a running stack, build it under its own tag and run the opt-in image tests. They use throwaway containers with no network:
 
 ```bash
 docker build -t observa-dummy:p3-verify .
@@ -110,7 +110,7 @@ Use one of these to review the React storefront and operator. None of them touch
      docker compose @f exec -T $svc sh -c "set -f; python -m services.shared.migrations --dsn `${DATABASE_URL}?lock_timeout=5s --dir scripts/migrations/$svc"
    }
    docker compose @f --profile traffic up -d --no-deps traffic-generator   # optional background checkout traffic
-   # Storefront: http://127.0.0.1:18000/   Operator: http://127.0.0.1:18090/ui/next/
+   # From this code: Storefront http://127.0.0.1:18000/   Operator http://127.0.0.1:18090/
    docker compose @f down   # containers and networks only; remove observa-p4-preview_* volumes by exact name
    ```
 3. **Hot reload:** in `web/`, `npm run dev:store` (http://127.0.0.1:5180/) or `npm run dev:operator` (:5181). These proxy to the preview project. `OBSERVA_GATEWAY_URL` and `OBSERVA_CONTROLLER_URL` change the target, and the live ports 8000 and 8090 are refused.
@@ -318,13 +318,9 @@ python -m ruff check services controllers scripts tests
 
 Default tests run without Docker: endpoint/validation contracts, full four-app ASGI workflow with in-memory repository doubles, trace/log/metric correlation, compensation, idempotency contracts, release rollback, controller conflicts, validation, TTL and seeded schedules. In-memory tests do not claim to validate PostgreSQL SQL/locks or the backend pipeline; live tests do that separately.
 
-The unit suite also checks UI delivery, public-port configuration, and exclusion of static UI requests from business telemetry. Optional client-contract checks use Node's built-in test runner with no installed packages:
+The unit suite also checks UI delivery, public-port configuration, and exclusion of static UI requests from business telemetry. React client checks run with `npm run verify` in `web/`. Node is only needed on the host for `web/` development and checks; the running containers include no Node process (the React bundles are built in the image's Node stage).
 
-```sh
-node --test tests/ui/client.test.mjs
-```
-
-Those checks cover a single checkout transmission, correlation IDs, translated payment failures, ambiguous network outcomes without automatic checkout retries, and safe rendering of trace metadata. Node is only needed on the host for these checks and for `web/` development; the running containers include no Node process (the React bundles are built in the image's Node stage).
+The Operator Dashboard's contract tier uses the **real controller app without Docker**: `tests/harness/operator_contract.py` binds it on `127.0.0.1:18190` beside stub targets and test control (`127.0.0.1:18191`). Settings are validated before startup; live/preview ports and inherited proxy or service settings are refused. The reported Gate A A2 test exposed a redirect-isolation failure: Chromium followed a fulfilled 302 to the harness sentinel before the audit detected it. The revised fixture refuses reissued redirects and installs a page-scoped Chromium network allow-list. Redirect decisions and pattern semantics have unit coverage, and the Chromium enforcement was verified by the Gate A retest and the full T1 matrix (1440, 390 and 375, run twice); popups, dedicated workers and out-of-process iframes have documented limits. Live and preview destinations are checked as patterns only, never contacted by these tests. The permitted unit tests open no sockets. See `web/e2e/README.md` ("P5-F") for the failure, scope limits and results.
 
 With Compose running, use a quiet evaluation window (the traffic generator can remain active because stock assertions use `sku-005`). Against the live project this runs the non-fault live checks; the F1/F2/F3 fault scenarios are skipped unless `RUN_FAULT_TESTS=1` and `COMPOSE_PROJECT_NAME` names a throwaway project, because they strand legacy orders in the database they hit. See [Fault testing on a throwaway project](scripts/migrations/README.md#fault-testing-on-a-throwaway-project) for the full suite, and the [migration runbook](scripts/migrations/README.md) before applying schema migrations to the live databases:
 

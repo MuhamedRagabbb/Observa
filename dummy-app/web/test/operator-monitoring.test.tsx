@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// @vitest-environment-options {"url": "http://127.0.0.1:8090/ui/next/"}
+// @vitest-environment-options {"url": "http://127.0.0.1:8090/"}
 import { focusManager } from "@tanstack/react-query";
 import { act, cleanup, render, screen, within } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
@@ -173,7 +173,7 @@ describe("Operator monitoring dashboard", () => {
     const links = within(list).getAllByRole("link");
     expect(links).toHaveLength(4);
     for (const [name, caption, href] of [
-      ["Grafana", "Dashboards", "http://127.0.0.1:13000/"],
+      ["Grafana", "Dashboards", "http://127.0.0.1:13000/d/observa-overview"],
       ["Prometheus", "Metrics", "http://127.0.0.1:19090/"],
       ["Loki", "Logs", "http://127.0.0.1:13000/explore"],
       ["Jaeger", "Traces", "http://127.0.0.1:26686/"],

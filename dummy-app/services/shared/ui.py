@@ -6,22 +6,12 @@ from pathlib import Path, PurePosixPath
 
 from fastapi import Request
 from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse
-from fastapi.staticfiles import StaticFiles
-
-ASSETS = Path(__file__).resolve().parents[1] / "ui" / "static"
 
 
 def register_ui(app, mode):
-    """/ui/config for the page's own origin. The legacy Arabic UI remains only for the operator
-    (the controller's /); the store is the React bundle at / since P4-H (register_store_pages)."""
+    """/ui/config for the page's own origin. React pages are registered separately."""
     if mode not in ("store", "control"):
         raise ValueError("Unknown interface")
-
-    if mode == "control":
-
-        @app.get("/", include_in_schema=False)
-        async def index():
-            return FileResponse(ASSETS.parent / "control.html", headers={"Cache-Control": "no-cache"})
 
     @app.get("/ui/config", include_in_schema=False)
     async def config():
@@ -36,13 +26,10 @@ def register_ui(app, mode):
             },
         }
 
-    if mode == "control":
-        app.mount("/ui/assets", StaticFiles(directory=ASSETS), name="ui-assets")
-
 
 # React bundles built from web/ (one per origin). Their files are served under /ui/next/ (the
-# Vite base). The operator's pages are there too until P5; the store's pages are at / (P4-H).
-# The telemetry middleware skips every /ui/ path and, on the Gateway only, the store pages.
+# Vite base). Both apps' pages are at / (store P4-H, operator P5-G1).
+# The telemetry middleware skips every /ui/ path and each app's registered pages.
 BUNDLES = ("store", "operator")
 BUNDLE_PATH = "/ui/next"
 DEFAULT_BUNDLE_DIR = Path(__file__).resolve().parents[1] / "ui" / "dist"
@@ -72,6 +59,11 @@ def _not_found():
     return PlainTextResponse("Not found", status_code=404, headers={"Cache-Control": "no-cache"})
 
 
+def _is_exact_bundle_path(request, path):
+    """Reject a final newline accepted by Starlette's $-anchored route regex."""
+    return request.scope["path"] == path
+
+
 def _file_in(folder, relative):
     """The file at ``relative`` inside ``folder``, or None if it is missing or outside it.
     The resolved name must match the requested one exactly, so a case-insensitive file
@@ -99,6 +91,11 @@ PAGE_METHODS = ("GET", "HEAD")
 def is_store_page(path):
     """True for exactly the store's page paths: /, /checkout, /orders and /orders/<ref>."""
     return STORE_PAGE.fullmatch(path) is not None
+
+
+def is_operator_page(path):
+    """True for exactly the operator's single page path: /."""
+    return path == "/"
 
 
 def is_untraced_page(app, method, path):
@@ -134,23 +131,44 @@ def register_store_pages(app):
         app.add_api_route(path, page, methods=list(PAGE_METHODS), include_in_schema=False)
 
 
+def register_operator_pages(app):
+    """The operator's entry page at /, for GET and HEAD; a plain 404 while the bundle is
+    not built. Not part of the API schema."""
+    app.state.page_paths = is_operator_page
+
+    async def page(request: Request):
+        # Check the raw path seen by telemetry: request.url drops tabs and newlines.
+        entry = bundle_dir("operator") / "index.html"
+        if not is_operator_page(request.scope["path"]) or not entry.is_file():
+            return _not_found()
+        return _entry_page(entry)
+
+    app.add_api_route("/", page, methods=list(PAGE_METHODS), include_in_schema=False)
+
+
 def register_bundle(app, name, *, pages_at_root=False):
     """Serve one built bundle's files at /ui/next/: hashed files under assets/ and licence texts
-    under licenses/. Its pages are at /ui/next/ too, unless ``pages_at_root`` (the store since
-    P4-H), where an old /ui/next/<page> link redirects to /<page>. Anything else, or any request
-    while the bundle is not built, is a plain 404."""
+    under licenses/. Its pages are at /ui/next/ too, unless ``pages_at_root``, where an old
+    /ui/next/<page> link on that bundle's page allowlist redirects to /<page>. Anything else,
+    or any request while the bundle is not built, is a plain 404."""
     if name not in BUNDLES:
         raise ValueError("Unknown bundle")
+    is_page = is_store_page if name == "store" else is_operator_page
 
     def redirect(target, query):
         return RedirectResponse(target + (f"?{query}" if query else ""), status_code=308)
 
     @app.api_route(BUNDLE_PATH, methods=["GET", "HEAD"], include_in_schema=False)
     async def bundle_root(request: Request):
+        # Storefront's equivalent quirk is pre-existing; deliberately unchanged in G1 (recorded for P6).
+        if name == "operator" and not _is_exact_bundle_path(request, BUNDLE_PATH):
+            return _not_found()
         return redirect("/" if pages_at_root else f"{BUNDLE_PATH}/", request.url.query)
 
     @app.api_route(BUNDLE_PATH + "/{path:path}", methods=["GET", "HEAD"], include_in_schema=False)
     async def bundle_file(path: str, request: Request):
+        if name == "operator" and not _is_exact_bundle_path(request, BUNDLE_PATH + "/" + path):
+            return _not_found()
         build = bundle_dir(name)
         entry = build / "index.html"
         if not entry.is_file():
@@ -169,5 +187,5 @@ def register_bundle(app, name, *, pages_at_root=False):
             return _not_found()  # a file request outside assets/ is never a client-side route
         if pages_at_root:
             page = "/" + path
-            return redirect(page, request.url.query) if is_store_page(page) else _not_found()
+            return redirect(page, request.url.query) if is_page(page) else _not_found()
         return _entry_page(entry)

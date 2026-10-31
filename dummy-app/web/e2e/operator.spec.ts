@@ -271,7 +271,7 @@ test.describe("observability links", () => {
     serveStatus(api, () => ({ status: 200, body: controllerStatus("idle") }));
     await open(page, "Idle");
     const link = (name: RegExp) => tools(page).getByRole("link", { name });
-    await expect(link(/Grafana.*Dashboards/)).toHaveAttribute("href", "http://127.0.0.1:13000/");
+    await expect(link(/Grafana.*Dashboards/)).toHaveAttribute("href", "http://127.0.0.1:13000/d/observa-overview");
     await expect(link(/Prometheus.*Metrics/)).toHaveAttribute("href", "http://127.0.0.1:19090/");
     await expect(link(/Loki.*Logs/)).toHaveAttribute("href", "http://127.0.0.1:13000/explore");
     await expect(link(/Jaeger.*Traces/)).toHaveAttribute("href", "http://127.0.0.1:26686/");

@@ -2,6 +2,8 @@
 
 > **Historical record of the first implementation run (2026-10-24).** It predates the React storefront and operator, the multi-item checkout and the P2-P5 work; mentions below of the "Arabic storefront" describe that run. Current status is in the README's "Project status"; a final validation is planned for P6.
 
+> P5-G Stage 4 removed the legacy operator files and `tests/ui/client.test.mjs`; references below record historical checks, not current commands or artifacts. Rollback uses the Docker tag `observa-dummy:rollback-a7db314`.
+
 Verified at 2026-10-24T16:48:59.248026+00:00 against the local Docker Desktop Linux engine.
 
 - **40 Python tests passed**, zero failures/errors/skips, in 63.297 seconds: 31 unit/contract tests and nine live integration/scenario tests.

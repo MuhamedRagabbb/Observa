@@ -1,0 +1,5 @@
+{
+  "_comment": "Host ports of the LIVE observa-dummy stack (docker-compose.yml defaults plus the 5433 that .env publishes for Postgres) and of the isolated preview project (docker-compose.preview.yml). Test harnesses refuse every live port and never bind a preview one. A pytest keeps this list in step with the compose files.",
+  "live": [3000, 3100, 4317, 4318, 5432, 5433, 8000, 8001, 8002, 8003, 8090, 8889, 9090, 16686],
+  "preview": { "gateway": 18000, "controller": 18090, "grafana": 13000, "jaeger": 26686, "prometheus": 19090 }
+}

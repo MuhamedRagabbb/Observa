@@ -1,5 +1,5 @@
 // Playwright fixtures for mocked-mode tests.
-// - `api`: serves the built bundles from disk by the real server's rules (store pages at /, files
+// - `api`: serves the built bundles from disk by the real server's rules (app pages at /, files
 //   under /ui/next/) and /ui/config from fixtures; every other
 //   request must match a typed handler for its own origin. Unmocked same-origin requests, other origins and WebSockets
 //   are aborted and recorded, and a test fails if any violation remains at teardown.
@@ -19,7 +19,7 @@ export { expect };
 export const STORE_ORIGIN = `http://127.0.0.1:${PREVIEW_PORTS.store}`;
 export const OPERATOR_ORIGIN = `http://127.0.0.1:${PREVIEW_PORTS.operator}`;
 export const STORE_URL = `${STORE_ORIGIN}/`;
-export const OPERATOR_URL = `${OPERATOR_ORIGIN}/ui/next/`;
+export const OPERATOR_URL = `${OPERATOR_ORIGIN}/`;
 /** The test-only component gallery (e2e/gallery). It has no API: only its files and /ui/config. */
 export const GALLERY_ORIGIN = `http://127.0.0.1:${PREVIEW_PORTS.gallery}`;
 export const GALLERY_URL = `${GALLERY_ORIGIN}/ui/next/`;
@@ -45,7 +45,7 @@ type Handler = (request: MockRequest, params: Record<string, string>) => MockRep
 /**
  * Each origin's built files. They are served from disk with route.fulfill, by the same rules as
  * the real server (services/shared/ui.py register_bundle): files under assets/ and licenses/,
- * the entry page for any other path, 404 for an unknown file. Going through the vite preview
+ * app pages at / with old page links redirected; the gallery stays at /ui/next/. Going through the vite preview
  * servers instead stalled for about 10 seconds now and then under parallel load.
  */
 const WEB = join(import.meta.dirname, "..", "..");
@@ -71,9 +71,9 @@ const isExactFile = (file: string) =>
 export const STORE_PAGE_PATTERN = "/(?:checkout|orders(?:/(?:OBS-[0-9]+-[0-9A-F]{4}|ATT-[0-9A-F]{4}-[0-9]{4}))?)?";
 export const STORE_PAGE = new RegExp(`^(?:${STORE_PAGE_PATTERN})$`);
 
-/** The store's entry page for an allowlisted page path, like the Gateway (P4-H). */
-async function serveStorePage(route: Route) {
-  const entry = join(BUNDLE_DIRS[STORE_ORIGIN] as string, "index.html");
+/** Each app's entry page for an allowlisted page path, like the real server. */
+async function servePage(route: Route, origin: string) {
+  const entry = join(BUNDLE_DIRS[origin] as string, "index.html");
   if (!existsSync(entry)) return route.fulfill({ status: 404, body: "bundle not built" });
   return route.fulfill({ path: entry, contentType: CONTENT_TYPES[".html"] ?? "text/html" });
 }
@@ -90,13 +90,14 @@ async function serveBundle(route: Route, origin: string, path: string, search: s
     file = candidate.startsWith(root + sep) && isExactFile(candidate) ? candidate : null;
   } else if (rest.split("/").pop()?.includes(".")) {
     file = null; // a file name outside assets/ is never a page
-  } else if (origin === STORE_ORIGIN) {
-    // The store's pages moved to / (P4-H): an old /ui/next/<page> link redirects there.
+  } else if (origin === STORE_ORIGIN || origin === OPERATOR_ORIGIN) {
+    // Both apps' pages moved to /: only an old link to one of their pages redirects.
     const page = `/${rest}`;
-    if (!STORE_PAGE.test(page)) return route.fulfill({ status: 404, body: "not found" });
+    const isPage = origin === STORE_ORIGIN ? STORE_PAGE.test(page) : page === "/";
+    if (!isPage) return route.fulfill({ status: 404, body: "not found" });
     return route.fulfill({ status: 308, headers: { location: page + search } });
   } else {
-    file = join(root, "index.html"); // the operator's client-side routes (until P5)
+    file = join(root, "index.html"); // the test-only gallery
   }
   if (!file || !existsSync(file)) return route.fulfill({ status: 404, body: "not found" });
   return route.fulfill({ path: file, contentType: CONTENT_TYPES[extname(file)] ?? "application/octet-stream" });
@@ -184,9 +185,17 @@ export class MockApi {
       const config = url.origin === OPERATOR_ORIGIN ? OPERATOR_UI_CONFIG : STORE_UI_CONFIG;
       return route.fulfill({ status: 200, json: config });
     }
-    if (url.pathname.startsWith("/ui/next/")) return serveBundle(route, url.origin, url.pathname, url.search);
+    if (url.origin === OPERATOR_ORIGIN && url.pathname === "/ui/next" && (method === "GET" || method === "HEAD")) {
+      return route.fulfill({ status: 308, headers: { location: "/" + url.search } });
+    }
+    if (url.pathname.startsWith("/ui/next/") && (url.origin !== OPERATOR_ORIGIN || method === "GET" || method === "HEAD")) {
+      return serveBundle(route, url.origin, url.pathname, url.search);
+    }
     if (url.origin === STORE_ORIGIN && (method === "GET" || method === "HEAD") && STORE_PAGE.test(url.pathname)) {
-      return serveStorePage(route);
+      return servePage(route, STORE_ORIGIN);
+    }
+    if (url.origin === OPERATOR_ORIGIN && (method === "GET" || method === "HEAD") && url.pathname === "/") {
+      return servePage(route, OPERATOR_ORIGIN);
     }
     if (url.pathname === "/favicon.ico") return route.fulfill({ status: 404, body: "no favicon" });
 

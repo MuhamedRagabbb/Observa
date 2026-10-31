@@ -8,14 +8,15 @@
 //   live ports are refused). A test that starts a fault stops it in teardown, pass or fail.
 // - `orders()`: what the real Gateway lists for this browser's anonymous customer.
 // Each test gets a fresh browser context, so a new anonymous customer ID and empty storage.
-// - E2E_STACK_BUNDLE=local serves the store's page and files from web/dist/store (after `npm run
-//   build`) instead of the preview image, and every API call still reaches the real Gateway. It
-//   checks a UI-only change against the real backend without building an image.
+// - E2E_STACK_BUNDLE=local serves the store from web/dist/store and the operator entry point and
+//   assets from web/dist/operator (after `npm run build`). Every API call still reaches its real
+//   preview backend, allowing UI changes to be checked without building an image.
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { test as base, expect, request as http, type APIRequestContext, type Page } from "@playwright/test";
 import type { components } from "../../src/api/generated/gateway.ts";
 import { STORE_PAGE } from "./harness.ts";
+import { operatorBundleActive, operatorBundleFile } from "./bundle-routes.ts";
 import { allowedOrigin, stackTargets } from "./stack-safety.ts";
 
 export { expect };
@@ -28,6 +29,7 @@ export const CONTROLLER_URL = TARGETS?.controller ?? "";
 
 const LOCAL_BUNDLE = process.env.E2E_STACK_BUNDLE === "local";
 const DIST = join(import.meta.dirname, "..", "..", "dist", "store");
+const OPERATOR_DIST = join(import.meta.dirname, "..", "..", "dist", "operator");
 const CONTENT_TYPES: Record<string, string> = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml", ".woff2": "font/woff2", ".txt": "text/plain; charset=utf-8" };
 
 type FaultStatus = { state: string; active: { scenario: string } | null; controls: { activate: { enabled: boolean; reason: string | null } } };
@@ -76,6 +78,7 @@ type StackFixtures = {
   allowedOrigins: string[];
   offOrigin: string[];
   localBundle: boolean;
+  operatorLocalBundle: boolean;
   faults: Faults;
   gateway: APIRequestContext;
   orders: (page: Page) => Promise<CheckoutResult[]>;
@@ -125,6 +128,33 @@ export const test = base.extend<StackFixtures>({
         );
       }
       await use(LOCAL_BUNDLE);
+    },
+    { auto: true },
+  ],
+  operatorLocalBundle: [
+    async ({ context, allowedOrigins }, use) => {
+      const active = operatorBundleActive({ localBundle: LOCAL_BUNDLE, controller: CONTROLLER_URL, allowedOrigins });
+      if (active) {
+        if (!existsSync(join(OPERATOR_DIST, "index.html"))) throw new Error("E2E_STACK_BUNDLE=local needs dist/operator/index.html; run npm run build first");
+        await context.route(
+          (url) => url.origin === CONTROLLER_URL,
+          async (route) => {
+            const request = route.request();
+            if (!allowedOrigin(request.url(), allowedOrigins)) return route.fallback();
+            const url = new URL(request.url());
+            if ((request.method() === "GET" || request.method() === "HEAD") && (url.pathname === "/ui/next" || url.pathname === "/ui/next/")) {
+              return route.fulfill({ status: 308, headers: { location: "/" + url.search } });
+            }
+            const file = operatorBundleFile(request.method(), url.pathname);
+            if (file === null) return route.fallback();
+            const path = join(OPERATOR_DIST, file);
+            if (!existsSync(path)) return route.fallback();
+            const type = CONTENT_TYPES[path.slice(path.lastIndexOf("."))] ?? "application/octet-stream";
+            return route.fulfill({ path, contentType: type, headers: { "cache-control": "no-cache" } });
+          },
+        );
+      }
+      await use(active);
     },
     { auto: true },
   ],

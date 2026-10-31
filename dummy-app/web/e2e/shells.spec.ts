@@ -15,7 +15,7 @@ test.describe("bundle shells", () => {
     await expect(page.getByRole("main", { name: "Storefront" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Experiments" })).toHaveAttribute(
       "href",
-      "http://127.0.0.1:18090/ui/next/",
+      "http://127.0.0.1:18090/",
     );
     await capture("shell-store");
   });
@@ -35,6 +35,32 @@ test.describe("bundle shells", () => {
 });
 
 test.describe("harness guards", () => {
+  test("a non-GET request to the operator's old page link is reported, never redirected", async ({ page, api }) => {
+    // Establish the operator origin without mounting the app and starting its API polling.
+    await page.goto(new URL("/ui/config", OPERATOR_URL).href);
+    const oldLinks = ["/ui/next/", "/ui/next"];
+    const redirects = await page.evaluate(async (paths) => {
+      const results = [];
+      for (const path of paths) {
+        // A GET to an old page link is answered with a redirect (seen from the page as an opaque one).
+        results.push(await fetch(path, { redirect: "manual" }).then((response) => response.type));
+      }
+      return results;
+    }, oldLinks);
+    expect(redirects).toEqual(["opaqueredirect", "opaqueredirect"]);
+
+    const outcomes = await page.evaluate(async (paths) => {
+      const results = [];
+      for (const path of paths) {
+        results.push(await fetch(path, { method: "POST", redirect: "manual" }).then((r) => r.status, () => "failed"));
+      }
+      return results;
+    }, oldLinks);
+    const violations = api.takeViolations();
+    expect(outcomes).toEqual(["failed", "failed"]);
+    expect(violations).toEqual(["unmocked POST /ui/next/", "unmocked POST /ui/next"]);
+  });
+
   test("an API call without a mock is reported and never reaches a server", async ({ page, api }) => {
     await page.goto(STORE_URL);
     const outcome = await page.evaluate(() => fetch("/api/orders").then((r) => r.status, () => "failed"));

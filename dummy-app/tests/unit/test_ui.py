@@ -34,7 +34,7 @@ async def test_public_ports_follow_configuration_without_exposing_credentials(me
     assert "/ui/config" not in schema["paths"]
 
 
-async def test_operator_interface_uses_controller_origin(tmp_path):
+async def test_operator_interface_uses_controller_origin(tmp_path, builds):
     app = create_app(
         path=tmp_path / "incidents.jsonl",
         client=httpx.AsyncClient(transport=httpx.MockTransport(lambda _: httpx.Response(200))),
@@ -45,10 +45,10 @@ async def test_operator_interface_uses_controller_origin(tmp_path):
         ) as client:
             page = await client.get("/")
             assert page.status_code == 200
-            assert 'data-page="control"' in page.text
-            assert 'id="auto-form"' in page.text
+            assert "<title>operator</title>" in page.text  # the React operator since P5-G1
+            assert 'data-page="control"' not in page.text
             assert (await client.get("/ui/config")).json()["mode"] == "control"
-            assert (await client.get("/ui/assets/control.js")).status_code == 200
+            assert (await client.get("/ui/assets/control.js")).status_code == 404
             assert (
                 await client.post(
                     "/faults/activate", json={"scenario": "payments_errors", "duration_seconds": 1}

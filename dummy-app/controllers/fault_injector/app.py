@@ -21,7 +21,7 @@ from controllers.fault_injector.health import HealthSnapshot, default_health
 from services.shared.errors import AppError
 from services.shared.models import ERRORS, ErrorBody
 from services.shared.telemetry import utcnow
-from services.shared.ui import register_bundle, register_ui
+from services.shared.ui import register_bundle, register_operator_pages, register_ui
 
 Scenario = Literal["db_connection_exhaustion", "payments_errors", "bad_deployment"]
 SCENARIO_NAMES = typing.get_args(Scenario)
@@ -245,6 +245,20 @@ class ActivityLog:
         return {"capacity": self.capacity, "entries": newest_first[:limit] if limit else newest_first}
 
 
+def target_client(**options):
+    """The client for control commands to the targets: it never reuses an idle connection.
+
+    A target (uvicorn) closing an idle keep-alive connection just as the pooled connection is reused loses
+    the command: httpx raises RemoteProtocolError, the target never sees it, and send() reports
+    target_unavailable for a target that was up. That race was reproduced in isolation (see
+    tests/unit/test_controller_target_transport.py); it is the likely, not proven, cause of a 503 seen in a
+    contract browser run. Each command therefore opens its own connection. Commands are still never retried.
+    """
+    return httpx.AsyncClient(
+        timeout=3, limits=httpx.Limits(max_connections=4, max_keepalive_connections=0), **options,
+    )
+
+
 class Controller:
     def __init__(
         self,
@@ -268,7 +282,7 @@ class Controller:
         self.fault_ended_at = None
         self.recovery_announced = False
         self.requested_parameters = None  # what the operator asked for, for the active fault
-        self.client = client or httpx.AsyncClient(timeout=3, limits=httpx.Limits(max_connections=4))
+        self.client = client or target_client()
         self.lock = asyncio.Lock()
         self.stop_lock = asyncio.Lock()
         self.stopping = False
@@ -644,7 +658,8 @@ def create_app(*, path=None, client=None, health=None, health_interval=None):
     app.add_middleware(ControlRequestGuard)
     refused = {403: {"model": ErrorBody, "description": "Not from the controller's own page"}}
     register_ui(app, "control")
-    register_bundle(app, "operator")
+    register_operator_pages(app)
+    register_bundle(app, "operator", pages_at_root=True)
     app.state.controller = controller
 
     @app.exception_handler(AppError)

@@ -79,9 +79,9 @@ export function bundleConfig(
   const target = devTarget(name, env);
   return defineConfig({
     root: here(`./src/${name}`),
-    // Built files always live under /ui/next/. The store's pages are at / (P4-H), so its dev
-    // server serves from / for direct links such as /checkout to work with hot reload.
-    base: name === "store" && command === "serve" ? "/" : BUNDLE_PATH,
+    // Built files always live under /ui/next/. Both apps' pages are at /, so their dev
+    // servers serve from / for direct page links to work with hot reload.
+    base: command === "serve" ? "/" : BUNDLE_PATH,
     publicDir: false,
     plugins: [react(), fontLicences()],
     build: {
