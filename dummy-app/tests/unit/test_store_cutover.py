@@ -5,8 +5,8 @@
   page: no catch-all, so an API error, /unavailable or a typo is still a 404 with telemetry.
 - Only those page requests (and the /ui/ files) are left out of business telemetry, and only on
   the Gateway: the orders service has real API routes at /orders and /orders/{order_id}.
-- The legacy Arabic store is removed. The Arabic operator's files stay on disk, unserved since
-  P5-G1 (test_operator_cutover.py). The bundle keeps its /ui/next/assets/ URLs; old /ui/next/
+- The legacy Arabic store is removed. The Arabic operator, unserved since P5-G1, was removed
+  in P5-G4 (test_operator_cutover.py). The bundle keeps its /ui/next/assets/ URLs; old /ui/next/
   page links redirect.
 
 Builds are fakes written to a temporary folder named by UI_BUNDLE_DIR (fixture ``builds``).
@@ -182,21 +182,19 @@ async def test_the_gateway_no_longer_serves_the_legacy_arabic_store(mesh, builds
     assert config["mode"] == "store"
 
 
-def test_only_the_legacy_store_files_are_removed():
+def test_the_legacy_store_and_operator_files_are_removed():
     for removed in ("store.html", "static/store.js", "static/products.svg"):
         assert not (LEGACY / removed).exists(), removed
-    for kept in ("control.html", "static/app.js", "static/common.js", "static/control.js", "static/style.css", "static/icons.svg", "static/mark.svg"):
-        assert (LEGACY / kept).is_file(), kept
-    entry = (LEGACY / "static" / "app.js").read_text("utf-8")
-    assert "store.js" not in entry
+    for removed in ("control.html", "static/app.js", "static/common.js", "static/control.js", "static/style.css", "static/icons.svg", "static/mark.svg"):
+        assert not (LEGACY / removed).exists(), removed
 
 
-async def test_the_legacy_operator_ui_is_kept_on_disk_but_no_longer_served(controller, builds):
+async def test_the_legacy_operator_ui_is_removed_and_no_longer_served(controller, builds):
     page = await controller.get("/")
     assert page.status_code == 200
     assert 'lang="ar" dir="rtl"' not in page.text and 'data-page="control"' not in page.text
     for name in ("app.js", "common.js", "control.js", "style.css", "icons.svg", "mark.svg"):
-        assert (LEGACY / "static" / name).is_file(), name
+        assert not (LEGACY / "static" / name).exists(), name
         assert (await controller.get("/ui/assets/" + name)).status_code == 404, name
     assert (await controller.get("/ui/assets/store.js")).status_code == 404
     assert (await controller.get("/ui/config")).json()["mode"] == "control"

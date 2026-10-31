@@ -7,8 +7,6 @@ from pathlib import Path, PurePosixPath
 from fastapi import Request
 from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse
 
-ASSETS = Path(__file__).resolve().parents[1] / "ui" / "static"
-
 
 def register_ui(app, mode):
     """/ui/config for the page's own origin. React pages are registered separately."""

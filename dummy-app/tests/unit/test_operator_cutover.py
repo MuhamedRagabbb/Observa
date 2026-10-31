@@ -4,8 +4,8 @@
   catch-all, so a typo or a store path is a plain 404.
 - Old /ui/next/ page links redirect to / (308, query kept); the bundle keeps its
   /ui/next/assets/ and /ui/next/licenses/ URLs. Other /ui/next/ paths are a plain 404.
-- The legacy Arabic operator is no longer served (no control.html at /, no /ui/assets/), but
-  its source files stay in the repository so the change can be reverted with one commit.
+- The legacy Arabic operator is no longer served (no control.html at /, no /ui/assets/).
+  Its source files were removed in P5-G4; rollback uses the Docker image tag.
 - /ui/config, the fault API and the Storefront are unchanged.
 
 Builds are fakes written to a temporary folder named by UI_BUNDLE_DIR (fixture ``builds``).
@@ -193,10 +193,11 @@ async def test_the_legacy_operator_assets_are_no_longer_served(controller, build
         assert (await controller.get("/ui/assets/" + name)).status_code == 404, name
 
 
-def test_the_legacy_operator_source_files_are_kept_for_rollback():
-    assert (LEGACY / "control.html").is_file()
-    for name in LEGACY_FILES:
-        assert (LEGACY / "static" / name).is_file(), name
+def test_the_legacy_operator_source_files_are_removed():
+    assert not (LEGACY / "control.html").exists()
+    for name in LEGACY_FILES + ("package.json",):
+        assert not (LEGACY / "static" / name).exists(), name
+    assert not (LEGACY.parents[1] / "tests" / "ui" / "client.test.mjs").exists()
 
 
 async def test_ui_config_is_unchanged(controller, builds):

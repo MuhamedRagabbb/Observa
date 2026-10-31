@@ -208,6 +208,8 @@ services:
       GF_AUTH_ANONYMOUS_ENABLED: "true"
       GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
       GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      # Lets the anonymous Viewer open Explore (the operator's Loki link); saving stays disabled.
+      GF_USERS_VIEWERS_CAN_EDIT: "true"
       GF_SECURITY_ADMIN_PASSWORD: local-grafana-only
     volumes:
       - ./telemetry/grafana/provisioning:/etc/grafana/provisioning:ro
