@@ -1,0 +1,17 @@
+{
+  "environment": "local",
+  "poll_seconds": 10,
+  "window_seconds": 60,
+  "pending_seconds": 20,
+  "recovery_seconds": 60,
+  "group_window_seconds": 120,
+  "freshness_seconds": 30,
+  "min_requests": 10,
+  "log_limit": 1000,
+  "trace_limit": 12,
+  "thresholds": {
+    "http_errors": 0.15, "latency": 2.0, "pool_pressure": 0.9,
+    "pool_timeouts": 2, "payment_failures": 0.25,
+    "dependency_errors": 0.15, "new_exception": 3, "persistence_errors": 2
+  }
+}

@@ -5,7 +5,28 @@ Additive, versioned SQL per service database (`<service>/NNN_description.sql`), 
 - under an advisory lock, so two runners cannot race;
 - checksummed in `schema_migrations`, so editing an applied file is refused.
 
-They are **not** applied at service startup. Applying them to the live Compose databases needs explicit approval.
+## Automatic Compose setup
+
+As of 2026-11-06, `docker compose up --build -d` runs `db-migrate` automatically after PostgreSQL
+is healthy and before Inventory, Payments and Orders start. `scripts/migrate_all.py` uses each
+service's own database role, applies Inventory → Payments → Orders, checks existing migration
+checksums, and skips already applied versions. Lock waits are limited to 5 seconds. On failure,
+the setup job exits nonzero and dependent business services do not start.
+
+The ordinary first-run workflow needs no manual migration commands. PostgreSQL still uses
+`init-db.sh`/`init-db.sql` for its initial base schema; the setup job adds the checkout schema.
+`Exited (0)` for `db-migrate` is expected. `docker compose start` or restarting Docker is not a
+schema-upgrade command: after changing code/migrations, use `docker compose up --build -d`.
+
+Automatic setup does not erase data, restore backups or enable the reconciler. Before upgrading
+an existing database with pending migrations, retain and verify a backup using the procedure below.
+The maintenance/rollback sections are for deliberate database administration; they are not extra
+steps required for a new user's normal Compose startup. A rollback of these migrations will be
+reapplied by the next normal Compose setup, so coordinate rollback with the deployed application version.
+
+The manual procedure below predates automatic setup. To inspect/back up an older unprepared
+volume before adopting this version, start only `postgres` until the backup is verified; starting
+business services also runs `db-migrate`.
 
 ## Hard rules
 

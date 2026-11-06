@@ -1,0 +1,8 @@
+data
+reports
+tests
+__pycache__
+**/__pycache__
+.env
+.git
+validation

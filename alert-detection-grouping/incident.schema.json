@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OBSERVA incident handoff v1",
+  "type": "object",
+  "required": ["schema_version", "id", "revision", "origin", "environment", "status", "severity",
+    "first_observed_at", "created_at", "updated_at", "last_observed_at", "affected_services",
+    "alerts", "relationships", "timeline", "evidence", "source_health", "data_gaps", "root_cause", "handoff"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "id": {"type": "string", "pattern": "^INC-[0-9a-f]{20}$"},
+    "revision": {"type": "integer", "minimum": 1},
+    "origin": {"enum": ["live", "synthetic_demo"]},
+    "environment": {"type": "string"},
+    "status": {"enum": ["open", "resolved"]},
+    "severity": {"enum": ["warning", "critical"]},
+    "first_observed_at": {"type": "string", "format": "date-time"},
+    "created_at": {"type": "string", "format": "date-time"},
+    "updated_at": {"type": "string", "format": "date-time"},
+    "last_observed_at": {"type": "string", "format": "date-time"},
+    "resolved_at": {"type": "string", "format": "date-time"},
+    "affected_services": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+    "alerts": {
+      "type": "object", "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "required": ["id", "incident_id", "rule", "service", "status", "data_quality", "evidence", "trigger_evidence"],
+        "properties": {
+          "incident_id": {"type": "string", "pattern": "^INC-[0-9a-f]{20}$"},
+          "status": {"enum": ["pending", "firing", "resolved"]},
+          "data_quality": {"enum": ["good", "bad", "unknown"]}
+        }
+      }
+    },
+    "relationships": {"type": "array", "items": {"type": "object", "required": ["alert_id", "kind", "confidence", "explanation"]}},
+    "timeline": {"type": "array"},
+    "evidence": {"type": "object", "required": ["logs", "traces"]},
+    "source_health": {"type": "object"},
+    "data_gaps": {"type": "array", "items": {"type": "string"}},
+    "root_cause": {"type": "object", "properties": {"status": {"const": "not_determined"}}, "required": ["status"]},
+    "handoff": {"type": "object", "required": ["ready_for_investigation", "query_window", "sources", "next_steps", "hypotheses", "evidence_limits"]}
+  }
+}

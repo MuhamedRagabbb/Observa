@@ -26,16 +26,23 @@ A long-running stack built from an older image can still show the Arabic storefr
 
 ## Start
 
+One command now starts the storefront, operator, database, traffic, telemetry backends and Grafana.
+Compose waits for PostgreSQL, runs the one-shot `db-migrate` job (Inventory → Payments → Orders),
+then starts the business services. Existing migration versions are checksum-checked and skipped;
+new databases receive the checkout tables automatically. No manual SQL or migration commands are required.
+A failed setup blocks dependent services instead of starting checkout against missing tables.
+`db-migrate` ending with `Exited (0)` is normal: its job has finished successfully.
+Check failures with `docker compose logs db-migrate`, correct the cause, then run the startup command again.
+This does not reset data or enable the optional background reconciler. For existing databases with
+pending schema changes, keep a backup before upgrading; automatic setup is not a backup system.
+
 Install Docker Desktop with its Linux engine running (or Docker Engine + Compose v2+). From this directory:
 
 ```sh
-cp .env.example .env
 docker compose up --build -d
-docker compose ps
-python scripts/smoke.py
 ```
 
-On PowerShell, use `Copy-Item .env.example .env`. Prerequisites: Docker with Compose v2 (and network access for the first build); Python 3.12 on the host only for scripts and tests; Node 24 or newer on the host only for developing the React UIs in `web/` (the image builds them in its own Node stage). All services run in containers. Images and Python dependencies (including transitive dependencies) are pinned. Allow several minutes for the first download/build. Allocate roughly 2–3 GB to Docker. Container memory/concurrency limits keep this small enough for a laptop.
+The same command works in the VS Code PowerShell terminal. A `.env` file is optional; defaults are included. Copy `.env.example` only if you want to customize settings. Prerequisites: Docker with Compose v2 (and network access for the first build); Python 3.12 on the host only for scripts and tests; Node 24 or newer on the host only for developing the React UIs in `web/` (the image builds them in its own Node stage). All services run in containers. Images and Python dependencies (including transitive dependencies) are pinned. Allow several minutes for the first download/build. Allocate roughly 2–3 GB to Docker. Container memory/concurrency limits keep this small enough for a laptop.
 
 On Linux, set `LOCAL_UID`/`LOCAL_GID` in `.env` to your `id -u`/`id -g` so the controller can write the bind-mounted `ground-truth` directory. Windows Docker Desktop works with the defaults.
 
@@ -54,11 +61,7 @@ Traffic begins automatically at 4 requests/second with seed 42. All exposed port
 | Collector Prometheus scrape endpoint | http://localhost:8889/metrics |
 | Collector OTLP HTTP / gRPC | localhost:4318 / localhost:4317 |
 
-Optional Grafana, preconfigured with a dashboard, Loki-to-Jaeger links and all three data sources:
-
-```sh
-docker compose --profile ui up -d
-```
+Grafana starts by default, preconfigured with a dashboard, Loki-to-Jaeger links and all three data sources. The older `--profile ui` command remains harmless but is no longer needed.
 
 Open http://localhost:3000/d/observa-overview (anonymous viewing enabled).
 
@@ -106,9 +109,7 @@ Use one of these to review the React storefront and operator. None of them touch
    Remove-Item Env:COMPOSE_PROJECT_NAME -ErrorAction SilentlyContinue
    $f = '-f','docker-compose.yml','-f','docker-compose.preview.yml'
    docker compose @f up --build -d --wait postgres gateway orders inventory payments fault-injector collector prometheus jaeger loki telemetry-health
-   foreach ($svc in 'inventory','payments','orders') {   # the checkout migrations, as in runbook step 6
-     docker compose @f exec -T $svc sh -c "set -f; python -m services.shared.migrations --dsn `${DATABASE_URL}?lock_timeout=5s --dir scripts/migrations/$svc"
-   }
+   # db-migrate has already applied the checkout migrations before these services start.
    docker compose @f --profile traffic up -d --no-deps traffic-generator   # optional background checkout traffic
    # From this code: Storefront http://127.0.0.1:18000/   Operator http://127.0.0.1:18090/
    docker compose @f down   # containers and networks only; remove observa-p4-preview_* volumes by exact name
@@ -272,8 +273,7 @@ In Jaeger choose `api-gateway` → `POST /api/orders`, or open `http://localhost
 **Run it and make an incident** (Docker; the faults are real but affect only your own local stack):
 
 ```sh
-cp .env.example .env
-docker compose --profile ui up --build -d     # Grafana is optional
+docker compose up --build -d                  # Includes automatic DB setup and Grafana
 python scripts/smoke.py                       # health and a sample checkout
 python scripts/faults.py activate payments_errors --duration 120
 python scripts/faults.py deactivate payments_errors
