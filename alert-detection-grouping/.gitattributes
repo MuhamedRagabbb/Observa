@@ -1,0 +1,2 @@
+# Evidence and manifests contain byte-based checksums; preserve exact bytes on checkout.
+examples/compact-bundle/** -text

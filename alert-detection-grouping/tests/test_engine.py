@@ -84,15 +84,15 @@ class DetectionTests(unittest.TestCase):
         self.engine = Engine(self.tmp.name, self.config)
         incidents = self.engine.tick(snapshot(self.config, 1120))
         export(incidents, reports)
-        saved = json.loads((reports / (ident + ".json")).read_text(encoding="utf-8"))
+        saved = json.loads((reports / ident / "incident.json").read_text(encoding="utf-8"))
         self.assertEqual(saved["status"], "resolved")
         self.assertGreater(saved["revision"], revision)
-        self.assertEqual(len(list(reports.glob("INC-*.json"))), 1)
+        self.assertEqual(len(list(reports.glob("INC-*/incident.json"))), 1)
         index = json.loads((reports / "index.json").read_text(encoding="utf-8"))
         self.assertEqual(index[0]["alert_ids"], sorted(saved["alerts"]))
         self.assertEqual(index[0]["alert_count"], len(saved["alerts"]))
-        self.assertIn(ident + ".md", (reports / "index.md").read_text(encoding="utf-8"))
-        readable = (reports / (ident + ".md")).read_text(encoding="utf-8")
+        self.assertIn(ident + "/summary.md", (reports / "index.md").read_text(encoding="utf-8"))
+        readable = (reports / ident / "summary.md").read_text(encoding="utf-8")
         self.assertIn("alerts below belong to incident **" + ident, readable)
         self.assertIn("confidence: **high**", readable)
         self.assertEqual(list(reports.glob("*.tmp")), [])
@@ -183,11 +183,11 @@ class DetectionTests(unittest.TestCase):
     def test_export_contains_handoff_contract(self):
         incidents=self.run_case("payments")
         export(incidents,Path(self.tmp.name)/"reports")
-        report=json.loads((Path(self.tmp.name)/"reports"/(incidents[0]["id"]+".json")).read_text())
-        for key in ("schema_version","alerts","relationships","evidence","timeline","source_health","data_gaps","handoff","origin"):
+        report=json.loads((Path(self.tmp.name)/"reports"/incidents[0]["id"]/"incident.json").read_text())
+        for key in ("schema_version","alerts","relationships","evidence_refs","snapshot_id","source_health","data_gaps","handoff","origin"):
             self.assertIn(key,report)
-        self.assertTrue(report["evidence"]["logs"])
-        self.assertTrue(report["evidence"]["traces"])
+        self.assertTrue(report["evidence_refs"]["logs"]["record_count"])
+        self.assertTrue(report["evidence_refs"]["traces"]["record_count"])
         self.assertTrue(report["handoff"]["ready_for_investigation"])
 
     def test_source_failure_is_explicit(self):

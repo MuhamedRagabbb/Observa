@@ -51,6 +51,12 @@ def main():
         value["name"] = detector_project + "_" + key
     detector["services"]["alerts"].pop("build",None)
     detector["services"]["alerts"].update(image="observa-alerts:validation", restart="no")
+    # Override the normal host reports bind: an isolated test must never write live reports.
+    detector["volumes"]["alert-reports"] = {"name": detector_project + "_alert-reports"}
+    detector["services"]["alerts"]["volumes"] = [
+        {"type": "volume", "source": "alert-reports", "target": "/app/reports"}
+        if mount["target"] == "/app/reports" else mount
+        for mount in detector["services"]["alerts"]["volumes"]]
     base["volumes"]["detector-reports"] = {
         "external": True, "name": detector_project + "_alert-reports"}
     # Probe is evaluation infrastructure, never imported or accessed by the detector.

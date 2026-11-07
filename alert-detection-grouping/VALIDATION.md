@@ -1,5 +1,33 @@
 # Validation
 
+## Compact incident bundles — 2026-11-07
+
+- **31 unit/HTTP tests passed**. New coverage includes lossless reconstruction,
+  pinned references across updates, same-revision content changes, bounded pagination,
+  oversized records, unknown/path-traversal refs, evidence tampering, interrupted writes,
+  immutable-object reuse, legacy archiving and isolated test-report storage.
+- All **13 actual local incidents** were converted to per-incident folders. Their
+  original flat JSON/Markdown files were retained under `reports/_legacy/v1-d16d74680e00/`.
+- Every converted incident passed `incident-bundle.schema.json` (v2), and its full
+  original v1 object was reconstructed **exactly** from the saved evidence. Index,
+  parent incident IDs, report links and bounded five-log reads were verified.
+- Agent inputs now measure **3,385–10,379 bytes**; readable summaries are **52–68 lines**.
+  The alphabetically first incident changed from 262,599 bytes / 7,776 JSON lines
+  to 4,534 bytes / 143 lines, with a 54-line summary. This measures bytes, not tokens.
+- The CLI evidence reader returned five real saved logs with a continuation cursor,
+  within its default 16 KB response budget. A synthetic v2 example is included in
+  `examples/compact-bundle/demo-payments/`; old examples retain their v1 format.
+- Runtime detector configuration, SQLite state, detection/grouping rules and dummy-app
+  code are unchanged. Export schema v2 is a consumer-facing contract change: use
+  references rather than expecting inline `evidence`/`trigger_evidence`/`timeline`.
+- Docker Engine was unavailable in this run. No new Docker image was built or
+  deployed, and no live fault was injected. Rebuild with `docker compose up --build -d`
+  before using the updated exporter in a container. Local migration and tool checks
+  are complete, but do not claim a new live Docker test.
+- Audit details: ignored `validation/bundle-migration-20261107.json` and
+  `validation/bundle-preview-20261107/audit.json`. Evidence snapshots are retained;
+  automatic retention/deletion is not implemented.
+
 ## Review and local report export — 2026-11-06
 
 - 22 feature unit/HTTP tests passed, including exact downstream alert references,

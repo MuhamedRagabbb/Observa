@@ -9,6 +9,7 @@ from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 from observa_alerts.collect import collect
 from observa_alerts.config import settings
+from observa_alerts.archive import restore_snapshot
 
 RESULTS=Path("/results")
 
@@ -26,7 +27,11 @@ def request(path, body=None):
 
 
 def reports():
-    return [json.loads(p.read_text()) for p in Path("/detector-reports").glob("INC-*.json")]
+    root = Path("/detector-reports")
+    compact = [json.loads(p.read_text()) for p in root.glob("INC-*/incident.json")]
+    if compact:
+        return [restore_snapshot(root, i["id"], i["snapshot_id"]) for i in compact]
+    return [json.loads(p.read_text()) for p in root.glob("INC-*.json")]
 
 
 def save(label):
@@ -36,10 +41,11 @@ def save(label):
     (folder/"sample.json").write_text(json.dumps(sample,indent=2),encoding="utf-8")
     found=reports()
     for item in found:
-        for suffix in (".json",".md"):
-            source=Path("/detector-reports")/(item["id"]+suffix)
-            if source.exists():
-                (folder/source.name).write_bytes(source.read_bytes())
+        # Audit captures intentionally reconstruct full v1 evidence; agent inputs remain compact.
+        (folder/(item["id"]+".json")).write_text(json.dumps(item,indent=2),encoding="utf-8")
+        source=Path("/detector-reports")/item["id"]/"summary.md"
+        if source.exists():
+            (folder/(item["id"]+".md")).write_bytes(source.read_bytes())
     status={"label":label, "time":time.time(), "source_health":sample["source_health"],
             "metrics":sample["metrics"],"log_count":len(sample["logs"]),"trace_count":len(sample["traces"]),
             "incidents":[{"id":i["id"],"status":i["status"],"services":i["affected_services"],
