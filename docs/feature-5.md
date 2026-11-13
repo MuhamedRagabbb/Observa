@@ -2,8 +2,6 @@
 
 ## Status
 
-**Description only. This branch contains no Feature 5 code yet.**
-
 Memory stores incidents whose report a human has approved. Producing one needs findings
 (Feature 2), a root cause (Feature 3), recommendations (Feature 4), a report (Feature 7)
 and an approval (Feature 6). None of those exist yet, so there is no real approved
