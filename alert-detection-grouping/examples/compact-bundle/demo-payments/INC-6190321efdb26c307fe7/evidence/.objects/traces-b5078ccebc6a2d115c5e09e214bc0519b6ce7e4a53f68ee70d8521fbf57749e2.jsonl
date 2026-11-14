@@ -1,0 +1,3 @@
+{"duration_us":12000,"error":true,"http_status_code":503,"operation":"synthetic-operation","references":[],"service":"payments-service","span_id":"0"}
+{"duration_us":12000,"error":true,"http_status_code":503,"operation":"synthetic-operation","references":[],"service":"orders-service","span_id":"1"}
+{"duration_us":12000,"error":true,"http_status_code":503,"operation":"synthetic-operation","references":[],"service":"api-gateway","span_id":"2"}

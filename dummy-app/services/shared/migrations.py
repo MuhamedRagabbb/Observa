@@ -4,7 +4,8 @@ Files are named ``NNN_description.sql`` and applied in order, each in its own tr
 under a session advisory lock so concurrent starters cannot race. Applied files are
 checksummed; editing one after it has been applied is an error.
 
-Not wired into service startup yet: apply explicitly after a reviewed backup.
+Compose runs scripts.migrate_all before starting business services. This module also
+supports explicitly running migrations during maintenance.
 """
 
 import argparse

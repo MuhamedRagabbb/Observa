@@ -1,0 +1,1 @@
+{"failed_span_count":3,"ref_id":"trace-c22b98a0bb99e549778008f0","services":["api-gateway","orders-service","payments-service"],"span_count":3,"trace_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}

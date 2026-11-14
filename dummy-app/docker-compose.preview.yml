@@ -22,6 +22,9 @@ x-public-ports: &public-ports
   PUBLIC_PROMETHEUS_PORT: ${P4_PROMETHEUS_PORT:-19090}
 
 services:
+  db-migrate:
+    image: *preview-image
+    restart: "no"
   gateway:
     image: *preview-image
     restart: "no"
@@ -44,7 +47,7 @@ services:
     restart: "no"
     profiles: [traffic]
     environment:
-      # The preview exercises the new multi-item checkout, so start it only after the migrations.
+      # The preview exercises checkout; the base Compose gates startup on db-migrate.
       TRAFFIC_FLOW: ${P4_TRAFFIC_FLOW:-checkout}
   fault-injector:
     image: *preview-image

@@ -1,0 +1,25 @@
+name: observa-alerts
+services:
+  alerts:
+    build: .
+    init: true
+    restart: unless-stopped
+    environment:
+      PROMETHEUS_URL: http://prometheus:9090
+      LOKI_URL: http://loki:3100
+      JAEGER_URL: http://jaeger:16686
+    networks: [telemetry]
+    volumes:
+      - alert-state:/app/data
+      - ./reports:/app/reports
+    mem_limit: 192m
+    cpus: 0.5
+    read_only: true
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+networks:
+  telemetry:
+    external: true
+    name: ${OBSERVABILITY_NETWORK:-observa-dummy_observability}
+volumes:
+  alert-state:

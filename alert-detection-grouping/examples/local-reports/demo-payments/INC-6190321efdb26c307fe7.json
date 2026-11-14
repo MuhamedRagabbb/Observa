@@ -1,0 +1,480 @@
+{
+  "schema_version": "1.0",
+  "id": "INC-6190321efdb26c307fe7",
+  "revision": 4,
+  "origin": "synthetic_demo",
+  "environment": "local",
+  "status": "open",
+  "created_at": "2026-11-04T10:00:20Z",
+  "first_observed_at": "2026-11-04T10:00:00Z",
+  "last_observed_epoch": 1793786450,
+  "anchor": {
+    "service": "payments-service",
+    "family": "payment"
+  },
+  "anchor_alert_id": "45bc9975ca15de626cfc",
+  "affected_services": [
+    "payments-service",
+    "orders-service",
+    "api-gateway"
+  ],
+  "alerts": {
+    "74a55410973bf5a95b33": {
+      "id": "74a55410973bf5a95b33",
+      "status": "firing",
+      "first_observed_epoch": 1793786400,
+      "bad_since": 1793786400,
+      "good_since": null,
+      "incident_id": "INC-6190321efdb26c307fe7",
+      "history": [
+        {
+          "at": "2026-11-04T10:00:20Z",
+          "from": "pending",
+          "to": "firing"
+        }
+      ],
+      "rule": "http_errors",
+      "service": "api-gateway",
+      "family": "generic",
+      "title": "HTTP 5xx ratio",
+      "value": 0.7,
+      "unit": "ratio",
+      "threshold": 0.15,
+      "verdict": "bad",
+      "evidence": {
+        "source": "prometheus",
+        "query": "(sum by (service_name) (increase(http_server_requests_total{service_name=~\"api-gateway|orders-service|inventory-service|payments-service\",deployment_environment=\"local\",http_status_code=~\"5..\"}[60s])) or on(service_name) (0 * (sum by (service_name) (increase(http_server_requests_total{service_name=~\"api-gateway|orders-service|inventory-service|payments-service\",deployment_environment=\"local\"}[60s]))))) / (sum by (service_name) (increase(http_server_requests_total{service_name=~\"api-gateway|orders-service|inventory-service|payments-service\",deployment_environment=\"local\"}[60s])))",
+        "window_end": "2026-11-04T10:00:50Z",
+        "window_seconds": 60,
+        "request_count": 200,
+        "sample_age_seconds": 0.0
+      },
+      "data_quality": "bad",
+      "last_observed_epoch": 1793786450,
+      "trigger_evidence": {
+        "rule": "http_errors",
+        "service": "api-gateway",
+        "family": "generic",
+        "title": "HTTP 5xx ratio",
+        "value": 0.7,
+        "unit": "ratio",
+        "threshold": 0.15,
+        "verdict": "bad",
+        "evidence": {
+          "source": "prometheus",
+          "query": "(sum by (service_name) (increase(http_server_requests_total{service_name=~\"api-gateway|orders-service|inventory-service|payments-service\",deployment_environment=\"local\",http_status_code=~\"5..\"}[60s])) or on(service_name) (0 * (sum by (service_name) (increase(http_server_requests_total{service_name=~\"api-gateway|orders-service|inventory-service|payments-service\",deployment_environment=\"local\"}[60s]))))) / (sum by (service_name) (increase(http_server_requests_total{service_name=~\"api-gateway|orders-service|inventory-service|payments-service\",deployment_environment=\"local\"}[60s])))",
+          "window_end": "2026-11-04T10:00:00Z",
+          "window_seconds": 60,
+          "request_count": 200,
+          "sample_age_seconds": 0.0
+        }
+      },
+      "peak_value": 0.7,
+      "severity": "critical",
+      "detected_at": "2026-11-04T10:00:20Z"
+    },
+    "145cbaa27f2d469d3c89": {
+      "id": "145cbaa27f2d469d3c89",
+      "status": "firing",
+      "first_observed_epoch": 1793786400,
+      "bad_since": 1793786400,
+      "good_since": null,
+      "incident_id": "INC-6190321efdb26c307fe7",
+      "history": [
+        {
+          "at": "2026-11-04T10:00:20Z",
+          "from": "pending",
+          "to": "firing"
+        }
+      ],
+      "rule": "http_errors",
+      "service": "orders-service",
+      "family": "generic",
+      "title": "HTTP 5xx ratio",
+      "value": 0.7,
+      "unit": "ratio",
+      "threshold": 0.15,
+      "verdict": "bad",
+      "evidence": {
+        "source": "prometheus",
+        "query": "(sum by (service_name) (increase(http_server_requests_total{service_name=~\"api-gateway|orders-service|inventory-service|payments-service\",deployment_environment=\"local\",http_status_code=~\"5..\"}[60s])) or on(service_name) (0 * (sum by (service_name) (increase(http_server_requests_total{service_name=~\"api-gateway|orders-service|inventory-service|payments-service\",deployment_environment=\"local\"}[60s]))))) / (sum by (service_name) (increase(http_server_requests_total{service_name=~\"api-gateway|orders-service|inventory-service|payments-service\",deployment_environment=\"local\"}[60s])))",
+        "window_end": "2026-11-04T10:00:50Z",
+        "window_seconds": 60,
+        "request_count": 200,
+        "sample_age_seconds": 0.0
+      },
+      "data_quality": "bad",
+      "last_observed_epoch": 1793786450,
+      "trigger_evidence": {
+        "rule": "http_errors",
+        "service": "orders-service",
+        "family": "generic",
+        "title": "HTTP 5xx ratio",
+        "value": 0.7,
+        "unit": "ratio",
+        "threshold": 0.15,
+        "verdict": "bad",
+        "evidence": {
+          "source": "prometheus",
+          "query": "(sum by (service_name) (increase(http_server_requests_total{service_name=~\"api-gateway|orders-service|inventory-service|payments-service\",deployment_environment=\"local\",http_status_code=~\"5..\"}[60s])) or on(service_name) (0 * (sum by (service_name) (increase(http_server_requests_total{service_name=~\"api-gateway|orders-service|inventory-service|payments-service\",deployment_environment=\"local\"}[60s]))))) / (sum by (service_name) (increase(http_server_requests_total{service_name=~\"api-gateway|orders-service|inventory-service|payments-service\",deployment_environment=\"local\"}[60s])))",
+          "window_end": "2026-11-04T10:00:00Z",
+          "window_seconds": 60,
+          "request_count": 200,
+          "sample_age_seconds": 0.0
+        }
+      },
+      "peak_value": 0.7,
+      "severity": "critical",
+      "detected_at": "2026-11-04T10:00:20Z"
+    },
+    "983c3dbbb004b61eae17": {
+      "id": "983c3dbbb004b61eae17",
+      "status": "firing",
+      "first_observed_epoch": 1793786400,
+      "bad_since": 1793786400,
+      "good_since": null,
+      "incident_id": "INC-6190321efdb26c307fe7",
+      "history": [
+        {
+          "at": "2026-11-04T10:00:20Z",
+          "from": "pending",
+          "to": "firing"
+        }
+      ],
+      "rule": "http_errors",
+      "service": "payments-service",
+      "family": "generic",
+      "title": "HTTP 5xx ratio",
+      "value": 0.7,
+      "unit": "ratio",
+      "threshold": 0.15,
+      "verdict": "bad",
+      "evidence": {
+        "source": "prometheus",
+        "query": "(sum by (service_name) (increase(http_server_requests_total{service_name=~\"api-gateway|orders-service|inventory-service|payments-service\",deployment_environment=\"local\",http_status_code=~\"5..\"}[60s])) or on(service_name) (0 * (sum by (service_name) (increase(http_server_requests_total{service_name=~\"api-gateway|orders-service|inventory-service|payments-service\",deployment_environment=\"local\"}[60s]))))) / (sum by (service_name) (increase(http_server_requests_total{service_name=~\"api-gateway|orders-service|inventory-service|payments-service\",deployment_environment=\"local\"}[60s])))",
+        "window_end": "2026-11-04T10:00:50Z",
+        "window_seconds": 60,
+        "request_count": 200,
+        "sample_age_seconds": 0.0
+      },
+      "data_quality": "bad",
+      "last_observed_epoch": 1793786450,
+      "trigger_evidence": {
+        "rule": "http_errors",
+        "service": "payments-service",
+        "family": "generic",
+        "title": "HTTP 5xx ratio",
+        "value": 0.7,
+        "unit": "ratio",
+        "threshold": 0.15,
+        "verdict": "bad",
+        "evidence": {
+          "source": "prometheus",
+          "query": "(sum by (service_name) (increase(http_server_requests_total{service_name=~\"api-gateway|orders-service|inventory-service|payments-service\",deployment_environment=\"local\",http_status_code=~\"5..\"}[60s])) or on(service_name) (0 * (sum by (service_name) (increase(http_server_requests_total{service_name=~\"api-gateway|orders-service|inventory-service|payments-service\",deployment_environment=\"local\"}[60s]))))) / (sum by (service_name) (increase(http_server_requests_total{service_name=~\"api-gateway|orders-service|inventory-service|payments-service\",deployment_environment=\"local\"}[60s])))",
+          "window_end": "2026-11-04T10:00:00Z",
+          "window_seconds": 60,
+          "request_count": 200,
+          "sample_age_seconds": 0.0
+        }
+      },
+      "peak_value": 0.7,
+      "severity": "critical",
+      "detected_at": "2026-11-04T10:00:20Z"
+    },
+    "45bc9975ca15de626cfc": {
+      "id": "45bc9975ca15de626cfc",
+      "status": "firing",
+      "first_observed_epoch": 1793786400,
+      "bad_since": 1793786400,
+      "good_since": null,
+      "incident_id": "INC-6190321efdb26c307fe7",
+      "history": [
+        {
+          "at": "2026-11-04T10:00:20Z",
+          "from": "pending",
+          "to": "firing"
+        }
+      ],
+      "rule": "payment_failures",
+      "service": "payments-service",
+      "family": "payment",
+      "title": "Payment failure ratio including declines",
+      "value": 0.85,
+      "unit": "ratio",
+      "threshold": 0.25,
+      "verdict": "bad",
+      "evidence": {
+        "source": "prometheus",
+        "query": "(sum by (service_name) (increase(payments_failed_total{service_name=~\"api-gateway|orders-service|inventory-service|payments-service\",deployment_environment=\"local\"}[60s])) or on(service_name) (0 * (sum by (service_name) (increase(http_server_requests_total{service_name=~\"api-gateway|orders-service|inventory-service|payments-service\",deployment_environment=\"local\"}[60s]))))) / (sum by (service_name) (increase(http_server_requests_total{service_name=~\"api-gateway|orders-service|inventory-service|payments-service\",deployment_environment=\"local\",http_route=\"/payments/charge\"}[60s])))",
+        "window_end": "2026-11-04T10:00:50Z",
+        "window_seconds": 60,
+        "request_count": 100,
+        "sample_age_seconds": 0.0
+      },
+      "data_quality": "bad",
+      "last_observed_epoch": 1793786450,
+      "trigger_evidence": {
+        "rule": "payment_failures",
+        "service": "payments-service",
+        "family": "payment",
+        "title": "Payment failure ratio including declines",
+        "value": 0.85,
+        "unit": "ratio",
+        "threshold": 0.25,
+        "verdict": "bad",
+        "evidence": {
+          "source": "prometheus",
+          "query": "(sum by (service_name) (increase(payments_failed_total{service_name=~\"api-gateway|orders-service|inventory-service|payments-service\",deployment_environment=\"local\"}[60s])) or on(service_name) (0 * (sum by (service_name) (increase(http_server_requests_total{service_name=~\"api-gateway|orders-service|inventory-service|payments-service\",deployment_environment=\"local\"}[60s]))))) / (sum by (service_name) (increase(http_server_requests_total{service_name=~\"api-gateway|orders-service|inventory-service|payments-service\",deployment_environment=\"local\",http_route=\"/payments/charge\"}[60s])))",
+          "window_end": "2026-11-04T10:00:00Z",
+          "window_seconds": 60,
+          "request_count": 100,
+          "sample_age_seconds": 0.0
+        }
+      },
+      "peak_value": 0.85,
+      "severity": "critical",
+      "detected_at": "2026-11-04T10:00:20Z"
+    }
+  },
+  "relationships": [
+    {
+      "alert_id": "145cbaa27f2d469d3c89",
+      "related_alert_id": "45bc9975ca15de626cfc",
+      "kind": "failed_dependency",
+      "confidence": "high",
+      "related_service": "payments-service",
+      "explanation": "Upstream service logged a failed call to a service already in this incident. Causation remains a hypothesis.",
+      "direction": {
+        "upstream": "orders-service",
+        "downstream": "payments-service"
+      },
+      "witnesses": [
+        {
+          "service.name": "orders-service",
+          "environment": "local",
+          "dependency": "payments-service",
+          "event": "dependency_request_failed",
+          "level": "ERROR",
+          "http.status_code": 503,
+          "observed_at": 1793786420,
+          "trace_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      ]
+    },
+    {
+      "alert_id": "983c3dbbb004b61eae17",
+      "related_alert_id": "45bc9975ca15de626cfc",
+      "kind": "same_service_symptoms",
+      "confidence": "moderate",
+      "related_service": "payments-service",
+      "explanation": "Overlapping observations in one service; shared cause is unconfirmed."
+    },
+    {
+      "alert_id": "74a55410973bf5a95b33",
+      "related_alert_id": "145cbaa27f2d469d3c89",
+      "kind": "failed_dependency",
+      "confidence": "high",
+      "related_service": "orders-service",
+      "explanation": "Upstream service logged a failed call to a service already in this incident. Causation remains a hypothesis.",
+      "direction": {
+        "upstream": "api-gateway",
+        "downstream": "orders-service"
+      },
+      "witnesses": [
+        {
+          "service.name": "api-gateway",
+          "environment": "local",
+          "dependency": "orders-service",
+          "event": "dependency_request_failed",
+          "level": "ERROR",
+          "http.status_code": 503,
+          "observed_at": 1793786420,
+          "trace_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      ]
+    }
+  ],
+  "timeline": [
+    {
+      "at": "2026-11-04T10:00:20Z",
+      "event": "incident_opened"
+    },
+    {
+      "at": "2026-11-04T10:00:20Z",
+      "event": "alert_attached",
+      "alert_id": "45bc9975ca15de626cfc"
+    },
+    {
+      "at": "2026-11-04T10:00:20Z",
+      "event": "alert_attached",
+      "alert_id": "145cbaa27f2d469d3c89"
+    },
+    {
+      "at": "2026-11-04T10:00:20Z",
+      "event": "alert_attached",
+      "alert_id": "983c3dbbb004b61eae17"
+    },
+    {
+      "at": "2026-11-04T10:00:20Z",
+      "event": "alert_attached",
+      "alert_id": "74a55410973bf5a95b33"
+    }
+  ],
+  "evidence": {
+    "logs": [
+      {
+        "service.name": "orders-service",
+        "environment": "local",
+        "dependency": "payments-service",
+        "event": "dependency_request_failed",
+        "level": "ERROR",
+        "http.status_code": 503,
+        "observed_at": 1793786420,
+        "trace_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "service.name": "api-gateway",
+        "environment": "local",
+        "dependency": "orders-service",
+        "event": "dependency_request_failed",
+        "level": "ERROR",
+        "http.status_code": 503,
+        "observed_at": 1793786420,
+        "trace_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "service.name": "orders-service",
+        "environment": "local",
+        "dependency": "payments-service",
+        "event": "dependency_request_failed",
+        "level": "ERROR",
+        "http.status_code": 503,
+        "observed_at": 1793786430,
+        "trace_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "service.name": "api-gateway",
+        "environment": "local",
+        "dependency": "orders-service",
+        "event": "dependency_request_failed",
+        "level": "ERROR",
+        "http.status_code": 503,
+        "observed_at": 1793786430,
+        "trace_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "service.name": "orders-service",
+        "environment": "local",
+        "dependency": "payments-service",
+        "event": "dependency_request_failed",
+        "level": "ERROR",
+        "http.status_code": 503,
+        "observed_at": 1793786440,
+        "trace_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "service.name": "api-gateway",
+        "environment": "local",
+        "dependency": "orders-service",
+        "event": "dependency_request_failed",
+        "level": "ERROR",
+        "http.status_code": 503,
+        "observed_at": 1793786440,
+        "trace_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "service.name": "orders-service",
+        "environment": "local",
+        "dependency": "payments-service",
+        "event": "dependency_request_failed",
+        "level": "ERROR",
+        "http.status_code": 503,
+        "observed_at": 1793786450,
+        "trace_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "service.name": "api-gateway",
+        "environment": "local",
+        "dependency": "orders-service",
+        "event": "dependency_request_failed",
+        "level": "ERROR",
+        "http.status_code": 503,
+        "observed_at": 1793786450,
+        "trace_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    ],
+    "traces": [
+      {
+        "trace_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "spans": [
+          {
+            "service": "payments-service",
+            "span_id": "0",
+            "operation": "synthetic-operation",
+            "duration_us": 12000,
+            "error": true,
+            "http_status_code": 503,
+            "references": []
+          },
+          {
+            "service": "orders-service",
+            "span_id": "1",
+            "operation": "synthetic-operation",
+            "duration_us": 12000,
+            "error": true,
+            "http_status_code": 503,
+            "references": []
+          },
+          {
+            "service": "api-gateway",
+            "span_id": "2",
+            "operation": "synthetic-operation",
+            "duration_us": 12000,
+            "error": true,
+            "http_status_code": 503,
+            "references": []
+          }
+        ]
+      }
+    ]
+  },
+  "root_cause": {
+    "status": "not_determined"
+  },
+  "summary": "Observed payment symptoms in payments-service",
+  "source_health": {
+    "prometheus": "ok",
+    "loki": "ok",
+    "jaeger": "ok"
+  },
+  "updated_at": "2026-11-04T10:00:50Z",
+  "severity": "critical",
+  "last_observed_at": "2026-11-04T10:00:50Z",
+  "data_gaps": [],
+  "handoff": {
+    "ready_for_investigation": true,
+    "query_window": {
+      "start": "2026-11-04T09:58:00Z",
+      "end": "2026-11-04T10:00:50Z"
+    },
+    "sources": {
+      "prometheus": "http://127.0.0.1:9090",
+      "loki": "http://127.0.0.1:3100",
+      "jaeger": "http://127.0.0.1:16686"
+    },
+    "next_steps": [
+      "Check failed dependency directions against span parent relationships.",
+      "Compare metrics with a healthy baseline and check release_changed events.",
+      "Distinguish business payment declines from service unavailability.",
+      "Validate suspected initiating service; grouping is not proof of causality."
+    ],
+    "evidence_limits": "Bounded samples: 100 sanitized logs and 20 traces. Original Jaeger traces may expire.",
+    "hypotheses": [
+      {
+        "service": "payments-service",
+        "statement": "Candidate focus for investigation based on the first grouped specific signal.",
+        "confidence": "unconfirmed"
+      }
+    ]
+  }
+}

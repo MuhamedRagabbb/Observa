@@ -1,0 +1,32 @@
+{
+  "trace_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "spans": [
+    {
+      "service": "payments-service",
+      "span_id": "0",
+      "operation": "synthetic-operation",
+      "duration_us": 12000,
+      "error": true,
+      "http_status_code": 503,
+      "references": []
+    },
+    {
+      "service": "orders-service",
+      "span_id": "1",
+      "operation": "synthetic-operation",
+      "duration_us": 12000,
+      "error": true,
+      "http_status_code": 503,
+      "references": []
+    },
+    {
+      "service": "api-gateway",
+      "span_id": "2",
+      "operation": "synthetic-operation",
+      "duration_us": 12000,
+      "error": true,
+      "http_status_code": 503,
+      "references": []
+    }
+  ]
+}

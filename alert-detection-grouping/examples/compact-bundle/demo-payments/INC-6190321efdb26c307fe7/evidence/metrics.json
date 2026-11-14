@@ -1,0 +1,146 @@
+{
+  "snapshot_id": "r4-695ea705dc19c1c72d7c4a53ef2a5c47126d535741b337ec22e4917611a4afa7",
+  "query_window": {
+    "start": "2026-11-04T09:58:00Z",
+    "end": "2026-11-04T10:00:50Z"
+  },
+  "coverage": "Observed alert values and queries; not complete time series",
+  "observations": [
+    {
+      "alert_id": "74a55410973bf5a95b33",
+      "evidence": {
+        "query": "(sum by (service_name) (increase(http_server_requests_total{service_name=~\"api-gateway|orders-service|inventory-service|payments-service\",deployment_environment=\"local\",http_status_code=~\"5..\"}[60s])) or on(service_name) (0 * (sum by (service_name) (increase(http_server_requests_total{service_name=~\"api-gateway|orders-service|inventory-service|payments-service\",deployment_environment=\"local\"}[60s]))))) / (sum by (service_name) (increase(http_server_requests_total{service_name=~\"api-gateway|orders-service|inventory-service|payments-service\",deployment_environment=\"local\"}[60s])))",
+        "request_count": 200,
+        "sample_age_seconds": 0.0,
+        "source": "prometheus",
+        "window_end": "2026-11-04T10:00:00Z",
+        "window_seconds": 60
+      },
+      "phase": "trigger",
+      "rule": "http_errors",
+      "service": "api-gateway",
+      "threshold": 0.15,
+      "unit": "ratio",
+      "value": 0.7
+    },
+    {
+      "alert_id": "74a55410973bf5a95b33",
+      "evidence": {
+        "query": "(sum by (service_name) (increase(http_server_requests_total{service_name=~\"api-gateway|orders-service|inventory-service|payments-service\",deployment_environment=\"local\",http_status_code=~\"5..\"}[60s])) or on(service_name) (0 * (sum by (service_name) (increase(http_server_requests_total{service_name=~\"api-gateway|orders-service|inventory-service|payments-service\",deployment_environment=\"local\"}[60s]))))) / (sum by (service_name) (increase(http_server_requests_total{service_name=~\"api-gateway|orders-service|inventory-service|payments-service\",deployment_environment=\"local\"}[60s])))",
+        "request_count": 200,
+        "sample_age_seconds": 0.0,
+        "source": "prometheus",
+        "window_end": "2026-11-04T10:00:50Z",
+        "window_seconds": 60
+      },
+      "phase": "latest",
+      "rule": "http_errors",
+      "service": "api-gateway",
+      "threshold": 0.15,
+      "unit": "ratio",
+      "value": 0.7
+    },
+    {
+      "alert_id": "145cbaa27f2d469d3c89",
+      "evidence": {
+        "query": "(sum by (service_name) (increase(http_server_requests_total{service_name=~\"api-gateway|orders-service|inventory-service|payments-service\",deployment_environment=\"local\",http_status_code=~\"5..\"}[60s])) or on(service_name) (0 * (sum by (service_name) (increase(http_server_requests_total{service_name=~\"api-gateway|orders-service|inventory-service|payments-service\",deployment_environment=\"local\"}[60s]))))) / (sum by (service_name) (increase(http_server_requests_total{service_name=~\"api-gateway|orders-service|inventory-service|payments-service\",deployment_environment=\"local\"}[60s])))",
+        "request_count": 200,
+        "sample_age_seconds": 0.0,
+        "source": "prometheus",
+        "window_end": "2026-11-04T10:00:00Z",
+        "window_seconds": 60
+      },
+      "phase": "trigger",
+      "rule": "http_errors",
+      "service": "orders-service",
+      "threshold": 0.15,
+      "unit": "ratio",
+      "value": 0.7
+    },
+    {
+      "alert_id": "145cbaa27f2d469d3c89",
+      "evidence": {
+        "query": "(sum by (service_name) (increase(http_server_requests_total{service_name=~\"api-gateway|orders-service|inventory-service|payments-service\",deployment_environment=\"local\",http_status_code=~\"5..\"}[60s])) or on(service_name) (0 * (sum by (service_name) (increase(http_server_requests_total{service_name=~\"api-gateway|orders-service|inventory-service|payments-service\",deployment_environment=\"local\"}[60s]))))) / (sum by (service_name) (increase(http_server_requests_total{service_name=~\"api-gateway|orders-service|inventory-service|payments-service\",deployment_environment=\"local\"}[60s])))",
+        "request_count": 200,
+        "sample_age_seconds": 0.0,
+        "source": "prometheus",
+        "window_end": "2026-11-04T10:00:50Z",
+        "window_seconds": 60
+      },
+      "phase": "latest",
+      "rule": "http_errors",
+      "service": "orders-service",
+      "threshold": 0.15,
+      "unit": "ratio",
+      "value": 0.7
+    },
+    {
+      "alert_id": "983c3dbbb004b61eae17",
+      "evidence": {
+        "query": "(sum by (service_name) (increase(http_server_requests_total{service_name=~\"api-gateway|orders-service|inventory-service|payments-service\",deployment_environment=\"local\",http_status_code=~\"5..\"}[60s])) or on(service_name) (0 * (sum by (service_name) (increase(http_server_requests_total{service_name=~\"api-gateway|orders-service|inventory-service|payments-service\",deployment_environment=\"local\"}[60s]))))) / (sum by (service_name) (increase(http_server_requests_total{service_name=~\"api-gateway|orders-service|inventory-service|payments-service\",deployment_environment=\"local\"}[60s])))",
+        "request_count": 200,
+        "sample_age_seconds": 0.0,
+        "source": "prometheus",
+        "window_end": "2026-11-04T10:00:00Z",
+        "window_seconds": 60
+      },
+      "phase": "trigger",
+      "rule": "http_errors",
+      "service": "payments-service",
+      "threshold": 0.15,
+      "unit": "ratio",
+      "value": 0.7
+    },
+    {
+      "alert_id": "983c3dbbb004b61eae17",
+      "evidence": {
+        "query": "(sum by (service_name) (increase(http_server_requests_total{service_name=~\"api-gateway|orders-service|inventory-service|payments-service\",deployment_environment=\"local\",http_status_code=~\"5..\"}[60s])) or on(service_name) (0 * (sum by (service_name) (increase(http_server_requests_total{service_name=~\"api-gateway|orders-service|inventory-service|payments-service\",deployment_environment=\"local\"}[60s]))))) / (sum by (service_name) (increase(http_server_requests_total{service_name=~\"api-gateway|orders-service|inventory-service|payments-service\",deployment_environment=\"local\"}[60s])))",
+        "request_count": 200,
+        "sample_age_seconds": 0.0,
+        "source": "prometheus",
+        "window_end": "2026-11-04T10:00:50Z",
+        "window_seconds": 60
+      },
+      "phase": "latest",
+      "rule": "http_errors",
+      "service": "payments-service",
+      "threshold": 0.15,
+      "unit": "ratio",
+      "value": 0.7
+    },
+    {
+      "alert_id": "45bc9975ca15de626cfc",
+      "evidence": {
+        "query": "(sum by (service_name) (increase(payments_failed_total{service_name=~\"api-gateway|orders-service|inventory-service|payments-service\",deployment_environment=\"local\"}[60s])) or on(service_name) (0 * (sum by (service_name) (increase(http_server_requests_total{service_name=~\"api-gateway|orders-service|inventory-service|payments-service\",deployment_environment=\"local\"}[60s]))))) / (sum by (service_name) (increase(http_server_requests_total{service_name=~\"api-gateway|orders-service|inventory-service|payments-service\",deployment_environment=\"local\",http_route=\"/payments/charge\"}[60s])))",
+        "request_count": 100,
+        "sample_age_seconds": 0.0,
+        "source": "prometheus",
+        "window_end": "2026-11-04T10:00:00Z",
+        "window_seconds": 60
+      },
+      "phase": "trigger",
+      "rule": "payment_failures",
+      "service": "payments-service",
+      "threshold": 0.25,
+      "unit": "ratio",
+      "value": 0.85
+    },
+    {
+      "alert_id": "45bc9975ca15de626cfc",
+      "evidence": {
+        "query": "(sum by (service_name) (increase(payments_failed_total{service_name=~\"api-gateway|orders-service|inventory-service|payments-service\",deployment_environment=\"local\"}[60s])) or on(service_name) (0 * (sum by (service_name) (increase(http_server_requests_total{service_name=~\"api-gateway|orders-service|inventory-service|payments-service\",deployment_environment=\"local\"}[60s]))))) / (sum by (service_name) (increase(http_server_requests_total{service_name=~\"api-gateway|orders-service|inventory-service|payments-service\",deployment_environment=\"local\",http_route=\"/payments/charge\"}[60s])))",
+        "request_count": 100,
+        "sample_age_seconds": 0.0,
+        "source": "prometheus",
+        "window_end": "2026-11-04T10:00:50Z",
+        "window_seconds": 60
+      },
+      "phase": "latest",
+      "rule": "payment_failures",
+      "service": "payments-service",
+      "threshold": 0.25,
+      "unit": "ratio",
+      "value": 0.85
+    }
+  ]
+}
