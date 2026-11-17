@@ -1,0 +1,2 @@
+langgraph
+pydantic>=2

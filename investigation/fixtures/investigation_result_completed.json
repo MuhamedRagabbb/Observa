@@ -1,0 +1,95 @@
+{
+  "incident_id": "INC-5ea3c95c57204f69b5c9",
+  "run_id": "RUN-c5d73a3a",
+  "logs_output": {
+    "findings": [
+      {
+        "finding_id": "INC-5ea3c95c57204f69b5c9:logs:F1",
+        "signal_type": "logs",
+        "service": "orders-service",
+        "claim": "orders-service logged 14 'order_failed' failure records (payment_declined) over 49.4 s in the retained sample",
+        "claim_kind": "observation",
+        "evidence_links": [
+          {
+            "evidence_id": "INC-5ea3c95c57204f69b5c9/r26-a64d17d67d47c580f61b10db8fde2851cdd62c598f983ed4b500c9fb8d47012b/logs#P1",
+            "relation": "supports",
+            "reference_valid": true,
+            "relevance_status": "relevant",
+            "support_status": "supported"
+          }
+        ],
+        "execution_status": "completed",
+        "uncertainty": "sample of 100 retained sanitized records"
+      },
+      {
+        "finding_id": "INC-5ea3c95c57204f69b5c9:logs:F6",
+        "signal_type": "logs",
+        "service": "payments-service",
+        "claim": "Payments-service is returning payment declined responses (402), which appear as DependencyRejected errors in orders-service and api-gateway.",
+        "claim_kind": "inference",
+        "evidence_links": [
+          {
+            "evidence_id": "INC-5ea3c95c57204f69b5c9/r26-a64d17d67d47c580f61b10db8fde2851cdd62c598f983ed4b500c9fb8d47012b/logs#P1",
+            "relation": "supports",
+            "reference_valid": true,
+            "relevance_status": "relevant",
+            "support_status": "unverified"
+          }
+        ],
+        "execution_status": "completed",
+        "uncertainty": "confidence: medium"
+      }
+    ],
+    "status": "completed"
+  },
+  "metrics_output": {
+    "findings": [
+      {
+        "finding_id": "INC-5ea3c95c57204f69b5c9:metrics:F2",
+        "signal_type": "metrics",
+        "service": "payments-service",
+        "claim": "payments-service breached payment_failures (business_decline) with trigger value 0.272 vs threshold 0.25 ratio",
+        "claim_kind": "observation",
+        "evidence_links": [
+          {
+            "evidence_id": "INC-5ea3c95c57204f69b5c9/r26-a64d17d67d47c580f61b10db8fde2851cdd62c598f983ed4b500c9fb8d47012b/metrics#M6",
+            "relation": "supports",
+            "reference_valid": true,
+            "relevance_status": "relevant",
+            "support_status": "supported"
+          }
+        ],
+        "execution_status": "completed",
+        "uncertainty": "retained sample of 12 observations"
+      }
+    ],
+    "status": "completed"
+  },
+  "traces_output": {
+    "findings": [
+      {
+        "finding_id": "INC-5ea3c95c57204f69b5c9:traces:F1",
+        "signal_type": "traces",
+        "service": "payments-service",
+        "claim": "payments-service observed 12 'failed_span' events for 'POST /payments/charge', HTTP 402, p95 3.69 ms (deepest failure origin)",
+        "claim_kind": "observation",
+        "evidence_links": [
+          {
+            "evidence_id": "INC-5ea3c95c57204f69b5c9/r26-a64d17d67d47c580f61b10db8fde2851cdd62c598f983ed4b500c9fb8d47012b/traces#T6",
+            "relation": "supports",
+            "reference_valid": true,
+            "relevance_status": "relevant",
+            "support_status": "supported"
+          }
+        ],
+        "execution_status": "completed",
+        "uncertainty": "sample of 20 retained traces"
+      }
+    ],
+    "status": "completed"
+  },
+  "missing_evidence": [],
+  "status": "completed",
+  "investigation_plan_id": "PLAN-72301990",
+  "parent_run_id": null
+}
