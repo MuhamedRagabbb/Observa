@@ -1,0 +1,52 @@
+﻿{
+  "sample": {
+    "records": 28,
+    "from": "2026-11-04T10:00:16Z",
+    "to": "2026-11-04T10:00:50Z",
+    "covers_incident_start": false
+  },
+  "categories": {
+    "service_failure": 24,
+    "other": 4
+  },
+  "patterns": [
+    {
+      "category": "service_failure",
+      "service": "orders-service",
+      "event": "order_persistence_failed",
+      "error_type": "OrderPersistenceCompatibilityError",
+      "status": null,
+      "route": null,
+      "count": 20,
+      "first_seen_in_sample": "2026-11-04T10:00:16Z",
+      "last_seen_in_sample": "2026-11-04T10:00:50Z",
+      "p95_duration_ms": null
+    },
+    {
+      "category": "service_failure",
+      "service": "api-gateway",
+      "event": "dependency_request_failed",
+      "error_type": null,
+      "status": 503,
+      "route": null,
+      "count": 4,
+      "first_seen_in_sample": "2026-11-04T10:00:20Z",
+      "last_seen_in_sample": "2026-11-04T10:00:50Z",
+      "p95_duration_ms": null
+    }
+  ],
+  "services_seen": [
+    "api-gateway",
+    "orders-service"
+  ],
+  "services_missing": [],
+  "release_changes": {},
+  "cross_service_traces": 0,
+  "limits": [
+    "sample of 28 retained sanitized records, not all source logs",
+    "sample starts at 2026-11-04T10:00:16Z, after incident start 2026-11-04T10:00:00Z; first_seen values are first-in-sample, not onset"
+  ],
+  "read_gaps": [],
+  "incident_id": "INC-0e256039bd82f24d1a06",
+  "snapshot_id": "r4-4e8ac48c6b1451acf321de7c68b8e57d0d5bf584659318acdcf960066ffb4dce"
+}
