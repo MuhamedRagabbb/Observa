@@ -1,0 +1,22 @@
+name: observa-investigation
+services:
+  investigate:
+    restart: unless-stopped
+    init: true
+    build:
+      context: ..
+      dockerfile: correlation_agent/docker/Dockerfile
+    volumes:
+      - type: bind
+        source: ../alert-detection-grouping/reports
+        target: /reports
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./.env
+        target: /app/correlation_agent/.env
+        read_only: true
+        bind:
+          create_host_path: false
+      - ./runs:/runs

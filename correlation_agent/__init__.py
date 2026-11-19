@@ -1,4 +1,4 @@
 """F3 correlation of OBSERVA investigation results."""
-from .graph import correlate
+from .agent.graph import correlate
 
 __all__ = ["correlate"]

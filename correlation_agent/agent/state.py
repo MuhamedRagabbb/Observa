@@ -28,6 +28,25 @@ class Candidate(BaseModel):
     related_finding_ids: list[str]
 
 
+class ReportStep(BaseModel):
+    step: int
+    kind: Literal["probable_origin", "inferred_effect", "observation"]
+    follows_step: int | None
+    service: str
+    explanation: str
+    evidence: list[Observation]
+
+
+class CorrelationReport(BaseModel):
+    schema_version: Literal["1.0"] = "1.0"
+    incident_id: str
+    source_run_id: str
+    status: Literal["probable_cause", "needs_more_analysis"]
+    summary: str
+    steps: list[ReportStep]
+    missing_evidence: list[MissingEvidence]
+
+
 class CorrelationResult(BaseModel):
     incident_id: str
     source_run_id: str
@@ -38,6 +57,7 @@ class CorrelationResult(BaseModel):
     final_root_cause: Candidate | None
     missing_evidence: list[MissingEvidence]
     follow_up_request: FollowUpRequest | None
+    report: CorrelationReport
 
 
 class CorrelationState(AgentState, total=False):

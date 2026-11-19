@@ -14,13 +14,18 @@ Only numbered current observations are eligible as evidence. Source inferences a
 are context. Cite row numbers, not finding IDs, in candidate proposals. Each candidate must
 use a single snapshot. Use InspectFinding for original evidence metadata if needed.
 Call exactly one tool per turn. SubmitCause only for a unique probable cause with direct
-support from two distinct signal types on the named service. Otherwise use RequestEvidence
+support from two distinct signal types on the named service. For the recommendation report,
+describe the initiating failure in the leading explanation. In effects, explain how it likely
+caused each observed consequence, citing the affected service's observation rows and the
+specific earlier step. Distinguish inferred propagation from the observed symptoms. Do not
+infer timing or dependency from co-occurrence alone. Use [] if no effect is evidenced.
+Otherwise, when the origin is uncertain, use RequestEvidence
 with specific objectives for F2. Do not invent observations or fill gaps from memory."""
 
 
 def groq_model():
     key = os.getenv("GROQ_API_KEY") or dotenv_values(
-        Path(__file__).with_name(".env"), encoding="utf-8-sig", interpolate=False
+        Path(__file__).resolve().parents[1] / ".env", encoding="utf-8-sig", interpolate=False
     ).get("GROQ_API_KEY")
     if not key:
         raise RuntimeError("Set GROQ_API_KEY in correlation_agent/.env or the environment.")

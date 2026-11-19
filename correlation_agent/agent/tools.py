@@ -11,6 +11,7 @@ from investigation.observa_investigation.contracts import (
     SIGNALS, FollowUpRequest, InvestigationResult, MissingEvidence, SignalType,
 )
 from .state import Candidate, CorrelationResult, Observation
+from ..reporting.report import ProposedEffect, build_report
 
 MemoryLookup = Callable[[str, list[str]], list[str]]
 
@@ -82,6 +83,7 @@ class Hypothesis(BaseModel):
 class SubmitCause(BaseModel):
     """Finalize a unique probable cause supported by two independent signals. Rank strongest first."""
     candidates: list[Hypothesis] = Field(min_length=1)
+    effects: list[ProposedEffect]
 
 
 class EvidenceRequest(BaseModel):
@@ -136,7 +138,8 @@ def resolve(decision: SubmitCause | RequestEvidence, report: InvestigationResult
                                     target_agents=sorted({r.signal for r in decision.requests}),
                                     objectives=[f"{r.required}: {r.reason}" for r in decision.requests],
                                     evidence_needed=[r.required for r in decision.requests])
-    return CorrelationResult(incident_id=report.incident_id, source_run_id=report.run_id,
+    handoff = build_report(report, rows, final, decision.effects if final else [], gaps)
+    return CorrelationResult(report=handoff, incident_id=report.incident_id, source_run_id=report.run_id,
                              agent_status="completed" if final else "needs_more_analysis",
                              correlated_findings=rows, relevant_data_from_memory=memory,
                              root_cause_candidates=candidates, final_root_cause=final,
@@ -154,11 +157,11 @@ def _record_decision(decision: SubmitCause | RequestEvidence, runtime: ToolRunti
 
 
 @tool("SubmitCause")
-def submit_cause(candidates: list[Hypothesis], runtime: ToolRuntime) -> Command | str:
-    """Submit a probable cause with two supporting signals. Rank candidates strongest first."""
+def submit_cause(candidates: list[Hypothesis], effects: list[ProposedEffect], runtime: ToolRuntime) -> Command | str:
+    """Submit ranked causes and ordered probable effects of the leading cause. Use [] for effects if unsupported."""
     if not candidates:
         return "Supply at least one candidate or call RequestEvidence."
-    return _record_decision(SubmitCause(candidates=candidates), runtime)
+    return _record_decision(SubmitCause(candidates=candidates, effects=effects), runtime)
 
 
 @tool("RequestEvidence")
