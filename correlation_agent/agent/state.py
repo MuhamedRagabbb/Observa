@@ -37,12 +37,42 @@ class ReportStep(BaseModel):
     evidence: list[Observation]
 
 
+class Dependency(BaseModel):
+    caller: str
+    callee: str
+    signal: SignalType
+    evidence_id: str
+    parent_evidence_id: str | None = None
+
+
+class AlertPeak(BaseModel):
+    service: str
+    rule: str
+    value: float
+    unit: str
+    recorded_at: str
+    evidence_id: str
+
+
+class IncidentHistory(BaseModel):
+    phase: Literal["initial", "final"]
+    first_snapshot: str
+    snapshot_id: str
+    first_observed_at: str
+    resolved_at: str | None
+    affected_services: list[str]
+    peaks: list[AlertPeak]
+    dependencies: list[Dependency]
+    release_findings: list[Observation]
+
+
 class CorrelationReport(BaseModel):
     schema_version: Literal["1.0"] = "1.0"
     incident_id: str
     source_run_id: str
     status: Literal["probable_cause", "needs_more_analysis"]
     summary: str
+    history: IncidentHistory | None = None
     steps: list[ReportStep]
     missing_evidence: list[MissingEvidence]
 
@@ -62,6 +92,8 @@ class CorrelationResult(BaseModel):
 
 class CorrelationState(AgentState, total=False):
     investigation: InvestigationResult
+    additional_investigations: list[InvestigationResult]
+    history: IncidentHistory
     observations: list[Observation]
     memory: list[str]
     result: CorrelationResult

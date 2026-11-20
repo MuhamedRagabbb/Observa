@@ -2,20 +2,40 @@
 
 ## Docker with an existing F1 reports folder
 
-In PowerShell, from the Observa repository root:
+F2 and F3 run in the same worker and both read `GROQ_API_KEY` from its environment.
+Set that variable in your shell before starting Compose. For file-based setup,
+copy [docker/.env.example](docker/.env.example) to a private `.env`, fill in your key,
+and use Compose's `--env-file` option. For a file in the Observa root, run
+`docker compose --env-file .env -f correlation_agent/compose.yaml up --build -d`.
+Use the same environment or file option for subsequent Compose commands.
+The existing local `correlation_agent/.env` also works as a Compose default.
+
+With the variable already set, run from the Observa repository root:
 
 ```powershell
 docker compose -f correlation_agent/compose.yaml up --build -d
 docker compose -f correlation_agent/compose.yaml logs -f investigate
 ```
 
-The worker polls the F1 reports mount every two seconds while idle. On its first
-scan it skips existing incidents. Each newly published incident ID runs F2 on
-local evidence and then F3 on Groq, using `correlation_agent/.env`. Later updates
-to the same ID do not trigger another run. The worker persists its queue in
-`correlation_agent/runs/.watch.sqlite3`, catches up after restarts, and retries
-failed jobs with backoff. Each incident's outputs are in `runs/<incident-id>/`:
-`investigation.json`, `correlation.json`, `report.json`, and `report.md`.
+The worker polls F1 every two seconds while idle. An open incident gets an opening
+report in `runs/<incident-id>/report.initial.md`. A resolved snapshot gets a final
+`report.md`, including when the worker first discovers an already resolved incident.
+The original filenames expose the latest report; the opening copy remains available.
+The SQLite queue deduplicates opening jobs by incident and final jobs by snapshot.
+Upgrades retain the previous watcher's explicitly excluded historical baseline.
+
+The Docker runner pins F2 to the opening snapshot and, if different, the snapshot
+with the most simultaneously affected services (breaking ties by active bad alerts).
+The three F2 agents use Groq (openai/gpt-oss-120b) to interpret non-empty signal profiles.
+Compose passes the shared Groq key to the worker at container creation. If a
+model response is unavailable or rejected, F2 records the fallback in the findings.
+Their findings are saved in `investigation.json` and `investigation.impact.json`.
+F3 reads immutable F1 snapshots up to the selected revision for per-alert peaks,
+recovery time, directed failed calls and release/error timing. Raw log and trace
+record citations use zero-based cursors for F1's evidence reader. A release match
+requires the same service and version and, when supplied, deployment ID. The
+reported first error is the earliest matching error in the retained sample.
+`report.json` and `report.md` carry the same history and citations.
 A valid F3 request for more evidence is a completed handoff for this worker.
 Stop the worker with `docker compose -f correlation_agent/compose.yaml stop`.
 For a manual one-off run, pass an explicit ID to `run --rm investigate INC-...`.
@@ -31,7 +51,8 @@ python -m correlation_agent investigation/fixtures/investigation_result_complete
 python -m correlation_agent --from-report correlation-report.json --report-out correlation-report.md
 ```
 
-Set `GROQ_API_KEY` in `correlation_agent/.env` or the process environment.
+For the standalone F3 Python CLI, set `GROQ_API_KEY` in the process environment.
+The CLI also accepts `correlation_agent/.env` as a local fallback.
 The agent calls Groq's OpenAI-compatible endpoint using `openai/gpt-oss-120b`.
 Each investigation sends the F2 findings, missing evidence and any supplied
 historical notes to Groq. The CLI prints the F3 result as JSON.

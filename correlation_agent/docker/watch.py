@@ -1,5 +1,6 @@
-"""Persistent queue of new incident IDs. F1 publishes incident.json atomically."""
+"""Durable jobs pinned to F1 snapshots. One opening and one job per resolved revision."""
 from contextlib import closing
+import json
 from pathlib import Path
 import sqlite3
 import time
@@ -8,40 +9,54 @@ import time
 def discover(db, reports: Path):
     with db:
         db.execute("BEGIN IMMEDIATE")
-        db.execute("""CREATE TABLE IF NOT EXISTS incidents (
-            id TEXT PRIMARY KEY, status TEXT NOT NULL, attempts INTEGER DEFAULT 0,
-            retry_at REAL DEFAULT 0)""")
-        first_scan = db.execute("PRAGMA user_version").fetchone()[0] == 0
-        # Only the first scan establishes a baseline. A restart catches up on
-        # incidents exported while the worker was offline.
-        ids = sorted(path.parent.name for path in reports.glob("INC-*/incident.json"))
-        db.executemany("INSERT OR IGNORE INTO incidents(id, status) VALUES (?, ?)",
-                       ((iid, "existing" if first_scan else "pending") for iid in ids))
-        if first_scan:
-            db.execute("PRAGMA user_version=1")
-            print(f"Watching new F1 incidents; skipped {len(ids)} already present at startup.")
+        db.execute("""CREATE TABLE IF NOT EXISTS report_jobs (
+            incident TEXT NOT NULL, phase TEXT NOT NULL, snapshot TEXT NOT NULL,
+            done INTEGER NOT NULL DEFAULT 0, attempts INTEGER NOT NULL DEFAULT 0,
+            retry_at REAL NOT NULL DEFAULT 0, PRIMARY KEY (incident, phase, snapshot))""")
+        db.execute("""CREATE UNIQUE INDEX IF NOT EXISTS one_initial ON report_jobs(incident)
+                      WHERE phase='initial'""")
+        # Respect the old watcher's explicit baseline on upgrade. Newly discovered
+        # IDs, including incidents closed during downtime, still get a final report.
+        legacy = db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='incidents'").fetchone()
+        excluded = {r[0] for r in db.execute("SELECT id FROM incidents WHERE status='existing'")} if legacy else set()
+        for path in sorted(reports.glob("INC-*/incident.json")):
+            if path.parent.name in excluded:
+                continue
+            try:
+                doc = json.loads(path.read_bytes())
+                sid = doc.get("snapshot_id")
+                if not sid or path.parent.name != doc.get("id") or doc.get("status") not in ("open", "resolved"):
+                    continue
+                phase = "final" if doc["status"] == "resolved" else "initial"
+                if phase == "final":
+                    db.execute("""UPDATE report_jobs SET done=1 WHERE incident=? AND phase=\'final\'
+                                  AND done=0 AND snapshot!=?""", (doc["id"], sid))
+                db.execute("INSERT OR IGNORE INTO report_jobs(incident, phase, snapshot) VALUES (?, ?, ?)",
+                           (doc["id"], phase, sid))
+            except (FileNotFoundError, json.JSONDecodeError):
+                continue  # Another publication can be discovered on the next scan.
 
 
 def process_next(db, reports: Path, output: Path, process) -> bool:
     with db:
-        # Serialize claims even if two containers share the queue. On shutdown
-        # an unfinished claim rolls back; published stage files can be reused.
+        # Hold the claim until publication. A crash rolls back the claim; output
+        # publication is idempotent even if SQLite did not record completion.
         db.execute("BEGIN IMMEDIATE")
-        row = db.execute("""SELECT id, attempts FROM incidents
-                            WHERE status='pending' AND retry_at <= ?
-                            ORDER BY rowid LIMIT 1""", (time.time(),)).fetchone()
+        row = db.execute("""SELECT rowid, incident, snapshot, attempts FROM report_jobs
+                            WHERE done=0 AND retry_at <= ? ORDER BY rowid LIMIT 1""",
+                         (time.time(),)).fetchone()
         if row is None:
             return False
-        iid, attempts = row
+        key, iid, snapshot, attempts = row
         try:
-            process(reports, iid, output / iid)
+            process(reports, iid, output / iid, snapshot)
         except Exception as exc:
             delay = min(300, 5 * 2 ** min(attempts, 6))
-            db.execute("UPDATE incidents SET attempts=attempts+1, retry_at=? WHERE id=?",
-                       (time.time() + delay, iid))
+            db.execute("UPDATE report_jobs SET attempts=attempts+1, retry_at=? WHERE rowid=?",
+                       (time.time() + delay, key))
             print(f"{iid}: {type(exc).__name__}: {exc}. Retrying in {delay}s.")
         else:
-            db.execute("UPDATE incidents SET status='done' WHERE id=?", (iid,))
+            db.execute("UPDATE report_jobs SET done=1 WHERE rowid=?", (key,))
         return True
 
 
@@ -50,7 +65,7 @@ def watch(reports: Path, output: Path, process):
         raise ValueError(f"Missing F1 reports directory: {reports}")
     output.mkdir(parents=True, exist_ok=True)
     with closing(sqlite3.connect(output / ".watch.sqlite3", timeout=300)) as db:
-        print(f"Monitoring {reports} for new incidents.")
+        print(f"Monitoring {reports} for open and resolved incidents.")
         while True:
             discover(db, reports)
             if not process_next(db, reports, output, process):

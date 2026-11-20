@@ -19,6 +19,12 @@ describe the initiating failure in the leading explanation. In effects, explain 
 caused each observed consequence, citing the affected service's observation rows and the
 specific earlier step. Distinguish inferred propagation from the observed symptoms. Do not
 infer timing or dependency from co-occurrence alone. Use [] if no effect is evidenced.
+When a release change is followed by the first retained matching exception on that release,
+cite that numbered log finding, its version and the error in the probable cause if supported
+by another independent signal. Temporal association alone does not prove a release caused an error.
+Keep the origin and proposed effects local to the named service. The report builder describes
+verified inter-service hops from incident_history.dependencies. Never invent a direct caller,
+callee or failure path. Prefer observations from onset for origin and peaks for impact.
 Otherwise, when the origin is uncertain, use RequestEvidence
 with specific objectives for F2. Do not invent observations or fill gaps from memory."""
 

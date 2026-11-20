@@ -68,9 +68,11 @@ def collect_supported_observations(report: InvestigationResult) -> list[Observat
 @tool("InspectFinding")
 def inspect_finding(finding_id: str, runtime: ToolRuntime) -> list[dict]:
     """Read the original F2 finding, including its uncertainty and evidence links."""
-    report = runtime.state["investigation"]
-    return [f.model_dump() for signal in SIGNALS for f in getattr(report, f"{signal}_output").findings
-            if f.finding_id == finding_id]
+    reports = [runtime.state["investigation"], *runtime.state.get("additional_investigations", [])]
+    matches = [f.model_dump() for report in reports for signal in SIGNALS
+               for f in getattr(get_structured_file(report), f"{signal}_output").findings
+               if f.finding_id == finding_id]
+    return matches or [row.model_dump() for row in runtime.state["observations"] if row.finding_id == finding_id]
 
 
 class Hypothesis(BaseModel):
@@ -119,9 +121,11 @@ def _candidate(proposal: Hypothesis, rows: list[Observation]) -> Candidate:
 
 
 def resolve(decision: SubmitCause | RequestEvidence, report: InvestigationResult,
-            rows: list[Observation], memory: list[str]) -> CorrelationResult:
+            rows: list[Observation], memory: list[str], history=None) -> CorrelationResult:
     candidates = [_candidate(p, rows) for p in decision.candidates]
     gaps = list(report.missing_evidence)
+    if history and history.first_snapshot != history.snapshot_id:
+        gaps = [gap.model_copy(update={"reason": f"Opening investigation: {gap.reason}"}) for gap in gaps]
     follow_up = None
     final = None
     if isinstance(decision, SubmitCause):
@@ -138,7 +142,7 @@ def resolve(decision: SubmitCause | RequestEvidence, report: InvestigationResult
                                     target_agents=sorted({r.signal for r in decision.requests}),
                                     objectives=[f"{r.required}: {r.reason}" for r in decision.requests],
                                     evidence_needed=[r.required for r in decision.requests])
-    handoff = build_report(report, rows, final, decision.effects if final else [], gaps)
+    handoff = build_report(report, rows, final, decision.effects if final else [], gaps, history)
     return CorrelationResult(report=handoff, incident_id=report.incident_id, source_run_id=report.run_id,
                              agent_status="completed" if final else "needs_more_analysis",
                              correlated_findings=rows, relevant_data_from_memory=memory,
@@ -149,7 +153,7 @@ def resolve(decision: SubmitCause | RequestEvidence, report: InvestigationResult
 def _record_decision(decision: SubmitCause | RequestEvidence, runtime: ToolRuntime) -> Command | str:
     state = runtime.state
     try:
-        result = resolve(decision, state["investigation"], state["observations"], state["memory"])
+        result = resolve(decision, state["investigation"], state["observations"], state["memory"], state.get("history"))
     except ValueError as exc:
         return str(exc)  # The agent can correct its citations or request more evidence.
     receipt = ToolMessage(content=result.agent_status, tool_call_id=runtime.tool_call_id)
