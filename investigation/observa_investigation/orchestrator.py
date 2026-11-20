@@ -11,6 +11,7 @@ from .agents.base import AgentResult, AgentTask, SignalAgent
 from .config import InvestigationConfig
 from .contracts import (
     SIGNALS,
+    EvidenceAnswer,
     FeedbackIntent,
     FollowUpRequest,
     InvestigationResult,
@@ -111,6 +112,7 @@ class Orchestrator:
                 out: SignalOutput = getattr(prior_result, f"{s}_output")
                 agents_init[s] = {
                     "status": out.status,
+                    "answers": [a.model_dump() for a in out.answers],
                     "attempts": 1,
                     "findings": [f.model_dump() for f in out.findings],
                     "missing_evidence": [m.model_dump() for m in prior_result.missing_evidence if m.requested_from == s],
@@ -138,7 +140,7 @@ class Orchestrator:
         }
         for s in targets:
             if request.objectives:
-                plan[s] = list(request.objectives)
+                plan[s] = list(request.signal_objectives.get(s, request.objectives))
 
         run_id = _new_id("RUN")
         plan_id = _new_id("PLAN")
@@ -150,13 +152,28 @@ class Orchestrator:
                 "run_id": run_id,
                 "plan_id": plan_id,
                 "parent_run_id": request.source_run_id,
+                "follow_up_targets": sorted(targets),
                 "plan": plan,
                 "agents": agents_init,
             },
             config=cfg,
         )
+        result = InvestigationResult.model_validate(final["result"])
+        if prior_result:
+            for s in targets:
+                out = getattr(result, f"{s}_output")
+                prior = getattr(prior_result, f"{s}_output")
+                combined = {f.finding_id: f for f in [*prior.findings, *out.findings]}
+                out.findings = list(combined.values())
+                if not out.answers and out.status == "failed":
+                    for question in plan[s]:
+                        out.answers.append(EvidenceAnswer(signal=s, snapshot_id=incident["snapshot_id"],
+                                           question=question, answer="Unable to read or analyze the retained evidence."))
+                out.answers = [*prior.answers, *out.answers]
+                if out.findings and out.status in ("failed", "inconclusive"):
+                    out.status = "partial"
         request.status = "completed"
-        return InvestigationResult.model_validate(final["result"])
+        return result
 
     # ---- public: F6 FeedbackIntent -------------------------------------
     def handle_feedback(
@@ -260,7 +277,8 @@ class Orchestrator:
 
     def _dispatch(self, state):
         agents = {s: dict(a) for s, a in state["agents"].items()}
-        todo = [s for s, a in agents.items() if a["status"] in ("pending", "failed") and self._can_try(a)]
+        todo = [s for s, a in agents.items() if s in state.get("follow_up_targets", SIGNALS)
+                and a["status"] in ("pending", "failed") and self._can_try(a)]
         if not todo:
             return {"agents": agents}
 
@@ -273,6 +291,7 @@ class Orchestrator:
                 snapshot_id=incident.get("snapshot_id"),
                 run_id=state["run_id"],
                 objectives=state["plan"][s],
+                follow_up=s in state.get("follow_up_targets", []),
                 attempt=agents[s]["attempts"] + 1,
             )
             futures[s] = pool.submit(self.agents[s].run, task)
@@ -290,6 +309,7 @@ class Orchestrator:
                 findings = prev["findings"]
             agents[s] = {
                 "status": res.status,
+                "answers": [a.model_dump() for a in res.answers],
                 "attempts": prev["attempts"] + 1,
                 "findings": findings,
                 "missing_evidence": [m.model_dump() for m in res.missing_evidence],
@@ -314,7 +334,8 @@ class Orchestrator:
         return res
 
     def _route(self, state):
-        retry = any(a["status"] == "failed" and self._can_try(a) for a in state["agents"].values())
+        retry = any(self._can_try(state["agents"][s]) and state["agents"][s]["status"] == "failed"
+                    for s in state.get("follow_up_targets", SIGNALS))
         return "dispatch" if retry else "aggregate"
 
     def _aggregate(self, state):
@@ -343,7 +364,7 @@ class Orchestrator:
                     )
                 )
             missing += entries
-            outputs[s] = SignalOutput(findings=findings, status=status)
+            outputs[s] = SignalOutput(findings=findings, status=status, answers=a.get("answers", []))
 
         statuses = [o.status for o in outputs.values()]
         total = sum(len(o.findings) for o in outputs.values())

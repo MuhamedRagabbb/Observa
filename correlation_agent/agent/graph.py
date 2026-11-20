@@ -49,6 +49,7 @@ def build_graph(memory_lookup: MemoryLookup | None = None, *, model=None):
                 for i, row in enumerate(rows, 1)
             ],
             "incident_history": {
+                "opening_alert": history.opening_alert.model_dump() if history.opening_alert else None,
                 "opening_snapshot": snapshots.get(history.first_snapshot),
                 "phase": history.phase, "first_observed_at": history.first_observed_at,
                 "resolved_at": history.resolved_at, "affected_services": history.affected_services,
@@ -63,6 +64,7 @@ def build_graph(memory_lookup: MemoryLookup | None = None, *, model=None):
             context["investigations"].append({
                 "run_id": r.run_id, "signals": {s: getattr(r, f"{s}_output").status for s in SIGNALS},
                 "missing_evidence": [g.model_dump() for g in r.missing_evidence],
+                "follow_up_answers": [a.model_dump() for s in SIGNALS for a in getattr(r, f"{s}_output").answers],
                 "inferences": [f.model_dump(include={"finding_id", "service", "claim", "signal_type"})
                                for f in findings if f.claim_kind == "inference"],
                 "limitations": list(dict.fromkeys(f.uncertainty for f in findings if f.uncertainty)),

@@ -32,6 +32,10 @@ You need Docker with Compose v2 and a Groq API key. Run the commands from the re
 
 4. When you see `report saved to`, open `correlation_agent/runs/<incident-id>/report.md` on your machine. For this experiment, look for the failed charge in `payments-service`, the failed call from `orders-service`, and the error visible at `api-gateway`. Each step cites the evidence behind it. The **Incident history** heading says **initial** while the opening assessment is the latest report. It changes to **final** after F1 records recovery and F3 publishes the closing assessment. [Example report](correlation_agent/examples/example_report.md)
 
+On startup, F1 lists services under `awaiting_first_sample` in its Docker logs. An empty list means every monitored service has sent a fresh sample. After the startup grace period (120 seconds by default), services still waiting can trigger a monitoring coverage alert.
+
+When F3 needs more evidence, the worker sends the question back to the relevant F2 signal agents. Open **Follow-up evidence** in the same report to read each answer and its citations or see what the retained sample could establish. If Groq rate-limits a report, the worker retries using saved F2 results.
+
 ## Project status
 
 | Stage | Progress |

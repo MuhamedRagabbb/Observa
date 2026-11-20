@@ -11,7 +11,7 @@ from investigation.observa_investigation.contracts import (
     SIGNALS, FollowUpRequest, InvestigationResult, MissingEvidence, SignalType,
 )
 from .state import Candidate, CorrelationResult, Observation
-from ..reporting.report import ProposedEffect, build_report
+from ..reporting.report import ProposedEffect, build_report, upstream_services
 
 MemoryLookup = Callable[[str, list[str]], list[str]]
 
@@ -60,7 +60,7 @@ def collect_supported_observations(report: InvestigationResult) -> list[Observat
                 if snapshot not in disputed:
                     observations.append(Observation(
                         finding_id=finding.finding_id, signal=signal, service=finding.service,
-                        claim=finding.claim, snapshot_id=snapshot, evidence_ids=sorted(refs),
+                        indicator=finding.indicator, claim=finding.claim, snapshot_id=snapshot, evidence_ids=sorted(refs),
                     ))
     return observations
 
@@ -120,9 +120,46 @@ def _candidate(proposal: Hypothesis, rows: list[Observation]) -> Candidate:
                                          for r in support))
 
 
+def trigger_gap(alert, cited):
+    """Check the cited rows against the detector's actual opening symptom."""
+    indicators = {row.indicator for row in cited if row.service == alert.service}
+    witnesses = {
+        "payment_failures": {"payment_failed", "payment_declined", "POST /payments/charge"},
+        "pool_timeouts": {"db.acquire", "db_pool_timeout"},
+        "pool_pressure": {"db.acquire", "db_pool_timeout", "pool_timeouts"},
+        "persistence_errors": {"order_persistence_failed", "order_state_write_failed", "release_changed"},
+        "new_exception": {"unexpected_exception"},
+        "dependency_errors": {"dependency_request_failed"},
+    }
+    if alert.family == "telemetry":
+        # A missing-signal metric describes the symptom. Require a separate
+        # observation of the collection mechanism before blaming the application.
+        if indicators & {"telemetry_export_failed", "scrape_failed", "collector_failed", "exporter_failed"}:
+            return None
+        return EvidenceRequest(signal="logs", required=f"Telemetry collection failure for {alert.service}",
+                               reason=f"Find evidence explaining the {alert.rule} alert.")
+    if indicators & ({alert.rule} | witnesses.get(alert.rule, set())):
+        return None
+    return EvidenceRequest(signal="metrics", required=f"Evidence for {alert.rule} on {alert.service}",
+                           reason="Connect the proposed origin to the alert that opened this incident.")
+
+
 def resolve(decision: SubmitCause | RequestEvidence, report: InvestigationResult,
             rows: list[Observation], memory: list[str], history=None) -> CorrelationResult:
     candidates = [_candidate(p, rows) for p in decision.candidates]
+    if isinstance(decision, SubmitCause) and history and history.opening_alert:
+        leading = decision.candidates[0]
+        cited = [rows[i - 1] for i in leading.supporting_rows + leading.related_rows]
+        alert = history.opening_alert
+        gap = trigger_gap(alert, cited)
+        if leading.service != alert.service and not any(
+            edge.caller == alert.service for edge in upstream_services(leading.service, history)
+        ):
+            gap = EvidenceRequest(signal="traces", required=f"Failed call path from {alert.service} to {leading.service}",
+                                  reason=f"Establish whether this failure could explain the opening {alert.rule} alert.")
+        if gap:
+            decision = RequestEvidence(requests=[gap], candidates=[])
+            candidates = []
     gaps = list(report.missing_evidence)
     if history and history.first_snapshot != history.snapshot_id:
         gaps = [gap.model_copy(update={"reason": f"Opening investigation: {gap.reason}"}) for gap in gaps]
@@ -141,7 +178,9 @@ def resolve(decision: SubmitCause | RequestEvidence, report: InvestigationResult
                                     origin="correlation", source_run_id=report.run_id,
                                     target_agents=sorted({r.signal for r in decision.requests}),
                                     objectives=[f"{r.required}: {r.reason}" for r in decision.requests],
-                                    evidence_needed=[r.required for r in decision.requests])
+                                    evidence_needed=[r.required for r in decision.requests],
+                                    signal_objectives={s: [f"{r.required}: {r.reason}" for r in decision.requests
+                                                           if r.signal == s] for s in {r.signal for r in decision.requests}})
     handoff = build_report(report, rows, final, decision.effects if final else [], gaps, history)
     return CorrelationResult(report=handoff, incident_id=report.incident_id, source_run_id=report.run_id,
                              agent_status="completed" if final else "needs_more_analysis",
@@ -156,6 +195,10 @@ def _record_decision(decision: SubmitCause | RequestEvidence, runtime: ToolRunti
         result = resolve(decision, state["investigation"], state["observations"], state["memory"], state.get("history"))
     except ValueError as exc:
         return str(exc)  # The agent can correct its citations or request more evidence.
+    for investigation in [state["investigation"], *state.get("additional_investigations", [])]:
+        data = get_structured_file(investigation)
+        for signal in SIGNALS:
+            result.report.follow_up_answers.extend(getattr(data, f"{signal}_output").answers)
     receipt = ToolMessage(content=result.agent_status, tool_call_id=runtime.tool_call_id)
     return Command(update={"result": result, "messages": [receipt]})
 

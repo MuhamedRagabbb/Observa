@@ -1,14 +1,15 @@
 """State and handoff types for the F3 graph."""
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from langchain.agents import AgentState
 from investigation.observa_investigation.contracts import (
-    FollowUpRequest, InvestigationResult, MissingEvidence, SignalType,
+    EvidenceAnswer, FollowUpRequest, InvestigationResult, MissingEvidence, SignalType,
 )
 
 
 class Observation(BaseModel):
+    indicator: str | None = None
     finding_id: str
     signal: SignalType
     service: str
@@ -54,7 +55,14 @@ class AlertPeak(BaseModel):
     evidence_id: str
 
 
+class OpeningAlert(BaseModel):
+    service: str
+    rule: str
+    family: str
+
+
 class IncidentHistory(BaseModel):
+    opening_alert: OpeningAlert | None = None
     phase: Literal["initial", "final"]
     first_snapshot: str
     snapshot_id: str
@@ -67,6 +75,7 @@ class IncidentHistory(BaseModel):
 
 
 class CorrelationReport(BaseModel):
+    follow_up_answers: list[EvidenceAnswer] = Field(default_factory=list)
     schema_version: Literal["1.0"] = "1.0"
     incident_id: str
     source_run_id: str

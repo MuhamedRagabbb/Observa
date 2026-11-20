@@ -57,7 +57,7 @@ def build_report(source: InvestigationResult, rows: list[Observation], origin: C
             by_service = {origin.service: 1}
             # Walk back from the origin along witnessed failed calls. This also
             # recovers intermediate callers for which F2 emitted no top finding.
-            for service in _upstream_services(origin.service, history):
+            for service in upstream_services(origin.service, history):
                 parent = by_service[service.callee]
                 claim = f"{service.caller} recorded a failed request to {service.callee}."
                 row = Observation(finding_id=service.evidence_id, signal=service.signal, service=service.caller,
@@ -78,7 +78,7 @@ def build_report(source: InvestigationResult, rows: list[Observation], origin: C
                              summary=summary, steps=steps, missing_evidence=gaps, history=history)
 
 
-def _upstream_services(origin, history):
+def upstream_services(origin, history):
     callers = [origin]
     seen = {origin}
     for callee in callers:
@@ -126,6 +126,12 @@ def render_markdown(report: CorrelationReport) -> str:
             refs = ", ".join(code(ref) for ref in row.evidence_ids)
             lines.append(f"- **{row.signal}** · {plain(row.claim)}")
             lines.append(f"  Finding {code(row.finding_id)} · References {refs}")
+    if report.follow_up_answers:
+        lines.extend(["", "## Follow-up evidence", ""])
+        for item in report.follow_up_answers:
+            refs = ", ".join(code(ref) for ref in item.evidence_ids)
+            lines.append(f"- **{plain(item.signal)}** · {plain(item.question)} · {plain(item.answer)} "
+                         + (refs or code(item.snapshot_id)))
     if report.missing_evidence:
         lines.extend(["", "## Missing evidence", ""])
         for gap in report.missing_evidence:

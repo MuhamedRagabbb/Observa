@@ -7,6 +7,7 @@ from typing import Callable, Optional
 
 from ..contracts import EvidenceLink, MissingEvidence, SignalFinding
 from .base import AgentResult, AgentTask
+from .follow_up import answer_questions
 
 
 def evidence_id(incident_id: str, snapshot_id: str, row_id: str) -> str:
@@ -57,7 +58,7 @@ def finding_to_agent_result(finding: dict, profile: dict) -> AgentResult:
     rows = {r["id"]: r for r in finding.get("evidence", [])}
     findings = [
         SignalFinding(finding_id=f"{iid}:logs:F{n}", signal_type="logs", service=row["service"],
-                      claim=_describe(row), claim_kind="observation",
+                      indicator=row.get("event"), claim=_describe(row), claim_kind="observation",
                       evidence_links=[_link(iid, sid, rid, "supported")],
                       execution_status=exec_status, uncertainty=sample_note)
         for n, (rid, row) in enumerate(rows.items(), 1)
@@ -83,7 +84,7 @@ class LogsSignalAgent:
         self.fetcher_factory = fetcher_factory
 
     def run(self, task: AgentTask) -> AgentResult:
-        from logs_agent.finding import build_finding
+        from logs_agent.finding import build_finding, make_view
         from logs_agent.llm import LLMClient, LLMError
         from logs_agent.profiler import profile_logs
         from logs_agent.reader import make_fetcher, read_all_logs
@@ -103,4 +104,7 @@ class LogsSignalAgent:
                 llm = self.llm or LLMClient.from_env()
             except LLMError:
                 llm = None  # no key/model configured: deterministic observations only
+        if task.follow_up:
+            view = make_view(profile, incident)["profile"]
+            return answer_questions("logs", task, view["patterns"] + view["other_events"], _describe, _link, "event", llm, LLMError)
         return finding_to_agent_result(build_finding(profile, incident, llm), profile)

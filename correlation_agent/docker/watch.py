@@ -42,19 +42,19 @@ def process_next(db, reports: Path, output: Path, process) -> bool:
         # Hold the claim until publication. A crash rolls back the claim; output
         # publication is idempotent even if SQLite did not record completion.
         db.execute("BEGIN IMMEDIATE")
-        row = db.execute("""SELECT rowid, incident, snapshot, attempts FROM report_jobs
+        row = db.execute("""SELECT rowid, incident, snapshot, attempts, phase FROM report_jobs
                             WHERE done=0 AND retry_at <= ? ORDER BY rowid LIMIT 1""",
                          (time.time(),)).fetchone()
         if row is None:
             return False
-        key, iid, snapshot, attempts = row
+        key, iid, snapshot, attempts, phase = row
         try:
             process(reports, iid, output / iid, snapshot)
         except Exception as exc:
             delay = min(300, 5 * 2 ** min(attempts, 6))
             db.execute("UPDATE report_jobs SET attempts=attempts+1, retry_at=? WHERE rowid=?",
                        (time.time() + delay, key))
-            print(f"{iid}: {type(exc).__name__}: {exc}. Retrying in {delay}s.")
+            print(f"{iid}: {phase} report pending at {snapshot}: {type(exc).__name__}: {exc}. Retrying in {delay}s.")
         else:
             db.execute("UPDATE report_jobs SET done=1 WHERE rowid=?", (key,))
         return True

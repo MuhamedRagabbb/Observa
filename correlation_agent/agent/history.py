@@ -5,7 +5,7 @@ import json
 from observa_alerts.evidence import checked_file, load_manifest, read_evidence
 from observa_alerts.report import SNAPSHOT_ID, incident_root
 
-from .state import AlertPeak, Dependency, IncidentHistory, Observation
+from .state import AlertPeak, Dependency, IncidentHistory, Observation, OpeningAlert
 
 
 def records(reports, iid, sid, ref):
@@ -42,7 +42,7 @@ def release_findings(entries, iid, sid, services):
             _, changed_at, change_ref = max(preceding)
             service, version, _ = deployment
             yield (deployment, error), Observation(
-                signal="logs", service=service, snapshot_id=sid,
+                signal="logs", service=service, snapshot_id=sid, indicator="release_changed",
                 finding_id=f"{iid}:release:{sid}:{error_ref.rsplit('#', 1)[1]}",
                 claim=f"{service} recorded release_changed to {version} at {changed_at}; "
                       f"first retained {error} on that release at {when}.",
@@ -124,7 +124,9 @@ def load_history(reports, iid, selected):
                     ):
                         dependencies.setdefault((caller, callee), Dependency(
                             caller=caller, callee=callee, signal="logs", evidence_id=pointer))
-    history = IncidentHistory(phase="final" if final else "initial", first_snapshot=first["snapshot_id"],
+    anchor = first["alerts"].get(first.get("anchor_alert_id"))
+    opening = OpeningAlert(**anchor) if anchor else None
+    history = IncidentHistory(opening_alert=opening, phase="final" if final else "initial", first_snapshot=first["snapshot_id"],
                               snapshot_id=selected, first_observed_at=selected_doc["first_observed_at"],
                               resolved_at=selected_doc.get("resolved_at"), peaks=list(peaks.values()),
                               affected_services=selected_doc["affected_services"],

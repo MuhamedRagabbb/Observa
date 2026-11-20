@@ -2,15 +2,9 @@
 
 ## Docker with an existing F1 reports folder
 
-F2 and F3 run in the same worker and both read `GROQ_API_KEY` from its environment.
-Set that variable in your shell before starting Compose. For file-based setup,
-copy [docker/.env.example](docker/.env.example) to a private `.env`, fill in your key,
-and use Compose's `--env-file` option. For a file in the Observa root, run
-`docker compose --env-file .env -f correlation_agent/compose.yaml up --build -d`.
-Use the same environment or file option for subsequent Compose commands.
-The existing local `correlation_agent/.env` also works as a Compose default.
-
-With the variable already set, run from the Observa repository root:
+F2 and F3 run in one worker. Put `GROQ_API_KEY` in both local files,
+`investigation/.env` for F2 and `correlation_agent/.env` for F3.
+Run these commands from the repository root.
 
 ```powershell
 docker compose -f correlation_agent/compose.yaml up --build -d
@@ -27,7 +21,7 @@ Upgrades retain the previous watcher's explicitly excluded historical baseline.
 The Docker runner pins F2 to the opening snapshot and, if different, the snapshot
 with the most simultaneously affected services (breaking ties by active bad alerts).
 The three F2 agents use Groq (openai/gpt-oss-120b) to interpret non-empty signal profiles.
-Compose passes the shared Groq key to the worker at container creation. If a
+If a
 model response is unavailable or rejected, F2 records the fallback in the findings.
 Their findings are saved in `investigation.json` and `investigation.impact.json`.
 F3 reads immutable F1 snapshots up to the selected revision for per-alert peaks,
@@ -36,7 +30,10 @@ record citations use zero-based cursors for F1's evidence reader. A release matc
 requires the same service and version and, when supplied, deployment ID. The
 reported first error is the earliest matching error in the retained sample.
 `report.json` and `report.md` carry the same history and citations.
-A valid F3 request for more evidence is a completed handoff for this worker.
+A request for evidence triggers targeted F2 follow-up. The same report includes the
+questions, answers and citations. The worker stops on a repeated request or after
+the configured limit (two rounds by default). It caches snapshot analyses and
+completed rounds in the incident's `.f2-cache/` so retries resume after the last successful step.
 Stop the worker with `docker compose -f correlation_agent/compose.yaml stop`.
 For a manual one-off run, pass an explicit ID to `run --rm investigate INC-...`.
 
@@ -65,8 +62,7 @@ a readable summary, numbered steps, evidence and any remaining gaps. Step 1 in a
 completed report is the probable origin. Each inferred effect points to its parent
 with `follows_step` and cites the F2 claims, signal types and evidence IDs for the
 affected service. Step order describes a proposed causal chain, not measured timestamps.
-A partial report contains independent observations and gaps; the caller routes the
-accompanying `follow_up_request` to F2.
+A partial report contains observations and gaps. In standalone Python mode the caller handles the follow-up.
 
 * `agent/model.py` configures the Groq model and system instructions.
 * `agent/graph.py` builds the agent with LangChain's `create_agent` and limits it to five model calls.

@@ -14,6 +14,7 @@ from observa_investigation.agents.logs import LogsSignalAgent
 from observa_investigation.agents.metrics import MetricsSignalAgent
 from observa_investigation.agents.traces import TracesSignalAgent
 from observa_investigation.orchestrator import Orchestrator
+from observa_investigation.contracts import FollowUpRequest, InvestigationResult
 from .watch import watch
 
 
@@ -44,14 +45,62 @@ def preserve_legacy_initial(reports, incident, folder):
                 publish(folder / f"{source.stem}.initial{source.suffix}", source.read_text(encoding="utf-8"))
 
 
-def investigate(reports, doc):
-    print(f"F2: reading saved evidence for {doc['id']} at {doc['snapshot_id']}")
+def make_orchestrator(reports):
     agents = {name: cls(str(reports), use_llm=True) for name, cls in (
         ("logs", LogsSignalAgent), ("metrics", MetricsSignalAgent), ("traces", TracesSignalAgent))}
-    result = Orchestrator(agents).investigate(doc)
+    return Orchestrator(agents)
+
+
+def investigate(reports, doc, cache):
+    sid = doc["snapshot_id"]
+    path = cache / f"{sid}.json"
+    if path.is_file():
+        result = InvestigationResult.model_validate_json(path.read_bytes())
+        if result.incident_id != doc["id"]:
+            raise ValueError("F2 cache belongs to another incident")
+        print(f"F2: using saved analysis for {doc['id']} at {sid}")
+        return result
+    print(f"F2: reading saved evidence for {doc['id']} at {sid}")
+    result = make_orchestrator(reports).investigate(doc)
     if result.status == "failed":
         raise RuntimeError(f"F2 failed on {doc['snapshot_id']}")
-    return result.model_dump(mode="json")
+    publish(path, result.model_dump_json(indent=2))
+    return result
+
+
+def correlate_with_follow_up(reports, cache, history, inputs, investigations):
+    """Checkpoint completed rounds so provider retries resume at the failed step."""
+    orchestrator = make_orchestrator(reports)
+    asked = set()
+    for cycle in range(orchestrator.config.max_reinvestigations + 1):
+        prefix = f"{history.snapshot_id}.{history.phase}.{cycle}"
+        decision = cache / f"{prefix}.decision.json"
+        if decision.exists():
+            result = CorrelationResult.model_validate_json(decision.read_bytes())
+        else:
+            print(f"F3: correlating {investigations[0].incident_id} ({history.phase}, {history.snapshot_id}) with Groq")
+            result = correlate(investigations[0].model_dump(), history=history,
+                               additional_investigations=[data.model_dump() for data in investigations[1:]])
+            publish(decision, result.model_dump_json())
+        follow = result.follow_up_request
+        if follow is None or cycle == orchestrator.config.max_reinvestigations:
+            return result
+        signature = tuple(sorted((s, q.strip().casefold()) for s in follow.target_agents
+                          for q in follow.signal_objectives.get(s, follow.objectives)))
+        if signature in asked:
+            return result
+        asked.add(signature)
+        for i, (doc, prior) in enumerate(zip(inputs, investigations)):
+            saved = cache / f"{prefix}.{doc['snapshot_id']}.answer.json"
+            if saved.exists():
+                updated = InvestigationResult.model_validate_json(saved.read_bytes())
+            else:
+                request = FollowUpRequest.model_validate(follow.model_dump())
+                request.source_run_id = prior.run_id
+                print(f"F2: follow-up {cycle + 1} for {doc['id']} at {doc['snapshot_id']} ({', '.join(request.target_agents)})")
+                updated = orchestrator.follow_up(request, doc, prior_result=prior, reinvestigation_count=cycle)
+                publish(saved, updated.model_dump_json())
+            investigations[i] = updated
 
 
 def process_incident(reports: Path, incident: str, folder: Path, snapshot: str):
@@ -68,11 +117,12 @@ def process_incident(reports: Path, incident: str, folder: Path, snapshot: str):
         if cached.incident_id == incident and cached.report.history == history:
             result = cached
     if result is None:
-        investigations = [investigate(reports, doc) for doc in inputs]
-        print(f"F3: correlating {incident} ({history.phase}, {snapshot}) with Groq")
-        result = correlate(investigations[0], history=history, additional_investigations=investigations[1:])
+        cache = folder / ".f2-cache"
+        cache.mkdir(exist_ok=True)
+        investigations = [investigate(reports, doc, cache) for doc in inputs]
+        result = correlate_with_follow_up(reports, cache, history, inputs, investigations)
         for label, data in zip(("", ".impact"), investigations):
-            publish(folder / f"investigation{suffix}{label}.json", json.dumps(data, ensure_ascii=False, indent=2))
+            publish(folder / f"investigation{suffix}{label}.json", data.model_dump_json(indent=2))
         publish(correlation_path, result.model_dump_json(indent=2))
     destinations = [suffix]
     if initial:
