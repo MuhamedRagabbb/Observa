@@ -1,57 +1,37 @@
-# حوادث من اختبار Docker الفعلي
+# F1 incidents captured in Docker
 
-هذه بيانات مراقبة فعلية من dummy-app أثناء اختبارات أعطال محلية متعمدة يومي 4 و5 نوفمبر 2026.
-ليست حادثة إنتاج، وليست بيانات demo مصطنعة. لذلك قيمة origin داخل الملفات هي live.
-معرفة العطل الذي فعّله الاختبار تخص التقييم فقط؛ محرك الاكتشاف قرأ Prometheus وLoki وJaeger دون قراءة إعدادات العطل أو سجل تشغيله.
+These incidents were recorded during fault experiments in the local checkout application on November 4–5, 2026. The detector used Prometheus, Loki and Jaeger. The files have `origin: live` because the telemetry came from running services. They are historical v1 exports. For the current bundle layout, see the [compact example](../compact-bundle/demo-payments/index.md).
 
-## ابدأ من حادثة الدفع
+## Payment failure
 
-الحادثة `INC-285cbc9ff73f595392e7` جمعت 6 تنبيهات من 3 خدمات في حادثة واحدة.
+Incident `INC-285cbc9ff73f595392e7` contains six alerts across three services. Orders logged failed calls to Payments, and the Gateway logged failed calls to Orders. These records explain why F1 grouped the alerts. Compare the [open snapshot](during/INC-285cbc9ff73f595392e7.json), [resolved snapshot](resolved/INC-285cbc9ff73f595392e7.json) and [incident summary](resolved/INC-285cbc9ff73f595392e7.md).
 
-- [ملف JSON النهائي لإرساله للمرحلة التالية](resolved/INC-285cbc9ff73f595392e7.json)
-- [التقرير التفصيلي المقروء](resolved/INC-285cbc9ff73f595392e7.md)
-- [نسخة JSON أثناء استمرار المشكلة](during/INC-285cbc9ff73f595392e7.json)
+| Signal | Service | Peak | Alert threshold |
+| --- | --- | ---: | ---: |
+| Payment failures, including declines | Payments | 100% | >25% |
+| HTTP 5xx | Payments | 50% | >15% |
+| HTTP 5xx | Orders | 72.09% | >15% |
+| HTTP 5xx | Gateway | 54.39% | >15% |
+| Dependency failures | Orders | 19.62% | >15% |
+| Dependency failures | Gateway | 57.41% | >15% |
 
-اللي حصل في البيانات: نسبة فشل الدفع ارتفعت، وظهرت أخطاء في Payments ثم في الطلبات التي تعتمد عليها داخل Orders، ثم في Gateway التي تستدعي Orders.
-التجميع اعتمد على سجلات استدعاءات فاشلة تحدد الطرفين، مع الاحتفاظ بعينات traces للفحص؛ لم يعتمد على تشابه اسم التنبيه.
+Each peak is the highest reading in a measurement window. The peaks can occur at different times.
 
-| التنبيه | الخدمة | أعلى قيمة شوهدت | حد التنبيه |
-| --- | --- | --- | --- |
-| فشل عمليات الدفع، بما فيها الرفض | Payments | 100% | أكبر من 25% |
-| HTTP 5xx | Payments | 50% | أكبر من 15% |
-| HTTP 5xx | Orders | 72.09% | أكبر من 15% |
-| HTTP 5xx | Gateway | 54.39% | أكبر من 15% |
-| فشل استدعاء خدمة يعتمد عليها Orders | Orders | 19.62% | أكبر من 15% |
-| فشل استدعاء خدمة يعتمد عليها Gateway | Gateway | 57.41% | أكبر من 15% |
+| Event on November 4 | UTC |
+| --- | --- |
+| First abnormal reading | 18:47:43 |
+| Incident opened | 18:48:13 |
+| Last abnormal reading | 18:49:43 |
+| Recovery confirmed | 18:51:03 |
 
-هذه نسب خلال نوافذ مراقبة، وقد تحدث القمم في أوقات مختلفة؛ ليست نسبًا لكل فترة الحادثة مجتمعة.
+Revision 18 records the recovery. Use `trigger_evidence` and `peak_value` to inspect the failure after the latest values have returned to normal. The export contains 100 log entries, 20 traces and five relationships. In F1, `root_cause.status` remains `not_determined`. Follow the recorded calls and their span parents to investigate the origin. Source URLs in the JSON refer to the original Docker network.
 
-الأوقات التالية UTC في 4 نوفمبر 2026:
+## Other captures
 
-- أول إشارة غير طبيعية: 18:47:43.
-- إنشاء الحادثة: 18:48:13، بعد نحو 53.42 ثانية من تفعيل عطل الاختبار.
-- آخر إشارة غير طبيعية: 18:49:43.
-- تأكيد التعافي: 18:51:03. النسخة النهائية status=resolved وrevision=18.
-
-الملف النهائي يحتفظ بـ100 سجل log و20 trace و5 علاقات تجميع، وقيم البداية والقمم والاستعلامات والتوقيتات.
-القيم الحالية رجعت للطبيعي في النسخة النهائية؛ راجع peak_value وtrigger_evidence لمعرفة ما حدث وقت المشكلة.
-
-## ماذا تعمل المرحلة التالية؟
-
-1. تقرأ JSON وتستخدم id كهوية ثابتة للحادثة، وتحتفظ بأعلى revision عند وصول تحديث.
-2. تبدأ فحص Payments باعتبارها فرضية للتحقيق، وتراجع الاستدعاءات Orders → Payments وGateway → Orders.
-3. تستخدم الأدلة المحفوظة وفترة handoff.query_window، وتفحص parent relationships داخل الـ spans للتأكد من اتجاه التأثير.
-4. تفصل بين رفض دفع تجاري ومشكلة تقنية، وتحدد السبب الجذري بعد التحقيق.
-
-قيمة root_cause.status تظل not_determined؛ الربط القوي بين الأعراض لا يثبت وحده السبب الجذري.
-الأدلة عينات محدودة وليست كل logs/traces. روابط المصادر داخل JSON عناوين شبكة Docker الخاصة بالتشغيل؛ بعد إيقاف بيئة الاختبار استخدم العينات المحفوظة، أو أعد تشغيل البيئة للاستعلام مع مراعاة مدة الاحتفاظ.
-
-## بقية الحوادث النهائية
-
-| الاختبار | النتيجة | ملف التسليم |
+| Experiment | What F1 grouped | Resolved incident |
 | --- | --- | --- |
-| رفض الدفع 402 | تنبيه دفع فقط على Payments | [JSON](resolved/INC-c31f55e7783d687cab4d.json) |
-| ضغط اتصالات قاعدة البيانات | تجميع Orders مع Gateway | [JSON](resolved/INC-96c88fde5c0f9737dfd3.json) |
-| مشكلة إصدار تؤثر على حفظ الطلبات | تجميع Orders مع Gateway | [JSON](resolved/INC-ec18b33a2376586dcea5.json) |
+| Payment declined (402) | A single Payments alert | [JSON](resolved/INC-c31f55e7783d687cab4d.json) |
+| Database pool pressure | Orders and Gateway alerts | [JSON](resolved/INC-96c88fde5c0f9737dfd3.json) |
+| Deployment regression in order persistence | Orders and Gateway alerts | [JSON](resolved/INC-ec18b33a2376586dcea5.json) |
 
-بجوار كل JSON تقرير Markdown بنفس الاسم. تفاصيل نجاح الاختبارات وحدود التغطية في ../../VALIDATION.md.
+Each JSON export has a Markdown summary alongside it. [Validation notes](../../VALIDATION.md)

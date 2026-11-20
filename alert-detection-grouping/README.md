@@ -1,54 +1,61 @@
-# OBSERVA — Alert Detection & Grouping
+# Observa — Alert Detection & Grouping (F1)
 
-خدمة مستقلة تقرأ Prometheus وLoki وJaeger، وتكتشف التدهور وتربط التنبيهات بالأدلة وتصدر Incident مفصلة للتحقيق.
-لا تستورد كود dummy-app ولا تستدعي controller ولا تقرأ ground truth. Grafana الموجودة تستمر في عرض بياناتها.
-هذه النسخة تنفذ قواعد الاكتشاف بنفسها؛ لا تحتاج إعداد alerts في Grafana ولا استقبال webhook منها.
+F1 reads metrics from Prometheus, logs from Loki and traces from Jaeger. It detects sustained problems, groups related alerts into incidents and saves the evidence for F2. Detection runs independently of Grafana, the dummy app controller and the experiment's ground truth.
 
-## تشغيل محلي
+## Run with Docker
 
-من هذا المجلد، باستخدام Python 3.12 أو أحدث، دون مكتبات pip:
+Start the [dummy app](../dummy-app/README.md) first. From the `alert-detection-grouping` directory, run:
 
-    python -m observa_alerts once --config config.json
-    python -m observa_alerts watch --config config.json
+```powershell
+docker compose up --build -d
+docker compose logs -f --tail 20 alerts
+```
 
-تحتاج بيئة dummy عاملة. العناوين الافتراضية على المضيف 9090 و3100 و16686.
-يمكن تعديل PROMETHEUS_URL وLOKI_URL وJAEGER_URL بمتغيرات البيئة.
-once قراءة واحدة؛ لا يلزم أن تنتج حادثة، لأن شرط الاستمرار يحتاج قراءات متتابعة.
-لا تشغل عاملين على نفس مجلد data. SQLite يحفظ الحالة وإعادة التشغيل لا تكرر الحادثة النشطة.
+Wait for `awaiting_first_sample` in the worker log to become empty before starting a fault experiment. This means F1 has received a fresh sample from each monitored service. Open `reports/index.md` on your host to find the incident and its summary.
 
-## Docker مستقل عن dummy-app
+The Compose project is called `observa-alerts`. It reaches `prometheus`, `loki` and `jaeger` by service name on the dummy app's external observability network. The default network is `observa-dummy_observability`. Set `OBSERVABILITY_NETWORK` if your dummy app uses a different network name. Only the observability network is required.
 
-شغّل بيئة dummy أولًا ثم:
+SQLite state lives in the `alert-state` volume. Reports are written directly to the bind-mounted `reports/` directory beside the Compose file. Git and Docker build rules exclude generated reports. On Linux, give container UID 10001 write access to this directory. On Windows, Docker Desktop handles file sharing.
 
-    docker compose up --build -d
-    docker compose logs --tail 20 alerts
+When upgrading from the older Compose setup, keep the project name and the state volume. The first successful poll exports incidents from the existing state. The previous `alert-reports` volume can be retained. Avoid `docker compose down -v` when you want to preserve state.
 
-Compose هنا مشروع مستقل اسمه observa-alerts، ويتصل بشبكة المراقبة الموجودة كشبكة external.
-القيمة الافتراضية observa-dummy_observability. إذا اختلف اسم مشروع البيئة، اضبط OBSERVABILITY_NETWORK على اسم شبكتها.
-الاتصال يكون بأسماء prometheus وloki وjaeger داخل الشبكة؛ لا يعتمد على الوصول إلى منافذ المضيف المقيدة بـ127.0.0.1.
-لا يتطلب تعديل أي ملف داخل dummy-app. لا تضف شبكات business/control للميزة.
-الحالة محفوظة في Docker volume باسم alert-state، والتقارير بتظهر تلقائيًا في فولدر **reports/** بجوار ملف Compose على جهازك.
-افتح **reports/index.md** من VS Code، ومنها افتح تقرير الحادثة؛ لا تحتاج أمر نسخ من Docker.
-لكل incident فولدر مستقل فيه incident.json صغير للمرحلة التالية، وsummary.md للقراءة، وفولدر evidence للتفاصيل. التقارير لا تُرفع إلى Git ولا تدخل في بناء الصورة.
-عند الترقية من الإعداد القديم، نفس alert-state يبقى مستخدمًا ويُعاد تصدير الحوادث المحفوظة فيه عند أول دورة ناجحة.
-الـvolume القديم alert-reports لا يُحذف، لكنه لم يعد مستخدمًا. احتفظ بنفس اسم مشروع Compose، ولا تستخدم down -v.
-على Linux، اجعل فولدر reports قابلًا للكتابة للمستخدم داخل الحاوية (UID 10001)؛ على Windows Docker Desktop تُستخدم مشاركة الملفات المعتادة.
+## Run locally
 
-## نموذج تسليم قابل للفحص
+Use Python 3.12 or later and a running dummy app. F1 uses the Python standard library. From this directory:
 
-    python -m observa_alerts demo --scenario payments
-    python -m observa_alerts demo --scenario pool
-    python -m observa_alerts demo --scenario deployment
-    python -m observa_alerts demo --scenario declines
+```powershell
+python -m observa_alerts once --config config.json
+python -m observa_alerts watch --config config.json
+```
 
-هذه بيانات مصطنعة معلنة بوضوح origin=synthetic_demo، وليست التقاطًا من بيئة تشغيل.
-تقارير النموذج منفصلة عن تقارير live. المثال الموجود مباشرة في examples/ مصطنع وتاريخي بصيغة v1.
-[مثال بالصيغة الجديدة v2](examples/compact-bundle/demo-payments/index.md) يوضح الملف المختصر والمراجع والأدلة المنفصلة.
-أما examples/live-docker/ ففيه حوادث من بيانات فعلية لاختبارات أعطال محلية على Docker؛ ابدأ بملف README.md داخله.
+`once` takes one sample. Use `watch` to follow an incident through detection and recovery. Run one worker per data directory. SQLite preserves active incident IDs across restarts.
 
-## المخرجات للمرحلة التالية
+The default host ports are 9090 for Prometheus, 3100 for Loki and 16686 for Jaeger. Override their addresses with `PROMETHEUS_URL`, `LOKI_URL` and `JAEGER_URL`.
 
-الشكل الجديد من 7 نوفمبر 2026:
+## Detection and recovery
+
+F1 polls every 10 seconds. Most rules examine the preceding 60 seconds. A signal must remain bad for 20 seconds before its alert fires. A new incident starts as `open`, keeps its ID as its revision increases and becomes `resolved` once every attached alert has recovered. Each firing alert needs 60 seconds of consecutive healthy readings. Low traffic and missing data can leave a reading unknown. A sufficiently long polling gap resets the confirmation timers.
+
+| Rule | Default trigger |
+| --- | --- |
+| HTTP errors | More than 15% HTTP 5xx responses, with at least 10 requests in the window |
+| Latency | HTTP p95 above 2 seconds, with at least 10 requests |
+| Database pool | More than 90% of connections in use, or an increase of more than 2 acquisition timeouts in the window |
+| Payment failures | More than 25% of payments fail, with at least 10 payment requests. Failures include declines and service errors, such as 402 and 503. |
+| Dependency errors | More than 15% of outbound calls return 5xx or fail in transport, with at least 10 calls |
+| Unexpected exceptions | More than 3 distinct `unexpected_exception` events in the window |
+| Persistence errors | More than 2 distinct `order_persistence_failed` events in the window |
+| Telemetry gaps | Prometheus or Loki reports a collection problem, service uptime becomes stale or stops advancing, or services miss the initial coverage deadline |
+
+Tune the thresholds for your workload in [config.json](config.json). F1 uses the changing uptime value to detect stale samples even when the collector republishes them with recent timestamps.
+
+## How alerts are grouped
+
+Specific signals, such as payment failures or database pool pressure, can anchor an incident. Compatible symptoms in the same service can join it with moderate confidence. To attach a generic alert from another service, F1 looks for a failed dependency call that names both services or a trace with failed spans in both.
+
+For example, if Payments fails, Orders logs a failed call to Payments and the Gateway logs a failed call to Orders, F1 can group all three alerts. The Gateway's relationship points to Orders. Concurrent independent faults can form separate incidents. A generic alert that could belong to two existing groups joins one deterministically. Grouping records an observed relationship and leaves root-cause assessment to F3.
+
+## Incident files and the F2 handoff
 
 ```text
 reports/
@@ -60,77 +67,44 @@ reports/
     ├── evidence/
     │   ├── logs.jsonl
     │   ├── metrics.json
-    │   ├── traces/trace-<id>-<version>.json
-    │   └── .objects/       نسخ الأدلة الثابتة للمراجع
-    └── snapshots/         مدخلات ومراجع محفوظة لكل نسخة
+    │   ├── traces/
+    │   └── .objects/
+    └── snapshots/
 ```
 
-ابدأ بإرسال `incident.json` فقط للـagent. يحتوي الملخص والتنبيهات وقيم البداية والحدود وأسباب التجميع وREFs، من غير نسخ logs أو spans داخله.
-`summary.md` شرح قصير، و`index.md` قائمة الحوادث. `incident-bundle.schema.json` يصف العقد الجديد `schema_version=2.0`.
-`incident.schema.json` ما زال يوثق الصيغة القديمة v1 للأرشيف والأمثلة التاريخية والحالة الداخلية؛ SQLite ومنطق الاكتشاف لم يتغيرا.
+Start with `incident.json`. It contains the incident `id`, `summary`, `first_observed_at`, `affected_services`, alerts, trigger values, thresholds, grouping reasons and evidence references. F1 adds `resolved_at` when recovery is confirmed. Each entry in the `alerts` dictionary identifies its parent incident. The `relationships` entries identify the linked alerts, their evidence and the confidence in each link. For the next stage, see [Run F2 on a saved incident](../investigation/README.md).
 
-كل نسخة لها `snapshot_id`، والقراءة تستخدم هذا الرقم مع `ref_id`. الأدلة الثابتة تكتب قبل نشر المدخل الجديد، وتُراجع ببصمة SHA-256 عند القراءة.
-ملفات `logs.jsonl` و`metrics.json` و`traces/index.json` الظاهرة تعرض أحدث حالة؛ المرجع الثابت هو الذي تستخدمه أدوات الـagent.
-الـmetrics قيم لوحظت واستعلاماتها وفتراتها، وليست تاريخ Prometheus الكامل. المصادر قد تختفي لكن العينات المحلية تظل متاحة.
-احتفظ بفولدر الحادثة كاملًا، مش incident.json وحده، لو هتنقل الأدلة لجهاز آخر.
+The compact bundle format uses `schema_version=2.0`, documented in `incident-bundle.schema.json`. The older `incident.schema.json` describes the v1 format used in archives, historical examples and internal state.
 
-أداة محلية جاهزة للاستدعاء من Python: `observa_alerts.evidence.read_evidence`، ومعها CLI. ترجع صفحات محدودة مع `next_cursor` وتوضح نقص الدليل أو تلفه.
-الحد الافتراضي 20 سجلًا و16 KB للرد، والسقف 100 سجل و64 KB. قراءة trace ترجع spans على صفحات، مش كل الرحلة دفعة واحدة.
-دي أداة ملفات محلية، مش MCP server أو agent تحليل متوصل تلقائيًا. تفاصيل الربط والمثال في [دليل الملفات](INCIDENT_FILES_AR.md).
+Use the incident's `snapshot_id` and the evidence `ref_id` to retrieve the exact evidence for a revision. F1 writes immutable evidence objects before publishing each snapshot and verifies SHA-256 hashes when reading them. The visible files `logs.jsonl`, `metrics.json` and `traces/index.json` show the latest state. Saved metrics include the observed values, queries and windows. Copy the entire incident directory to preserve the evidence and references on another machine.
 
-لتحويل ملفات v1 الموجودة: أوقف العامل ثم شغّل `python -m observa_alerts.repack --reports reports`، وبعدها أعد بناء وتشغيل الصورة.
-التحويل ينقل النسخ القديمة إلى `reports/_legacy/` بعد التحقق من الأدلة، ولا يمسحها أو يغيّر SQLite. تشغيله ثانية لا يعيد تحويلها.
-لا تشغل عاملين أو أداة التحويل مع العامل على نفس reports. لا توجد سياسة حذف تلقائي للنسخ القديمة؛ ملفات .objects قد تخدم مراجع أقدم.
-root_cause يظل غير محدد؛ التجميع لا يثبت السببية. لا يوجد إرسال خارجي أو API أو queue في هذه النسخة.
+Python callers can use `observa_alerts.evidence.read_evidence`. The evidence CLI also supports paginated reads. The defaults are 20 records and 16 KB per response, with caps of 100 records and 64 KB. Trace pages contain spans. The reader returns a `next_cursor` for more data and reports missing or corrupt evidence. [Evidence reader examples and file reference (Arabic)](INCIDENT_FILES_AR.md)
 
-داخل JSON، `alerts` قاموس التنبيهات التابعة للحادثة، وكل تنبيه فيه `incident_id` مطابق لـ`id` الخاص بها.
-وفي التقرير المقروء توجد قائمة بأرقام التنبيهات وخدماتها وحالتها. `relationships` توضح أي تنبيه مرتبط بأي تنبيه آخر، والدليل ودرجة الثقة.
-مثال: Payments يفشل، ثم Orders يسجل فشل استدعاء Payments، ثم Gateway يسجل فشل استدعاء Orders.
-ممكن تتجمع التنبيهات الثلاثة في incident واحدة؛ الرابط الأخير يشير إلى Orders فعلًا، وليس إلى Payments لمجرد أنه بداية الحادثة.
-تشابه الاسم أو التوقيت وحده لا يكفي لضم تنبيهات خدمات مختلفة. أما أعراض نفس الخدمة فقد تُجمع بثقة متوسطة، دون إثبات سبب مشترك.
-وجود أكثر من عطل متخصص مستقل قد ينتج أكثر من incident، حتى لو في نفس الوقت.
+To migrate v1 reports, stop the worker and run `python -m observa_alerts.repack --reports reports` from this directory. Rebuild and restart the worker afterward. The tool verifies the evidence before moving old files into `reports/_legacy/`, preserves SQLite state and skips bundles it has already converted. Use one writer at a time. Older snapshots can still reference files in `.objects/`.
 
-الحادثة تبدأ open، وتتحدث بنفس الرقم مع زيادة revision، وتبقى محفوظة عند التعافي بحالة resolved.
-الإعداد الافتراضي يقرأ كل 10 ثوانٍ ويحتاج استمرار الإشارة 20 ثانية؛ ظهور الحادثة ليس فوريًا بالضرورة، ويتأثر بنافذة البيانات وعدد الطلبات.
+## Try a sample incident
 
-## التغطية
+```powershell
+python -m observa_alerts demo --scenario payments
+python -m observa_alerts demo --scenario pool
+python -m observa_alerts demo --scenario deployment
+python -m observa_alerts demo --scenario declines
+```
 
-| القاعدة | الشرط الافتراضي |
-| --- | --- |
-| HTTP errors | نسبة 5xx أكبر من 15% مع 10 طلبات على الأقل خلال 60 ثانية |
-| Latency | p95 أكبر من ثانيتين مع حد أدنى للطلبات |
-| DB pool | استخدام أكبر من 90% أو زيادة timeouts أكبر من 2 |
-| Payment failure | فشل أكبر من 25%، يشمل 402 و503؛ يشترط 10 طلبات دفع |
-| Dependency errors | نسبة 5xx أو فشل النقل أكبر من 15%؛ لا يعد كل 4xx عطلًا |
-| Unexpected exceptions | أكثر من 3 أحداث unexpected_exception؛ ليس اكتشاف نوع exception جديد إحصائيًا |
-| Persistence errors | أكثر من حدثين order_persistence_failed |
-| Telemetry gaps | فشل/اقتطاع المصدر أو فقد/توقف تقدم uptime الخاص بالخدمة |
+Demo incidents carry `origin=synthetic_demo` and use separate output directories. The top-level examples include a historical v1 fixture. For the current format, open the [compact v2 example](examples/compact-bundle/demo-payments/index.md). For incidents captured during local Docker fault experiments, see the [live Docker examples](examples/live-docker/README.md).
 
-القيم قابلة للضبط في config.json وهي بداية للمعايرة وليست SLO معتمدة.
-يلزم استمرار 20 ثانية؛ التعافي يتأكد بعد 60 ثانية من قراءات سليمة متصلة.
-نقص البيانات/انخفاض الترافيك لا يغلق incident باعتبارها تعافت. توقف العامل يعيد مؤقتات الاستمرار.
-استخدام uptime المتغير يكشف أيضًا عينات Collector القديمة التي يعاد نشرها أثناء توقف تصدير الخدمة.
+## Operating limits
 
-## منطق التجميع
+- Detection covers the rules above. CPU saturation, disk exhaustion and out-of-memory failures would need additional signals and rules.
+- Each incident keeps up to 100 sanitized logs and 20 traces. A truncated log window prevents the absence of log events from confirming recovery.
+- Grouping uses evidence visible at the time of the decision. Two incidents can stay separate if their connecting evidence arrives later.
+- Thresholds are configured manually. The worker uses a single SQLite state store and publishes to the local filesystem. Plan for report and database retention, review thresholds and validate live data sources before operational use.
+- Automatic seasonal baselines, external notifications, multi-user authentication and high-availability coordination are outside the current feature.
 
-الإشارات المتخصصة تصبح نقطة بداية ثم تلحق بها الأعراض العامة لنفس الخدمة.
-عبر الخدمات نطلب failed dependency log يحدد الطرفين، أو trace فيها spans فاشلة للخدمتين.
-التقارب الزمني وحده أو تشابه الاسم لا يكفي. الأعطال المتخصصة المختلفة لا تندمج لمجرد تزامنها.
-التنبيه العام الذي يربط مجموعتين لا يدمجهما؛ يختار مجموعة واحدة بشكل حتمي.
-تجميع أعراض نفس الخدمة ثقة متوسطة؛ ارتباط الطلب الفاشل ثقة أعلى، وليس حكمًا نهائيًا بالسبب.
+## Tests
 
-## حدود مقصودة
+```powershell
+python -m unittest discover -s tests -v
+```
 
-- ليس ضمانًا لكل خطأ محتمل ولا نموذج machine learning؛ لا يكشف CPU/disk/OOM دون قواعد وقياسات إضافية.
-- نافذة logs محدودة؛ وصول الحد يعلن truncated ويمنع استنتاج التعافي من غياب أحداث.
-- يحتفظ بآخر 100 log و20 trace لكل incident، مع حذف الرسائل الخام والسمات غير المطلوبة.
-- graph يعتمد على الأدلة المرئية في نافذة القراءة؛ قد تنفصل حادثتان بدأتا قبل ظهور رابط بينهما.
-- لا baseline تلقائي أو تعلم موسمية أو توصيل إشعارات خارجية أو مصادقة متعددة المستخدمين.
-- النسخة عامل واحد؛ لا distributed locking أو HA أو سياسة أرشفة تلقائية لSQLite.
-- أرشفة التقارير ومراجعة الحدود واختبار مصدر البيانات الحقيقي مطلوبة قبل الاعتماد التشغيلي.
-
-## الاختبارات
-
-    python -m unittest discover -s tests -v
-
-راجع VALIDATION.md لنتائج الاختبارات الفعلية وحدودها، وtests/DOCKER_TESTS.md لإعادة تجربة الأعطال على Docker في بيئة معزولة.
+See [validation results and coverage limits](VALIDATION.md) and [isolated Docker fault tests](tests/DOCKER_TESTS.md).
