@@ -5,6 +5,7 @@
   "pending_seconds": 20,
   "recovery_seconds": 60,
   "group_window_seconds": 120,
+  "startup_grace_seconds": 120,
   "freshness_seconds": 30,
   "min_requests": 10,
   "log_limit": 1000,

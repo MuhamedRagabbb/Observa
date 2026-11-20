@@ -5,7 +5,7 @@ in the contract document and change them only together with the other owners.
 """
 from typing import Any, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_serializer
 
 SignalType = Literal["logs", "metrics", "traces"]
 ExecutionStatus = Literal["pending", "running", "completed", "partial", "inconclusive", "failed"]
@@ -25,6 +25,7 @@ class EvidenceLink(_Model):
 
 
 class SignalFinding(_Model):
+    indicator: Optional[str] = None  # Original metric rule, log event or span operation.
     finding_id: str
     signal_type: SignalType
     service: str
@@ -42,9 +43,26 @@ class MissingEvidence(_Model):
     status: str  # e.g. unavailable | failed | not_implemented
 
 
+class EvidenceAnswer(_Model):
+    signal: SignalType
+    snapshot_id: str
+    question: str
+    answer: str
+    evidence_ids: List[str] = Field(default_factory=list)
+
+
 class SignalOutput(_Model):
+    answers: List[EvidenceAnswer] = Field(default_factory=list)
     findings: List[SignalFinding] = Field(default_factory=list)
     status: ExecutionStatus
+
+
+    @model_serializer(mode="wrap")
+    def dump_signal(self, handler):
+        data = handler(self)
+        if not self.answers:
+            data.pop("answers", None)
+        return data
 
 
 class InvestigationResult(_Model):
@@ -68,6 +86,7 @@ class FollowUpRequest(_Model):
     target_agents: List[str]
     objectives: List[str]
     evidence_needed: List[str] = Field(default_factory=list)
+    signal_objectives: Dict[str, List[str]] = Field(default_factory=dict)
     source_run_id: str
     review_cycle_id: Optional[str] = None
     status: Literal["pending", "accepted", "rejected", "completed"] = "pending"

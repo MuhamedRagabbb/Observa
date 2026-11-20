@@ -25,6 +25,28 @@ class DetectionTests(unittest.TestCase):
             incidents = self.engine.tick(snapshot(self.config, t, case))
         return incidents
 
+    def test_startup_coverage_then_loss_after_first_sample(self):
+        self.config.update(startup_grace_seconds=30, pending_seconds=10, recovery_seconds=10)
+        service = "payments-service"
+        def tick(t, fresh):
+            sample = snapshot(self.config, t)
+            if not fresh:
+                sample["metrics"]["age"].pop(service)
+            return self.engine.tick(sample)
+
+        for t in [1000, 1010, 1020, 1030]:
+            self.assertEqual(tick(t, False), [])
+        startup, = tick(1040, False)
+        alert, = startup["alerts"].values()
+        self.assertEqual(alert["rule"], "startup_coverage")
+        self.assertEqual(alert["evidence"]["awaiting_services"], [service])
+        tick(1050, True)
+        self.assertEqual(tick(1060, True)[0]["status"], "resolved")
+        tick(1070, False)
+        active, = [i for i in tick(1080, False) if i["status"] == "open"]
+        self.assertEqual(active["anchor"]["service"], service)
+        self.assertEqual(next(iter(active["alerts"].values()))["rule"], "service_signal_missing")
+
     def test_normal_noise_has_no_incidents(self):
         self.assertEqual(self.run_case(None), [])
 

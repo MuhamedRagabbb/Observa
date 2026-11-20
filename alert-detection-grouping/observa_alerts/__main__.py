@@ -40,9 +40,11 @@ def main():
             snap = collect(config)
             incidents = engine.tick(snap)
             export(incidents, args.reports)
+            awaiting = sorted(engine.awaiting_first_sample)
             Path(args.data, "last-source-status.json").write_text(json.dumps({
-                "time": snap["time"], "sources": snap["source_health"]}, indent=2), encoding="utf-8")
-            print(json.dumps({"sources": snap["source_health"], "incidents": len(incidents)}), flush=True)
+                "time": snap["time"], "sources": snap["source_health"], "awaiting_first_sample": awaiting}, indent=2), encoding="utf-8")
+            print(json.dumps({"sources": snap["source_health"], "awaiting_first_sample": awaiting,
+                              "incidents": len(incidents)}), flush=True)
             if args.command == "once":
                 break
             stop.wait(max(.1, config["poll_seconds"]-(time.monotonic()-tick)))

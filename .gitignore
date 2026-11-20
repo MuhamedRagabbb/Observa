@@ -15,6 +15,8 @@ e2e-output/
 
 # Local secrets (keep .env.example tracked)
 .env
+.env.*
+!.env.example
 
 # Evaluation ground truth is local-only
 **/ground-truth/*.jsonl

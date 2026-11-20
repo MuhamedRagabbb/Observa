@@ -6,6 +6,7 @@ from typing import Callable, Optional
 
 from ..contracts import EvidenceLink, MissingEvidence, SignalFinding
 from .base import AgentResult, AgentTask
+from .follow_up import answer_questions
 
 
 def evidence_id(incident_id: str, snapshot_id: str, row_id: str) -> str:
@@ -86,7 +87,7 @@ def finding_to_agent_result(finding: dict, profile: dict) -> AgentResult:
             finding_id=f"{iid}:metrics:F{n}",
             signal_type="metrics",
             service=row["service"],
-            claim=_describe(row),
+            indicator=row.get("rule"), claim=_describe(row),
             claim_kind="observation",
             evidence_links=[_link(iid, sid, rid, "supported")],
             execution_status=exec_status,
@@ -147,4 +148,6 @@ class MetricsSignalAgent:
                 llm = self.llm or LLMClient.from_env()
             except LLMError:
                 llm = None
+        if task.follow_up:
+            return answer_questions("metrics", task, profile["metrics"], _describe, _link, "rule", llm, LLMError)
         return finding_to_agent_result(build_finding(profile, incident, llm), profile)

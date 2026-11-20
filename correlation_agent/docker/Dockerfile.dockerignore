@@ -1,0 +1,16 @@
+**
+!alert-detection-grouping/observa_alerts/**/*.py
+!investigation/requirements.txt
+!investigation/observa_investigation/**/*.py
+!us01_logs_agent/logs_agent/*.py
+!us02_metrics_agent/metrics_agent/*.py
+!us03_traces_agent/traces_agent/*.py
+!correlation_agent/requirements.txt
+!correlation_agent/*.py
+!correlation_agent/agent/*.py
+!correlation_agent/reporting/*.py
+!correlation_agent/docker/*.py
+
+# Runtime configuration is supplied by Compose.
+**/.env
+**/.env.*
