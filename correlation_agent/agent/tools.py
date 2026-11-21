@@ -160,6 +160,24 @@ def resolve(decision: SubmitCause | RequestEvidence, report: InvestigationResult
         if gap:
             decision = RequestEvidence(requests=[gap], candidates=[])
             candidates = []
+    alert = history.opening_alert if history else None
+    if alert and alert.rule in ("pool_timeouts", "pool_pressure"):
+        capacity = EvidenceRequest(signal="metrics", required=f"Active and maximum database pool connections for {alert.service}",
+                                   reason="Check whether the pool reached capacity during the acquisition failures.")
+        occupancy = [i for i, row in enumerate(rows, 1) if row.service == alert.service
+                     and row.signal == "metrics" and row.indicator == "pool_pressure"]
+        if (isinstance(decision, SubmitCause) and candidates[0].service == alert.service
+                and any(word in candidates[0].hypothesis.lower() for word in ("saturat", "exhaust", "capacity"))
+                and not set(occupancy).intersection(leading.supporting_rows)):
+            available = [i for i in occupancy if rows[i - 1].snapshot_id == candidates[0].snapshot_id]
+            if available:
+                raise ValueError(f"Review pool occupancy in row(s) {available}. If it supports your explanation, "
+                                 "cite it in supporting_rows. Otherwise revise your cause.")
+            decision = RequestEvidence(requests=[capacity], candidates=[])
+            candidates = []
+        elif (isinstance(decision, RequestEvidence) and not occupancy
+              and not any(req.signal == "metrics" and "pool" in req.required.lower() for req in decision.requests)):
+            decision = decision.model_copy(update={"requests": [*decision.requests, capacity]})
     gaps = list(report.missing_evidence)
     if history and history.first_snapshot != history.snapshot_id:
         gaps = [gap.model_copy(update={"reason": f"Opening investigation: {gap.reason}"}) for gap in gaps]
@@ -218,5 +236,3 @@ def request_evidence(requests: list[EvidenceRequest], candidates: list[Hypothesi
     if not requests:
         return "Specify which signal and evidence F2 should collect."
     return _record_decision(RequestEvidence(requests=requests, candidates=candidates), runtime)
-
-

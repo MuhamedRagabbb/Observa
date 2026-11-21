@@ -79,8 +79,9 @@ class LogsSignalAgent:
     signal = "logs"
 
     def __init__(self, reports_dir, llm=None, use_llm: bool = True,
-                 fetcher_factory: Optional[Callable[[str, str], Callable]] = None):
+                 fetcher_factory: Optional[Callable[[str, str], Callable]] = None, live=None):
         self.reports_dir, self.llm, self.use_llm = reports_dir, llm, use_llm
+        self.live = live
         self.fetcher_factory = fetcher_factory
 
     def run(self, task: AgentTask) -> AgentResult:
@@ -99,12 +100,12 @@ class LogsSignalAgent:
         profile["incident_id"], profile["snapshot_id"] = iid, task.snapshot_id
 
         llm = None
-        if self.use_llm and profile["sample"]["records"] > 0:
+        if self.use_llm and (profile["sample"]["records"] > 0 or (task.follow_up and self.live is not None)):
             try:
                 llm = self.llm or LLMClient.from_env()
             except LLMError:
                 llm = None  # no key/model configured: deterministic observations only
         if task.follow_up:
             view = make_view(profile, incident)["profile"]
-            return answer_questions("logs", task, view["patterns"] + view["other_events"], _describe, _link, "event", llm, LLMError)
+            return answer_questions("logs", task, view["patterns"] + view["other_events"], _describe, _link, "event", llm, LLMError, self.live)
         return finding_to_agent_result(build_finding(profile, incident, llm), profile)

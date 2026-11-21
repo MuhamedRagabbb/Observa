@@ -1,4 +1,4 @@
-﻿"""Plug the finished Metrics Agent (us02_metrics_agent / package `metrics_agent`) into the orchestrator.
+"""Plug the finished Metrics Agent (us02_metrics_agent / package `metrics_agent`) into the orchestrator.
 
 finding_to_agent_result() is a pure mapping, so it is testable without the Metrics Agent installed.
 """
@@ -123,8 +123,10 @@ class MetricsSignalAgent:
         llm=None,
         use_llm: bool = True,
         fetcher_factory: Optional[Callable[[str, str], Callable]] = None,
+        live=None,
     ):
         self.reports_dir, self.llm, self.use_llm = reports_dir, llm, use_llm
+        self.live = live
         self.fetcher_factory = fetcher_factory
 
     def run(self, task: AgentTask) -> AgentResult:
@@ -143,11 +145,11 @@ class MetricsSignalAgent:
         profile["incident_id"], profile["snapshot_id"] = iid, task.snapshot_id
 
         llm = None
-        if self.use_llm and profile["sample"]["observations_count"] > 0:
+        if self.use_llm and (profile["sample"]["observations_count"] > 0 or (task.follow_up and self.live is not None)):
             try:
                 llm = self.llm or LLMClient.from_env()
             except LLMError:
                 llm = None
         if task.follow_up:
-            return answer_questions("metrics", task, profile["metrics"], _describe, _link, "rule", llm, LLMError)
+            return answer_questions("metrics", task, profile["metrics"], _describe, _link, "rule", llm, LLMError, self.live)
         return finding_to_agent_result(build_finding(profile, incident, llm), profile)

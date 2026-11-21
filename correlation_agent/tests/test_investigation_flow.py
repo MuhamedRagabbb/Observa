@@ -1,5 +1,6 @@
 """Exercise the Docker worker with real F1 bundles and scripted provider replies."""
 import json
+import sqlite3
 from pathlib import Path
 import tempfile
 import unittest
@@ -21,6 +22,7 @@ from observa_investigation.orchestrator import Orchestrator
 from correlation_agent.agent.state import IncidentHistory, Observation, OpeningAlert
 from correlation_agent.agent.tools import Hypothesis, SubmitCause, get_structured_file, resolve, trigger_gap
 from correlation_agent.docker import run
+from correlation_agent.docker.watch import discover, process_next, resume_legacy_requests
 
 
 class AskForEvidence(BaseChatModel):
@@ -119,8 +121,138 @@ class InvestigationFlowTests(unittest.TestCase):
             report = json.loads((folder / "report.json").read_bytes())
             self.assertEqual(report["follow_up_answers"], [found, missing])
             self.assertEqual(report["status"], "needs_more_analysis")
+            self.assertEqual(report["follow_up_stop_reason"], "repeated_request")
             self.assertIn("HTTP 402", (folder / "report.md").read_text(encoding="utf-8"))
             correlation = json.loads((folder / "correlation.json").read_bytes())
             rows = [Observation.model_validate(row) for row in correlation["correlated_findings"]]
             alert = OpeningAlert(service="payments-service", family="telemetry", rule="service_signal_missing")
             self.assertIsNotNone(trigger_gap(alert, rows))
+
+    def test_completed_legacy_request_reaches_f2_after_restart(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            reports, output = root / "reports", root / "runs"
+            config = settings()
+            engine = Engine(root / "data", config)
+            try:
+                for t in (1000, 1010, 1020):
+                    incidents = engine.tick(snapshot(config, t, "payments"))
+                doc, = export(incidents, reports)
+            finally:
+                engine.close()
+            folder = output / doc["id"]
+            folder.mkdir(parents=True)
+            history, _ = run.load_history(reports, doc["id"], doc["snapshot_id"])
+            orch = Orchestrator({name: cls(reports, use_llm=False) for name, cls in (
+                ("logs", LogsSignalAgent), ("metrics", MetricsSignalAgent), ("traces", TracesSignalAgent))})
+            investigation = orch.investigate(doc)
+            (folder / "investigation.initial.json").write_text(investigation.model_dump_json())
+            with patch("correlation_agent.agent.graph.groq_model", return_value=AskForEvidence()):
+                legacy = run.correlate(investigation.model_dump(), history=history).model_dump()
+            del legacy["report"]["follow_up_answers"]
+            legacy["report"]["history"].pop("opening_alert")
+            for filename in ("correlation.initial.json", "correlation.json"):
+                (folder / filename).write_text(json.dumps(legacy))
+            with sqlite3.connect(":memory:") as db:
+                discover(db, reports)
+                db.execute("UPDATE report_jobs SET done=1")
+                db.commit()
+                resume_legacy_requests(db, reports, output)
+                with patch.object(run, "make_orchestrator", return_value=orch), patch.object(
+                        orch, "investigate", side_effect=AssertionError("opening analysis already exists")), patch.object(
+                        orch, "follow_up", wraps=orch.follow_up) as targeted, patch(
+                        "correlation_agent.agent.graph.groq_model", return_value=AskForEvidence()):
+                    self.assertTrue(process_next(db, reports, output, run.process_incident))
+                self.assertEqual(targeted.call_count, 1)
+                follow = targeted.call_args.args[0]
+                self.assertEqual(follow.request_id, legacy["follow_up_request"]["request_id"])
+                self.assertEqual(follow.target_agents, ["logs"])
+                published = json.loads((folder / "report.initial.json").read_bytes())
+                self.assertEqual(len(published["follow_up_answers"]), 2)
+                resume_legacy_requests(db, reports, output)
+                self.assertFalse(process_next(db, reports, output, run.process_incident))
+
+    def test_source_follow_up_yields_a_citable_cause(self):
+        from langchain_core.messages import HumanMessage
+        from observa_investigation.agents.live_evidence import LiveEvidence
+
+        class SelectPoolRows:
+            def complete(self, messages):
+                rows = json.loads(messages[-1]["content"])["rows"]
+                return json.dumps([k for k in rows if k.startswith("S")])
+
+        class ReviewPool(BaseChatModel):
+            @property
+            def _llm_type(self):
+                return "test"
+
+            def bind_tools(self, tools, **kwargs):
+                return self
+
+            def _generate(self, messages, **kwargs):
+                context = json.loads(next(m.content for m in messages if isinstance(m, HumanMessage)))
+                support = [r["row"] for r in context["observations"] if "follow-up:live-" in r["finding_id"]]
+                if support:
+                    name = "SubmitCause"
+                    args = {"candidates": [{"service": "inventory-service", "explanation":
+                            "The inventory database pool reached its capacity of 4 and acquisitions timed out.",
+                            "supporting_rows": support, "related_rows": []}], "effects": []}
+                else:
+                    name = "RequestEvidence"
+                    args = {"requests": [{"signal": s, "required": q, "reason": "Verify the inventory-service timeout"}
+                                         for s, q in [("logs", "pool timeout events"), ("metrics", "pool occupancy")]],
+                            "candidates": []}
+                message = AIMessage(content="", tool_calls=[{"name": name, "args": args, "id": "review"}])
+                return ChatResult(generations=[ChatGeneration(message=message)])
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            reports, folder = root / "reports", root / "run"
+            config = settings()
+            engine = Engine(root / "data", config)
+            try:
+                for t in (1000, 1010, 1020):
+                    sample = snapshot(config, t)
+                    sample.update(origin="live")
+                    sample["metrics"]["pool_timeouts"]["inventory-service"] = 3
+                    incidents = engine.tick(sample)
+                doc, = export(incidents, reports)
+            finally:
+                engine.close()
+
+            def fetch(base, path, params):
+                self.assertIn("inventory-service", params["query"])
+                if base == "loki":
+                    record = {"service.name": "inventory-service", "environment": "local",
+                              "event": "db_pool_timeout", "error.type": "PoolAcquireTimeout"}
+                    return {"status": "success", "data": {"resultType": "streams", "result": [
+                        {"values": [["1000000000000", json.dumps(record)]]}]}}
+                return {"status": "success", "data": {"resultType": "matrix", "result": [
+                    {"values": [[1000, "4"]]}]}}
+
+            source = LiveEvidence(folder / "follow-up-evidence", "loki", "prom", fetch)
+            agents = {"logs": LogsSignalAgent(reports, use_llm=False, live=source),
+                      "metrics": MetricsSignalAgent(reports, use_llm=False, live=source),
+                      "traces": TracesSignalAgent(reports, use_llm=False)}
+            orch = Orchestrator(agents)
+
+            def follow(*args, **kwargs):
+                for s in args[0].target_agents:
+                    agents[s].llm = SelectPoolRows()
+                    agents[s].use_llm = True
+                return Orchestrator.follow_up(orch, *args, **kwargs)
+
+            with patch.object(run, "make_orchestrator", return_value=orch), patch.object(
+                    orch, "follow_up", side_effect=follow) as follow_call, patch(
+                    "correlation_agent.agent.graph.groq_model", return_value=ReviewPool()):
+                run.process_incident(reports, doc["id"], folder, doc["snapshot_id"])
+            self.assertEqual(follow_call.call_count, 1)
+            report = json.loads((folder / "report.json").read_bytes())
+            self.assertEqual(report["status"], "probable_cause")
+            self.assertEqual(report["steps"][0]["service"], "inventory-service")
+            self.assertEqual({a["signal"] for a in report["follow_up_answers"]}, {"logs", "metrics"})
+            for row in report["steps"][0]["evidence"]:
+                key = row["evidence_ids"][0].split("#")[1]
+                record = json.loads((source.directory / (key + ".json")).read_bytes())
+                self.assertEqual(record["claim"], row["claim"])
+                self.assertEqual(record["snapshot_id"], doc["snapshot_id"])

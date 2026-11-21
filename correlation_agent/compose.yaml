@@ -1,6 +1,10 @@
 name: observa-investigation
 services:
   investigate:
+    networks: [default, telemetry]
+    environment:
+      LOKI_URL: http://loki:3100
+      PROMETHEUS_URL: http://prometheus:9090
     restart: unless-stopped
     init: true
     build:
@@ -33,3 +37,7 @@ services:
         bind:
           create_host_path: false
       - ./runs:/runs
+networks:
+  telemetry:
+    external: true
+    name: ${OBSERVABILITY_NETWORK:-observa-dummy_observability}

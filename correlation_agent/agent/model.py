@@ -27,6 +27,10 @@ by another independent signal. Temporal association alone does not prove a relea
 Keep the origin and proposed effects local to the named service. The report builder describes
 verified inter-service hops from incident_history.dependencies. Never invent a direct caller,
 callee or failure path. Prefer observations from onset for origin and peaks for impact.
+For database pool timeouts, distinguish an acquisition timeout from pool saturation.
+If occupancy and an acquisition failure are not both established, request the active and
+maximum connection counts from metrics and pool timeout events from logs for the affected
+service. Use the returned observations to assess whether the pool reached capacity.
 Otherwise, when the origin is uncertain, use RequestEvidence
 with specific objectives for F2. Do not invent observations or fill gaps from memory."""
 

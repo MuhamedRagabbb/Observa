@@ -1,6 +1,7 @@
 """Watch for new F1 incidents, or process a single incident ID explicitly."""
 import argparse
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from tempfile import NamedTemporaryFile, mkdtemp
@@ -10,12 +11,13 @@ from correlation_agent import correlate
 from correlation_agent.reporting.report import render_markdown
 from correlation_agent.agent.state import CorrelationResult
 from correlation_agent.agent.history import load_history
+from observa_investigation.agents.live_evidence import LiveEvidence
 from observa_investigation.agents.logs import LogsSignalAgent
 from observa_investigation.agents.metrics import MetricsSignalAgent
 from observa_investigation.agents.traces import TracesSignalAgent
 from observa_investigation.orchestrator import Orchestrator
 from observa_investigation.contracts import FollowUpRequest, InvestigationResult
-from .watch import watch
+from .watch import unanswered_legacy_request, watch
 
 
 def publish(path: Path, text: str):
@@ -45,9 +47,12 @@ def preserve_legacy_initial(reports, incident, folder):
                 publish(folder / f"{source.stem}.initial{source.suffix}", source.read_text(encoding="utf-8"))
 
 
-def make_orchestrator(reports):
+def make_orchestrator(reports, evidence_dir=None):
     agents = {name: cls(str(reports), use_llm=True) for name, cls in (
         ("logs", LogsSignalAgent), ("metrics", MetricsSignalAgent), ("traces", TracesSignalAgent))}
+    if evidence_dir and os.getenv("LOKI_URL") and os.getenv("PROMETHEUS_URL"):
+        source = LiveEvidence(evidence_dir, os.environ["LOKI_URL"], os.environ["PROMETHEUS_URL"])
+        agents["logs"].live = agents["metrics"].live = source
     return Orchestrator(agents)
 
 
@@ -68,26 +73,33 @@ def investigate(reports, doc, cache):
     return result
 
 
-def correlate_with_follow_up(reports, cache, history, inputs, investigations):
+def correlate_with_follow_up(reports, cache, history, inputs, investigations, saved_request=None):
     """Checkpoint completed rounds so provider retries resume at the failed step."""
-    orchestrator = make_orchestrator(reports)
+    orchestrator = make_orchestrator(reports, cache.parent / "follow-up-evidence")
     asked = set()
     for cycle in range(orchestrator.config.max_reinvestigations + 1):
         prefix = f"{history.snapshot_id}.{history.phase}.{cycle}"
         decision = cache / f"{prefix}.decision.json"
         if decision.exists():
             result = CorrelationResult.model_validate_json(decision.read_bytes())
+        elif cycle == 0 and saved_request is not None:
+            result = saved_request
+            publish(decision, result.model_dump_json())
         else:
             print(f"F3: correlating {investigations[0].incident_id} ({history.phase}, {history.snapshot_id}) with Groq")
             result = correlate(investigations[0].model_dump(), history=history,
                                additional_investigations=[data.model_dump() for data in investigations[1:]])
             publish(decision, result.model_dump_json())
         follow = result.follow_up_request
-        if follow is None or cycle == orchestrator.config.max_reinvestigations:
+        if follow is None:
+            return result
+        if cycle == orchestrator.config.max_reinvestigations:
+            result.report.follow_up_stop_reason = "round_limit"
             return result
         signature = tuple(sorted((s, q.strip().casefold()) for s in follow.target_agents
                           for q in follow.signal_objectives.get(s, follow.objectives)))
         if signature in asked:
+            result.report.follow_up_stop_reason = "repeated_request"
             return result
         asked.add(signature)
         for i, (doc, prior) in enumerate(zip(inputs, investigations)):
@@ -112,15 +124,27 @@ def process_incident(reports: Path, incident: str, folder: Path, snapshot: str):
         preserve_legacy_initial(reports, incident, folder)
     correlation_path = folder / f"correlation{suffix}.json"
     result = None
+    saved_request = None
     if correlation_path.exists():
-        cached = CorrelationResult.model_validate_json(correlation_path.read_bytes())
-        if cached.incident_id == incident and cached.report.history == history:
+        raw = json.loads(correlation_path.read_bytes())
+        cached = CorrelationResult.model_validate(raw)
+        if (unanswered_legacy_request(raw) and cached.incident_id == incident and cached.report.history
+                and cached.report.history.phase == history.phase and cached.report.history.snapshot_id == snapshot):
+            saved_request = cached
+        elif cached.incident_id == incident and cached.report.history == history:
             result = cached
     if result is None:
         cache = folder / ".f2-cache"
         cache.mkdir(exist_ok=True)
+        opening_path = folder / f"investigation{suffix}.json"
+        first_cache = cache / f"{history.first_snapshot}.json"
+        if saved_request and opening_path.is_file() and not first_cache.exists():
+            prior = InvestigationResult.model_validate_json(opening_path.read_bytes())
+            if (prior.incident_id == incident and prior.run_id == saved_request.follow_up_request.source_run_id
+                    and saved_request.report.history.first_snapshot == history.first_snapshot):
+                publish(first_cache, prior.model_dump_json())
         investigations = [investigate(reports, doc, cache) for doc in inputs]
-        result = correlate_with_follow_up(reports, cache, history, inputs, investigations)
+        result = correlate_with_follow_up(reports, cache, history, inputs, investigations, saved_request)
         for label, data in zip(("", ".impact"), investigations):
             publish(folder / f"investigation{suffix}{label}.json", data.model_dump_json(indent=2))
         publish(correlation_path, result.model_dump_json(indent=2))

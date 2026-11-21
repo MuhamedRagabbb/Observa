@@ -38,6 +38,8 @@ F2 analyses the opening snapshot and, if different, the snapshot with the most s
 
 A probable cause requires supporting evidence from two distinct signal types for the same service and snapshot. When F3 requests more evidence, the Docker worker sends its questions to the relevant F2 agents. The report includes their answers and citations. The worker stops on a repeated request or after two follow-up rounds by default. If Groq is unavailable, the worker retries and reuses completed analyses from the incident's `.f2-cache/` directory.
 
+When saved rows do not answer a follow-up question, the Docker worker can query Loki and Prometheus for the affected service in the original snapshot window. Database pool evidence includes acquisition failures and time-aligned active and maximum connection counts. Citations ending in `#live-<hash>` resolve to `follow-up-evidence/live-<hash>.json` beside the report. Each file contains the source query, time window and observations. Expired source data can leave a question unanswered. The worker uses the dummy app's observability network (`OBSERVABILITY_NETWORK` overrides its name) and the Groq keys configured for this installation.
+
 ## Run from Python
 
 From the repository root, install the dependencies and use a saved F2 result as input. Set `GROQ_API_KEY` in the environment or in `correlation_agent/.env`. F3 sends the findings and any supplied historical notes to Groq's `openai/gpt-oss-120b` model.

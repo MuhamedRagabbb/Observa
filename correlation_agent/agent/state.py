@@ -75,6 +75,7 @@ class IncidentHistory(BaseModel):
 
 
 class CorrelationReport(BaseModel):
+    follow_up_stop_reason: Literal["repeated_request", "round_limit"] | None = None
     follow_up_answers: list[EvidenceAnswer] = Field(default_factory=list)
     schema_version: Literal["1.0"] = "1.0"
     incident_id: str

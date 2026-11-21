@@ -132,6 +132,10 @@ def render_markdown(report: CorrelationReport) -> str:
             refs = ", ".join(code(ref) for ref in item.evidence_ids)
             lines.append(f"- **{plain(item.signal)}** · {plain(item.question)} · {plain(item.answer)} "
                          + (refs or code(item.snapshot_id)))
+    if report.follow_up_stop_reason == "repeated_request":
+        lines.extend(["", "F3 requested the same evidence again. F2 already reviewed that request."])
+    elif report.follow_up_stop_reason == "round_limit":
+        lines.extend(["", "The follow-up round limit was reached. The cause remains unresolved."])
     if report.missing_evidence:
         lines.extend(["", "## Missing evidence", ""])
         for gap in report.missing_evidence:

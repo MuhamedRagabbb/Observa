@@ -37,6 +37,39 @@ def discover(db, reports: Path):
                 continue  # Another publication can be discovered on the next scan.
 
 
+def unanswered_legacy_request(result):
+    # Before F2 follow-ups were dispatched, F3 saved the request and omitted
+    # the report's follow_up_answers field entirely.
+    return (result.get("agent_status") == "needs_more_analysis"
+            and bool(result.get("follow_up_request"))
+            and "follow_up_answers" not in result["report"])
+
+
+def resume_legacy_requests(db, reports: Path, output: Path):
+    with db:
+        db.execute("BEGIN IMMEDIATE")
+        for path in output.glob("INC-*/correlation*.json"):
+            if path.name not in ("correlation.initial.json", "correlation.json"):
+                continue
+            try:
+                data = json.loads(path.read_bytes())
+            except (FileNotFoundError, json.JSONDecodeError):
+                continue
+            if not unanswered_legacy_request(data):
+                continue
+            history = data["report"].get("history") or {}
+            iid = path.parent.name
+            phase, sid = history.get("phase"), history.get("snapshot_id")
+            if (data.get("incident_id") != iid or phase not in ("initial", "final")
+                    or not sid or not (reports / iid / "snapshots" / sid / "incident.json").is_file()):
+                continue
+            # The unsuffixed file can be a mirror of the opening report.
+            if phase == "initial" and path.name != "correlation.initial.json":
+                continue
+            db.execute("""UPDATE report_jobs SET done=0, attempts=0, retry_at=0
+                          WHERE incident=? AND phase=? AND snapshot=? AND done=1""", (iid, phase, sid))
+
+
 def process_next(db, reports: Path, output: Path, process) -> bool:
     with db:
         # Hold the claim until publication. A crash rolls back the claim; output
@@ -66,7 +99,9 @@ def watch(reports: Path, output: Path, process):
     output.mkdir(parents=True, exist_ok=True)
     with closing(sqlite3.connect(output / ".watch.sqlite3", timeout=300)) as db:
         print(f"Monitoring {reports} for open and resolved incidents.")
+        discover(db, reports)
+        resume_legacy_requests(db, reports, output)
         while True:
-            discover(db, reports)
             if not process_next(db, reports, output, process):
                 time.sleep(2)
+            discover(db, reports)
