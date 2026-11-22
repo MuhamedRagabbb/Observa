@@ -118,6 +118,8 @@ def correlate_with_follow_up(reports, cache, history, inputs, investigations, sa
 def process_incident(reports: Path, incident: str, folder: Path, snapshot: str):
     folder.mkdir(parents=True, exist_ok=True)
     history, inputs = load_history(reports, incident, snapshot)
+    print(f"[{incident}] Processing {history.phase} snapshot {snapshot}; "
+          f"F1 status is {'resolved' if history.resolved_at else 'open'}.")
     initial = history.phase == "initial"
     suffix = ".initial" if initial else ""
     if not initial:
@@ -160,7 +162,13 @@ def process_incident(reports: Path, incident: str, folder: Path, snapshot: str):
     for target in destinations:
         publish(folder / f"report{target}.json", result.report.model_dump_json(indent=2))
         publish(folder / f"report{target}.md", render_markdown(result.report))
-    print(f"{incident}: {result.agent_status}, report saved to {folder / f'report{suffix}.md'}")
+    print(f"[{incident}] F3 status={result.agent_status}; report status={result.report.status}; "
+          f"phase={history.phase}; saved to {folder / f'report{suffix}.md'}.")
+    if history.phase == "initial" and history.resolved_at is None:
+        print(f"[{incident}] Still open in F1. This is the opening report; final report is queued "
+              "when F1 confirms recovery.")
+    elif history.phase == "final":
+        print(f"[{incident}] Final report published for the resolved incident.")
 
 
 def run(reports: Path, output: Path, requested: str | None):

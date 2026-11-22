@@ -45,7 +45,8 @@ def build_graph(memory_lookup: MemoryLookup | None = None, *, model=None):
             "incident_id": report.incident_id, "status": report.status,
             "observations": [
                 {"row": i, "snapshot": snapshots[row.snapshot_id], "finding_id": row.finding_id,
-                 "signal": row.signal, "service": row.service, "claim": row.claim}
+                 "signal": row.signal, "service": row.service, "claim": row.claim,
+                 "relation": row.relation, "support_status": row.support_status}
                 for i, row in enumerate(rows, 1)
             ],
             "incident_history": {

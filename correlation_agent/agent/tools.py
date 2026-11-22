@@ -31,7 +31,7 @@ def check_memory(report: InvestigationResult, lookup: MemoryLookup | None) -> li
 
 
 def collect_supported_observations(report: InvestigationResult) -> list[Observation]:
-    """Select citable observations; the model interprets the links between them."""
+    """Keep supported and contradictory evidence visible, with an explicit status."""
     observations = []
     for signal in SIGNALS:
         output = getattr(report, f"{signal}_output")
@@ -41,8 +41,7 @@ def collect_supported_observations(report: InvestigationResult) -> list[Observat
             if (finding.signal_type != signal or finding.claim_kind != "observation"
                     or finding.execution_status not in ("partial", "completed")):
                 continue
-            by_snapshot = defaultdict(set)
-            disputed = set()
+            grouped = defaultdict(lambda: {"supports": set(), "contradicts": set()})
             for link in finding.evidence_links:
                 if link.reference_valid is not True or link.relevance_status != "relevant":
                     continue
@@ -53,15 +52,18 @@ def collect_supported_observations(report: InvestigationResult) -> list[Observat
                 if ref != signal or not sep or not row:
                     continue
                 if link.support_status == "contradicted" or link.relation == "contradicts":
-                    disputed.add(parts[1])
+                    grouped[parts[1]]["contradicts"].add(link.evidence_id)
                 elif link.relation == "supports" and link.support_status == "supported":
-                    by_snapshot[parts[1]].add(link.evidence_id)
-            for snapshot, refs in by_snapshot.items():
-                if snapshot not in disputed:
-                    observations.append(Observation(
-                        finding_id=finding.finding_id, signal=signal, service=finding.service,
-                        indicator=finding.indicator, claim=finding.claim, snapshot_id=snapshot, evidence_ids=sorted(refs),
-                    ))
+                    grouped[parts[1]]["supports"].add(link.evidence_id)
+            for snapshot, evidence in grouped.items():
+                for relation, status in (("supports", "supported"), ("contradicts", "contradicted")):
+                    refs = evidence[relation]
+                    if refs:
+                        observations.append(Observation(
+                            finding_id=finding.finding_id, signal=signal, service=finding.service,
+                            indicator=finding.indicator, claim=finding.claim, snapshot_id=snapshot,
+                            evidence_ids=sorted(refs), relation=relation, support_status=status,
+                        ))
     return observations
 
 
@@ -105,6 +107,8 @@ def _candidate(proposal: Hypothesis, rows: list[Observation]) -> Candidate:
     if any(i < 1 or i > len(rows) for i in indices):
         raise ValueError("Cite only row numbers in the observations table.")
     support = [rows[i - 1] for i in sorted(set(proposal.supporting_rows))]
+    if any(row.support_status != "supported" or row.relation != "supports" for row in support):
+        raise ValueError("Contradicting evidence cannot support a cause. Cite only supporting observation rows.")
     snapshot = support[0].snapshot_id
     if proposal.service.casefold() == "unknown" or any(r.service != proposal.service for r in support):
         raise ValueError("Direct support must belong to the named service. Put propagation in related_rows.")

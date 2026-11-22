@@ -1,10 +1,12 @@
 import json
+from contextlib import closing
 from pathlib import Path
 import sqlite3
 import tempfile
 import unittest
 
 from correlation_agent.agent.history import failed_trace_edges, release_findings
+from correlation_agent.docker import watch
 from correlation_agent.docker.watch import discover, process_next
 
 
@@ -44,6 +46,39 @@ class LifecycleTests(unittest.TestCase):
                 self.assertFalse(process_next(db, root, root, process))
             db.close()
             self.assertEqual(seen, [("INC-a", "r1"), ("INC-b", "r8"), ("INC-a", "r3")])
+
+
+    def test_retries_are_bounded_and_processing_does_not_hold_sqlite_lock(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            queue = root / "queue.sqlite3"
+            incident = root / "INC-a"
+            incident.mkdir()
+            (incident / "incident.json").write_text(json.dumps(
+                dict(id="INC-a", status="resolved", snapshot_id="r1")))
+            with closing(sqlite3.connect(queue)) as db:
+                discover(db, root)
+                original_limit = watch.MAX_ATTEMPTS
+                watch.MAX_ATTEMPTS = 2
+                try:
+                    def process(*_):
+                        with closing(sqlite3.connect(queue, timeout=0.1)) as other:
+                            other.execute("CREATE TABLE IF NOT EXISTS concurrent_write (value INTEGER)")
+                            other.execute("INSERT INTO concurrent_write VALUES (1)")
+                        raise RuntimeError("offline")
+
+                    self.assertTrue(process_next(db, root, root, process))
+                    self.assertEqual(db.execute("SELECT attempts, done FROM report_jobs").fetchone(), (1, 0))
+                    db.execute("UPDATE report_jobs SET retry_at=0")
+                    db.commit()
+                    self.assertTrue(process_next(db, root, root, process))
+                    attempts, done, error = db.execute(
+                        "SELECT attempts, done, last_error FROM report_jobs").fetchone()
+                    self.assertEqual((attempts, done), (2, 1))
+                    self.assertIn("offline", error)
+                    self.assertFalse(process_next(db, root, root, process))
+                finally:
+                    watch.MAX_ATTEMPTS = original_limit
 
     def test_release_requires_service_version_and_time(self):
         base = {"service.name": "orders", "service.version": "v2", "deployment.id": "d"}

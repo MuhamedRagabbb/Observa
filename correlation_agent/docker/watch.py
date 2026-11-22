@@ -5,6 +5,9 @@ from pathlib import Path
 import sqlite3
 import time
 
+MAX_ATTEMPTS = 8
+CLAIM_LEASE_SECONDS = 900
+
 
 def discover(db, reports: Path):
     with db:
@@ -12,7 +15,13 @@ def discover(db, reports: Path):
         db.execute("""CREATE TABLE IF NOT EXISTS report_jobs (
             incident TEXT NOT NULL, phase TEXT NOT NULL, snapshot TEXT NOT NULL,
             done INTEGER NOT NULL DEFAULT 0, attempts INTEGER NOT NULL DEFAULT 0,
-            retry_at REAL NOT NULL DEFAULT 0, PRIMARY KEY (incident, phase, snapshot))""")
+            retry_at REAL NOT NULL DEFAULT 0, claimed_until REAL NOT NULL DEFAULT 0,
+            last_error TEXT, PRIMARY KEY (incident, phase, snapshot))""")
+        columns = {row[1] for row in db.execute("PRAGMA table_info(report_jobs)")}
+        if "claimed_until" not in columns:
+            db.execute("ALTER TABLE report_jobs ADD COLUMN claimed_until REAL NOT NULL DEFAULT 0")
+        if "last_error" not in columns:
+            db.execute("ALTER TABLE report_jobs ADD COLUMN last_error TEXT")
         db.execute("""CREATE UNIQUE INDEX IF NOT EXISTS one_initial ON report_jobs(incident)
                       WHERE phase='initial'""")
         # Respect the old watcher's explicit baseline on upgrade. Newly discovered
@@ -71,26 +80,44 @@ def resume_legacy_requests(db, reports: Path, output: Path):
 
 
 def process_next(db, reports: Path, output: Path, process) -> bool:
+    now = time.time()
     with db:
-        # Hold the claim until publication. A crash rolls back the claim; output
-        # publication is idempotent even if SQLite did not record completion.
         db.execute("BEGIN IMMEDIATE")
         row = db.execute("""SELECT rowid, incident, snapshot, attempts, phase FROM report_jobs
-                            WHERE done=0 AND retry_at <= ? ORDER BY rowid LIMIT 1""",
-                         (time.time(),)).fetchone()
+                            WHERE done=0 AND retry_at <= ? AND claimed_until <= ?
+                            ORDER BY rowid LIMIT 1""", (now, now)).fetchone()
         if row is None:
             return False
         key, iid, snapshot, attempts, phase = row
-        try:
-            process(reports, iid, output / iid, snapshot)
-        except Exception as exc:
-            delay = min(300, 5 * 2 ** min(attempts, 6))
-            db.execute("UPDATE report_jobs SET attempts=attempts+1, retry_at=? WHERE rowid=?",
-                       (time.time() + delay, key))
-            print(f"{iid}: {phase} report pending at {snapshot}: {type(exc).__name__}: {exc}. Retrying in {delay}s.")
-        else:
-            db.execute("UPDATE report_jobs SET done=1 WHERE rowid=?", (key,))
-        return True
+        db.execute("UPDATE report_jobs SET claimed_until=? WHERE rowid=?",
+                   (now + CLAIM_LEASE_SECONDS, key))
+
+    print(f"[{iid}] Starting {phase} report, attempt {attempts + 1}/{MAX_ATTEMPTS}, snapshot {snapshot}.")
+    try:
+        process(reports, iid, output / iid, snapshot)
+    except Exception as exc:
+        next_attempt = attempts + 1
+        failed = next_attempt >= MAX_ATTEMPTS
+        delay = min(300, 5 * 2 ** min(attempts, 6))
+        message = f"{type(exc).__name__}: {exc}"[:1000]
+        with db:
+            if failed:
+                db.execute("""UPDATE report_jobs SET attempts=?, done=1, claimed_until=0,
+                              last_error=? WHERE rowid=?""", (next_attempt, message, key))
+                print(f"[{iid}] {phase} report failed permanently after {next_attempt}/{MAX_ATTEMPTS} "
+                      f"attempts. Last error: {message}. Job is marked failed.")
+            else:
+                db.execute("""UPDATE report_jobs SET attempts=?, retry_at=?, claimed_until=0,
+                              last_error=? WHERE rowid=?""",
+                           (next_attempt, time.time() + delay, message, key))
+                print(f"[{iid}] {phase} report is still pending after attempt {next_attempt}/{MAX_ATTEMPTS}. "
+                      f"Last error: {message}. Next retry in {delay}s.")
+    else:
+        with db:
+            db.execute("""UPDATE report_jobs SET done=1, claimed_until=0, last_error=NULL
+                          WHERE rowid=?""", (key,))
+        print(f"[{iid}] {phase} report job is complete for snapshot {snapshot}.")
+    return True
 
 
 def watch(reports: Path, output: Path, process):
@@ -101,7 +128,26 @@ def watch(reports: Path, output: Path, process):
         print(f"Monitoring {reports} for open and resolved incidents.")
         discover(db, reports)
         resume_legacy_requests(db, reports, output)
+        last_waiting = None
         while True:
             if not process_next(db, reports, output, process):
+                waiting = db.execute("""SELECT incident, phase, snapshot, attempts, retry_at
+                                        FROM report_jobs WHERE done=0 ORDER BY rowid""").fetchall()
+                signature = tuple((iid, phase, snapshot, attempts, retry_at > time.time())
+                                  for iid, phase, snapshot, attempts, retry_at in waiting)
+                if signature != last_waiting:
+                    if waiting:
+                        print(f"Waiting for {len(waiting)} report job(s). They remain tracked while F1 "
+                              "incidents are open or retries are scheduled.")
+                        for iid, phase, snapshot, attempts, retry_at in waiting:
+                            if retry_at > time.time():
+                                print(f"[{iid}] {phase} report pending for {snapshot}; retry scheduled "
+                                      f"in {max(1, int(retry_at-time.time()))}s "
+                                      f"(attempts {attempts}/{MAX_ATTEMPTS}).")
+                    else:
+                        print("No queued report jobs. Monitoring F1 for new or updated incidents.")
+                    last_waiting = signature
                 time.sleep(2)
+            else:
+                last_waiting = None
             discover(db, reports)

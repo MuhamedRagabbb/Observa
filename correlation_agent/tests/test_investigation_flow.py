@@ -20,7 +20,7 @@ from observa_investigation.agents.traces import TracesSignalAgent
 from observa_investigation.orchestrator import Orchestrator
 
 from correlation_agent.agent.state import IncidentHistory, Observation, OpeningAlert
-from correlation_agent.agent.tools import Hypothesis, SubmitCause, get_structured_file, resolve, trigger_gap
+from correlation_agent.agent.tools import (Hypothesis, SubmitCause, _candidate, collect_supported_observations, get_structured_file, resolve, trigger_gap)
 from correlation_agent.docker import run
 from correlation_agent.docker.watch import discover, process_next, resume_legacy_requests
 
@@ -171,6 +171,24 @@ class InvestigationFlowTests(unittest.TestCase):
                 self.assertEqual(len(published["follow_up_answers"]), 2)
                 resume_legacy_requests(db, reports, output)
                 self.assertFalse(process_next(db, reports, output, run.process_incident))
+
+
+    def test_contradicting_evidence_is_retained_and_cannot_support_a_cause(self):
+        fixture = Path(__file__).parents[2] / "investigation" / "fixtures" / "investigation_result_completed.json"
+        raw = json.loads(fixture.read_bytes())
+        finding = raw["logs_output"]["findings"][0]
+        finding["evidence_links"].append({
+            "evidence_id": finding["evidence_links"][0]["evidence_id"].replace("#P1", "#P2"),
+            "relation": "contradicts", "reference_valid": True,
+            "relevance_status": "relevant", "support_status": "contradicted",
+        })
+        report = get_structured_file(raw)
+        rows = collect_supported_observations(report)
+        self.assertEqual({(row.relation, row.support_status) for row in rows},
+                         {("supports", "supported"), ("contradicts", "contradicted")})
+        with self.assertRaisesRegex(ValueError, "Contradicting evidence"):
+            _candidate(Hypothesis(service=finding["service"], explanation="test",
+                                  supporting_rows=[2], related_rows=[]), rows)
 
     def test_source_follow_up_yields_a_citable_cause(self):
         from langchain_core.messages import HumanMessage

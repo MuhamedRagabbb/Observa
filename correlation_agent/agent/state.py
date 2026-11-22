@@ -16,6 +16,8 @@ class Observation(BaseModel):
     claim: str
     evidence_ids: list[str]
     snapshot_id: str
+    relation: Literal["supports", "contradicts"] = "supports"
+    support_status: Literal["supported", "contradicted"] = "supported"
 
 
 class Candidate(BaseModel):

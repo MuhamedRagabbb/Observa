@@ -12,7 +12,7 @@ Explain the opening alert and cite observations connecting the proposed cause to
 Missing telemetry requires evidence of a collection failure. A business error alone cannot explain it.
 Identify the initiating service and explain what failed. Distinguish a directly observed
 failure from downstream symptoms and deeper causes that are only speculation.
-Only numbered current observations are eligible as evidence. Source inferences and memory
+Only numbered current observations marked supports/supported are eligible to support a cause. Review contradicts/contradicted rows and report them as conflicting evidence. Source inferences and memory
 are context. Cite row numbers, not finding IDs, in candidate proposals. Each candidate must
 use a single snapshot. Use InspectFinding for original evidence metadata if needed.
 Call exactly one tool per turn. SubmitCause only for a unique probable cause with direct
