@@ -72,16 +72,25 @@ flowchart TD
 
 ## 6. إيه اللي هتلاقيه على جهازك؟
 
-نتائج المراقبة بتتحفظ في `correlation_agent/runs/<incident-id>/`. دول الأربع ملفات لنفس التحقيق:
+نتائج المراقبة بتتحفظ في `correlation_agent/runs/<incident-id>/`، ومقسمة حسب الـfeature:
 
-| الملف | تفتحه إمتى؟ |
-|---|---|
-| `investigation.json` | تشوف الأدلة اللي كانت متاحة **قبل** تفسير الموديل. |
-| `correlation.json` | تراجع القرار الكامل، والمرشحين، والفجوات، وطلب المتابعة إن وُجد. |
-| `report.json` | تمرّر تقريرًا منظمًا للمرحلة التالية. فيه رقم الحادثة والتشغيل، والحالة، والملخص، والخطوات والأدلة. |
-| `report.initial.md` | التقرير المبدئي وقت الفتح. |
-| `investigation.impact.json` | نتيجة F2 عند أعلى تأثير لو النسخة دي مختلفة عن البداية. |
-| `report.md` | تقرأ نفس التقرير أو تشاركه مع زميل. التحويل من JSON إلى Markdown محلي، فمفيش تكلفة استدعاء جديد أو اختلاف بين تفسيرين. |
+```text
+<incident-id>/
+├── f2/
+│   ├── investigation.initial.json
+│   ├── investigation.impact.json
+│   ├── investigation.json
+│   ├── follow-up-evidence/
+│   └── .cache/
+└── f3/
+    ├── output.initial.json
+    ├── output.initial.md
+    ├── output.json
+    ├── output.md
+    └── .state/
+```
+
+افتح `f2/` لمخرجات المحللين. ملف `f3/output.json` هو خرج F3 المنظم بشكل الـshared contract المقترح. افتح `f3/output.md` عشان تقرأ نفس نتيجة التحليل بصيغة تقرير. ملفات `.initial` تحفظ تقييم بداية الحادثة، والملفات بدونها تمثل أحدث نتيجة، وتبقى نهائية بعد ما F1 يسجل التعافي. مجلد `.state/` يحتوي checkpoints داخلية لاستكمال retry وطلبات الأدلة.
 
 فيه [مثال JSON جاهز](examples/example_report.json) و[نسخته المقروءة](examples/example_report.md) لسيناريو تجريبي تاني: امتلاء القرص في خدمة التخزين وتأثيره على خدمة الطلبات. افتحهم جنب بعض عشان تشوف إزاي نفس `evidence_ids` بتظهر تحت كل خطوة.
 

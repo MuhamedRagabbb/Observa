@@ -6,10 +6,31 @@ from langchain.agents.middleware import ModelCallLimitMiddleware, before_agent, 
 from langchain_core.messages import HumanMessage
 from openai import APIError
 
-from investigation.observa_investigation.contracts import SIGNALS
+from observa_investigation.contracts import SIGNALS
 from .model import MODEL, SYSTEM_PROMPT, groq_model
 from .state import CorrelationResult, CorrelationState
-from .tools import (MemoryLookup, check_memory, collect_supported_observations, get_structured_file,inspect_finding, request_evidence, submit_cause)
+from .tools import (MemoryLookup, check_memory, collect_supported_observations,
+                    collect_unresolved_evidence, get_structured_file, inspect_finding,
+                    request_evidence, submit_cause)
+
+
+class ProviderRequestError(RuntimeError):
+    def __init__(self, message: str, status_code: int | None, retryable: bool):
+        super().__init__(message)
+        self.status_code = status_code
+        self.retryable = retryable
+
+
+def _provider_error_message(exc: APIError) -> str:
+    body = getattr(exc, "body", None)
+    if isinstance(body, dict):
+        detail = body.get("error", body)
+        if isinstance(detail, dict):
+            message = detail.get("message") or detail.get("type") or detail.get("code")
+            if message:
+                return str(message)[:600]
+    message = getattr(exc, "message", None) or str(exc)
+    return " ".join(str(message).split())[:600]
 
 
 @wrap_model_call
@@ -33,6 +54,7 @@ def build_graph(memory_lookup: MemoryLookup | None = None, *, model=None):
         if any(r.incident_id != report.incident_id for r in reports):
             raise ValueError("Investigations must belong to one incident.")
         rows = [row for r in reports for row in collect_supported_observations(r)]
+        unresolved = [item for r in reports for item in collect_unresolved_evidence(r)]
         history = state.get("history")
         if history:
             rows.extend(history.release_findings)
@@ -59,6 +81,7 @@ def build_graph(memory_lookup: MemoryLookup | None = None, *, model=None):
                                  for d in history.dependencies],
             } if history else None,
             "investigations": [], "history": memory,
+            "unresolved_evidence": [item.model_dump() for item in unresolved],
         }
         for r in reports:
             findings = [f for s in SIGNALS for f in getattr(r, f"{s}_output").findings]
@@ -70,7 +93,8 @@ def build_graph(memory_lookup: MemoryLookup | None = None, *, model=None):
                                for f in findings if f.claim_kind == "inference"],
                 "limitations": list(dict.fromkeys(f.uncertainty for f in findings if f.uncertainty)),
             })
-        return {"investigation": report, "observations": rows, "memory": memory,
+        return {"investigation": report, "observations": rows,
+                "unresolved_evidence": unresolved, "memory": memory,
                 "messages": [HumanMessage(content=json.dumps(context, ensure_ascii=False, separators=(",", ":")))]}
 
     return create_agent(
@@ -93,8 +117,13 @@ def correlate(investigation, memory_lookup: MemoryLookup | None = None, *,
         state = build_graph(memory_lookup).invoke(inputs)
     except APIError as exc:
         status = getattr(exc, "status_code", None)
-        raise RuntimeError(f"Groq {MODEL}: {type(exc).__name__}" +
-                           (f" (HTTP {status})" if status else "")) from None
+        retryable = status is None or status >= 500 or status in (408, 409, 425, 429)
+        detail = _provider_error_message(exc)
+        raise ProviderRequestError(
+            f"Groq {MODEL}: {type(exc).__name__}" +
+            (f" (HTTP {status})" if status else "") + f": {detail}",
+            status_code=status, retryable=retryable,
+        ) from None
     if "result" not in state:
         raise RuntimeError("Groq did not produce a valid correlation decision within five turns.")
     return state["result"]

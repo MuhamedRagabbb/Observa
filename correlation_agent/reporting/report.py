@@ -4,7 +4,7 @@ from html import escape
 
 from pydantic import BaseModel, Field
 
-from investigation.observa_investigation.contracts import InvestigationResult, MissingEvidence
+from observa_investigation.contracts import InvestigationResult, MissingEvidence
 from ..agent.state import Candidate, CorrelationReport, IncidentHistory, Observation, ReportStep
 
 

@@ -10,6 +10,8 @@ from observa_alerts.evidence import load_manifest
 from correlation_agent import correlate
 from correlation_agent.reporting.report import render_markdown
 from correlation_agent.agent.state import CorrelationResult
+from correlation_agent.agent.contract import (failed_contract_markdown, failed_contract_result,
+                                               to_contract_result)
 from correlation_agent.agent.history import load_history
 from observa_investigation.agents.live_evidence import LiveEvidence
 from observa_investigation.agents.logs import LogsSignalAgent
@@ -28,23 +30,39 @@ def publish(path: Path, text: str):
 
 def preserve_legacy_initial(reports, incident, folder):
     legacy = folder / "correlation.json"
-    if not legacy.exists() or (folder / "correlation.initial.json").exists():
+    state_dir = folder / "f3" / ".state"
+    initial_state = state_dir / "correlation.initial.json"
+    if not legacy.exists() or initial_state.exists():
         return
     result = CorrelationResult.model_validate_json(legacy.read_bytes())
     if result.report.history or result.incident_id != incident:
         return
-    # Earlier workers published only an unlabelled report. Archive it as an
-    # opening report only when its cited snapshot confirms the incident was open.
     snapshots = {row.snapshot_id for row in result.correlated_findings}
     if len(snapshots) != 1:
         return
     sid = snapshots.pop()
     root, _ = load_manifest(reports, incident, sid)
-    if json.loads((root / "snapshots" / sid / "incident.json").read_bytes())["status"] == "open":
-        for name in ("report.md", "report.json", "investigation.json", "correlation.json"):
-            source = folder / name
-            if source.exists():
-                publish(folder / f"{source.stem}.initial{source.suffix}", source.read_text(encoding="utf-8"))
+    if json.loads((root / "snapshots" / sid / "incident.json").read_bytes())["status"] != "open":
+        return
+
+    f2_dir = folder / "f2"
+    f3_dir = folder / "f3"
+    (f2_dir / ".cache").mkdir(parents=True, exist_ok=True)
+    state_dir.mkdir(parents=True, exist_ok=True)
+    legacy_investigation = folder / "investigation.json"
+    if legacy_investigation.exists():
+        publish(f2_dir / "investigation.initial.json",
+                legacy_investigation.read_text(encoding="utf-8"))
+        investigation = InvestigationResult.model_validate_json(legacy_investigation.read_bytes())
+        publish(f2_dir / ".cache" / f"{sid}.json", investigation.model_dump_json())
+    publish(initial_state, result.model_dump_json(indent=2))
+    public = to_contract_result(result)
+    markdown = render_markdown(result.report)
+    publish(f3_dir / "output.initial.json", public.model_dump_json(indent=2))
+    publish(f3_dir / "output.initial.md", markdown)
+    if not (state_dir / "correlation.json").exists():
+        publish(f3_dir / "output.json", public.model_dump_json(indent=2))
+        publish(f3_dir / "output.md", markdown)
 
 
 def make_orchestrator(reports, evidence_dir=None):
@@ -73,13 +91,15 @@ def investigate(reports, doc, cache):
     return result
 
 
-def correlate_with_follow_up(reports, cache, history, inputs, investigations, saved_request=None):
+def correlate_with_follow_up(reports, cache, history, inputs, investigations, saved_request=None, state_dir=None):
     """Checkpoint completed rounds so provider retries resume at the failed step."""
+    state_dir = state_dir or cache
+    state_dir.mkdir(parents=True, exist_ok=True)
     orchestrator = make_orchestrator(reports, cache.parent / "follow-up-evidence")
     asked = set()
     for cycle in range(orchestrator.config.max_reinvestigations + 1):
         prefix = f"{history.snapshot_id}.{history.phase}.{cycle}"
-        decision = cache / f"{prefix}.decision.json"
+        decision = state_dir / f"{prefix}.decision.json"
         if decision.exists():
             result = CorrelationResult.model_validate_json(decision.read_bytes())
         elif cycle == 0 and saved_request is not None:
@@ -94,11 +114,13 @@ def correlate_with_follow_up(reports, cache, history, inputs, investigations, sa
         if follow is None:
             return result
         if cycle == orchestrator.config.max_reinvestigations:
+            follow.status = "rejected"
             result.report.follow_up_stop_reason = "round_limit"
             return result
         signature = tuple(sorted((s, q.strip().casefold()) for s in follow.target_agents
                           for q in follow.signal_objectives.get(s, follow.objectives)))
         if signature in asked:
+            follow.status = "rejected"
             result.report.follow_up_stop_reason = "repeated_request"
             return result
         asked.add(signature)
@@ -120,11 +142,23 @@ def process_incident(reports: Path, incident: str, folder: Path, snapshot: str):
     history, inputs = load_history(reports, incident, snapshot)
     print(f"[{incident}] Processing {history.phase} snapshot {snapshot}; "
           f"F1 status is {'resolved' if history.resolved_at else 'open'}.")
-    initial = history.phase == "initial"
-    suffix = ".initial" if initial else ""
-    if not initial:
+
+    phase_suffix = ".initial" if history.phase == "initial" else ""
+    if history.phase == "final":
         preserve_legacy_initial(reports, incident, folder)
-    correlation_path = folder / f"correlation{suffix}.json"
+    f2_dir = folder / "f2"
+    f3_dir = folder / "f3"
+    cache = f2_dir / ".cache"
+    state_dir = f3_dir / ".state"
+    f2_dir.mkdir(parents=True, exist_ok=True)
+    state_dir.mkdir(parents=True, exist_ok=True)
+    cache.mkdir(parents=True, exist_ok=True)
+
+    legacy_state = folder / f"correlation{phase_suffix}.json"
+    correlation_path = state_dir / f"correlation{phase_suffix}.json"
+    if not correlation_path.exists() and legacy_state.exists():
+        publish(correlation_path, legacy_state.read_text(encoding="utf-8"))
+
     result = None
     saved_request = None
     if correlation_path.exists():
@@ -135,10 +169,20 @@ def process_incident(reports: Path, incident: str, folder: Path, snapshot: str):
             saved_request = cached
         elif cached.incident_id == incident and cached.report.history == history:
             result = cached
+
     if result is None:
-        cache = folder / ".f2-cache"
-        cache.mkdir(exist_ok=True)
-        opening_path = folder / f"investigation{suffix}.json"
+        old_cache = folder / ".f2-cache"
+        if old_cache.exists():
+            for item in old_cache.iterdir():
+                target_dir = state_dir if item.name.endswith(".decision.json") else cache
+                target = target_dir / item.name
+                if item.is_file() and not target.exists():
+                    publish(target, item.read_text(encoding="utf-8"))
+        opening_path = f2_dir / f"investigation{phase_suffix}.json"
+        if not opening_path.exists():
+            legacy_opening = folder / f"investigation{phase_suffix}.json"
+            if legacy_opening.exists():
+                publish(opening_path, legacy_opening.read_text(encoding="utf-8"))
         first_cache = cache / f"{history.first_snapshot}.json"
         if saved_request and opening_path.is_file() and not first_cache.exists():
             prior = InvestigationResult.model_validate_json(opening_path.read_bytes())
@@ -146,29 +190,60 @@ def process_incident(reports: Path, incident: str, folder: Path, snapshot: str):
                     and saved_request.report.history.first_snapshot == history.first_snapshot):
                 publish(first_cache, prior.model_dump_json())
         investigations = [investigate(reports, doc, cache) for doc in inputs]
-        result = correlate_with_follow_up(reports, cache, history, inputs, investigations, saved_request)
+        result = correlate_with_follow_up(reports, cache, history, inputs, investigations,
+                                         saved_request, state_dir)
         for label, data in zip(("", ".impact"), investigations):
-            publish(folder / f"investigation{suffix}{label}.json", data.model_dump_json(indent=2))
+            publish(f2_dir / f"investigation{phase_suffix}{label}.json", data.model_dump_json(indent=2))
         publish(correlation_path, result.model_dump_json(indent=2))
-    destinations = [suffix]
-    if initial:
-        current = folder / "correlation.json"
-        prior = CorrelationResult.model_validate_json(current.read_bytes()) if current.exists() else None
-        if not prior or not prior.report.history or prior.report.history.phase != "final":
-            # Existing consumers read the latest available report under the original names.
-            publish(folder / "investigation.json", (folder / "investigation.initial.json").read_text(encoding="utf-8"))
-            publish(current, result.model_dump_json(indent=2))
-            destinations.append("")
-    for target in destinations:
-        publish(folder / f"report{target}.json", result.report.model_dump_json(indent=2))
-        publish(folder / f"report{target}.md", render_markdown(result.report))
-    print(f"[{incident}] F3 status={result.agent_status}; report status={result.report.status}; "
-          f"phase={history.phase}; saved to {folder / f'report{suffix}.md'}.")
+
+    public_result = to_contract_result(result)
+    markdown = render_markdown(result.report)
+    output_suffix = ".initial" if history.phase == "initial" else ""
+    json_path = f3_dir / f"output{output_suffix}.json"
+    markdown_path = f3_dir / f"output{output_suffix}.md"
+    publish(json_path, public_result.model_dump_json(indent=2))
+    publish(markdown_path, markdown)
+
+    if history.phase == "initial":
+        latest_json = f3_dir / "output.json"
+        latest_markdown = f3_dir / "output.md"
+        final_state = state_dir / "correlation.json"
+        has_final = False
+        if final_state.exists():
+            prior = CorrelationResult.model_validate_json(final_state.read_bytes())
+            has_final = bool(prior.report.history and prior.report.history.phase == "final")
+        if not has_final:
+            publish(latest_json, public_result.model_dump_json(indent=2))
+            publish(latest_markdown, markdown)
+
+    print(f"[{incident}] F3 status={public_result.status}; phase={history.phase}; "
+          f"JSON={json_path}; Markdown={markdown_path}.")
     if history.phase == "initial" and history.resolved_at is None:
-        print(f"[{incident}] Still open in F1. This is the opening report; final report is queued "
+        print(f"[{incident}] Still open in F1. This is the opening output; final output is queued "
               "when F1 confirms recovery.")
     elif history.phase == "final":
-        print(f"[{incident}] Final report published for the resolved incident.")
+        print(f"[{incident}] Final output published for the resolved incident.")
+
+
+def publish_terminal_failure(reports, incident, folder, snapshot, phase, message, retryable, error_type):
+    history, _ = load_history(reports, incident, snapshot)
+    f3_dir = folder / "f3"
+    f3_dir.mkdir(parents=True, exist_ok=True)
+    result = failed_contract_result(incident, phase, snapshot, message, retryable=retryable,
+                                   error_type=error_type)
+    suffix = ".initial" if phase == "initial" else ""
+    json_path = f3_dir / f"output{suffix}.json"
+    markdown_path = f3_dir / f"output{suffix}.md"
+    markdown = failed_contract_markdown(result)
+    publish(json_path, result.model_dump_json(indent=2))
+    publish(markdown_path, markdown)
+    if phase == "initial" and not (f3_dir / "output.json").exists():
+        publish(f3_dir / "output.json", result.model_dump_json(indent=2))
+        publish(f3_dir / "output.md", markdown)
+    print(f"[{incident}] F3 status=failed; phase={phase}; JSON={json_path}; Markdown={markdown_path}.")
+
+
+process_incident.on_failure = publish_terminal_failure
 
 
 def run(reports: Path, output: Path, requested: str | None):
@@ -181,7 +256,14 @@ def run(reports: Path, output: Path, requested: str | None):
     output.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     snapshot = json.loads((reports / incident / "incident.json").read_bytes())["snapshot_id"]
-    process_incident(reports, incident, Path(mkdtemp(dir=output, prefix=f"{incident}-{stamp}-")), snapshot)
+    folder = Path(mkdtemp(dir=output, prefix=f"{incident}-{stamp}-"))
+    try:
+        process_incident(reports, incident, folder, snapshot)
+    except Exception as exc:
+        publish_terminal_failure(reports, incident, folder, snapshot,
+            "final" if json.loads((reports / incident / "incident.json").read_bytes())["status"] == "resolved" else "initial",
+            str(exc), getattr(exc, "retryable", True), type(exc).__name__)
+        raise
 
 
 if __name__ == "__main__":

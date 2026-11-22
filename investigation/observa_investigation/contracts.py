@@ -5,7 +5,7 @@ in the contract document and change them only together with the other owners.
 """
 from typing import Any, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field, model_serializer
+from pydantic import BaseModel, ConfigDict, Field
 
 SignalType = Literal["logs", "metrics", "traces"]
 ExecutionStatus = Literal["pending", "running", "completed", "partial", "inconclusive", "failed"]
@@ -55,14 +55,6 @@ class SignalOutput(_Model):
     answers: List[EvidenceAnswer] = Field(default_factory=list)
     findings: List[SignalFinding] = Field(default_factory=list)
     status: ExecutionStatus
-
-
-    @model_serializer(mode="wrap")
-    def dump_signal(self, handler):
-        data = handler(self)
-        if not self.answers:
-            data.pop("answers", None)
-        return data
 
 
 class InvestigationResult(_Model):

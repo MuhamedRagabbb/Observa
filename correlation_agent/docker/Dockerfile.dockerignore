@@ -1,6 +1,7 @@
 **
 !alert-detection-grouping/observa_alerts/**/*.py
 !investigation/requirements.txt
+!investigation/pyproject.toml
 !investigation/observa_investigation/**/*.py
 !us01_logs_agent/logs_agent/*.py
 !us02_metrics_agent/metrics_agent/*.py

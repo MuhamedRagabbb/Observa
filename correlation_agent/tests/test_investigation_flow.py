@@ -19,8 +19,10 @@ from observa_investigation.agents.metrics import MetricsSignalAgent
 from observa_investigation.agents.traces import TracesSignalAgent
 from observa_investigation.orchestrator import Orchestrator
 
-from correlation_agent.agent.state import IncidentHistory, Observation, OpeningAlert
-from correlation_agent.agent.tools import (Hypothesis, SubmitCause, _candidate, collect_supported_observations, get_structured_file, resolve, trigger_gap)
+from correlation_agent.agent.contract import failed_contract_result, to_contract_result
+from correlation_agent.agent.state import IncidentHistory, Observation, OpeningAlert, InvestigationResult as F3InvestigationResult
+from correlation_agent.agent.tools import (EvidenceRequest, Hypothesis, RequestEvidence, SubmitCause, _candidate,
+    collect_supported_observations, collect_unresolved_evidence, get_structured_file, resolve, trigger_gap)
 from correlation_agent.docker import run
 from correlation_agent.docker.watch import discover, process_next, resume_legacy_requests
 
@@ -55,6 +57,20 @@ class SelectEvidence:
 
 
 class InvestigationFlowTests(unittest.TestCase):
+    def test_f2_contract_type_is_loaded_from_one_canonical_module(self):
+        from observa_investigation.contracts import InvestigationResult
+
+        self.assertIs(F3InvestigationResult, InvestigationResult)
+
+    def test_failed_f3_contract_includes_error_envelope(self):
+        result = failed_contract_result("INC-a", "final", "r8", "provider rejected request",
+            retryable=False, error_type="ProviderRequestError", status_code=400)
+        public = result.model_dump()
+        self.assertEqual(public["status"], "failed")
+        self.assertIsNone(public["leading_candidate_id"])
+        self.assertEqual(public["error"]["code"], "INVESTIGATION_FAILED")
+        self.assertFalse(public["error"]["retryable"])
+
     def test_opening_alert_changes_which_decision_is_accepted(self):
         service = "orders-service"
         history = IncidentHistory(first_snapshot="r1", snapshot_id="r1", phase="initial",
@@ -111,19 +127,19 @@ class InvestigationFlowTests(unittest.TestCase):
                 run.process_incident(*args)
                 self.assertEqual(initial.call_count, 1)
                 self.assertEqual(targeted.call_count, 1)
-            investigation = json.loads((folder / "investigation.json").read_bytes())
+            investigation = json.loads((folder / "f2" / "investigation.initial.json").read_bytes())
             found, missing = investigation["logs_output"]["answers"]
             self.assertIn("HTTP 402", found["answer"])
             self.assertTrue(found["evidence_ids"])
             self.assertEqual(missing["evidence_ids"], [])
             self.assertIn("retained sample", missing["answer"])
-            self.assertNotIn("answers", investigation["metrics_output"])
-            report = json.loads((folder / "report.json").read_bytes())
-            self.assertEqual(report["follow_up_answers"], [found, missing])
-            self.assertEqual(report["status"], "needs_more_analysis")
-            self.assertEqual(report["follow_up_stop_reason"], "repeated_request")
-            self.assertIn("HTTP 402", (folder / "report.md").read_text(encoding="utf-8"))
-            correlation = json.loads((folder / "correlation.json").read_bytes())
+            self.assertEqual(investigation["metrics_output"]["answers"], [])
+            report = json.loads((folder / "f3" / "output.initial.json").read_bytes())
+            self.assertIn("Follow-up evidence", (folder / "f3" / "output.initial.md").read_text(encoding="utf-8"))
+            self.assertEqual(report["status"], "inconclusive")
+            self.assertEqual(report["follow_up_requests"][0]["status"], "rejected")
+            self.assertIn("HTTP 402", (folder / "f3" / "output.initial.md").read_text(encoding="utf-8"))
+            correlation = json.loads((folder / "f3" / ".state" / "correlation.initial.json").read_bytes())
             rows = [Observation.model_validate(row) for row in correlation["correlated_findings"]]
             alert = OpeningAlert(service="payments-service", family="telemetry", rule="service_signal_missing")
             self.assertIsNotNone(trigger_gap(alert, rows))
@@ -146,7 +162,8 @@ class InvestigationFlowTests(unittest.TestCase):
             orch = Orchestrator({name: cls(reports, use_llm=False) for name, cls in (
                 ("logs", LogsSignalAgent), ("metrics", MetricsSignalAgent), ("traces", TracesSignalAgent))})
             investigation = orch.investigate(doc)
-            (folder / "investigation.initial.json").write_text(investigation.model_dump_json())
+            (folder / "f2").mkdir(parents=True, exist_ok=True)
+            (folder / "f2" / "investigation.initial.json").write_text(investigation.model_dump_json())
             with patch("correlation_agent.agent.graph.groq_model", return_value=AskForEvidence()):
                 legacy = run.correlate(investigation.model_dump(), history=history).model_dump()
             del legacy["report"]["follow_up_answers"]
@@ -167,8 +184,10 @@ class InvestigationFlowTests(unittest.TestCase):
                 follow = targeted.call_args.args[0]
                 self.assertEqual(follow.request_id, legacy["follow_up_request"]["request_id"])
                 self.assertEqual(follow.target_agents, ["logs"])
-                published = json.loads((folder / "report.initial.json").read_bytes())
-                self.assertEqual(len(published["follow_up_answers"]), 2)
+                published = json.loads((folder / "f3" / "output.initial.json").read_bytes())
+                self.assertEqual(published["status"], "inconclusive")
+                self.assertEqual(published["follow_up_requests"][0]["status"], "rejected")
+                self.assertEqual(len(published["follow_up_requests"]), 1)
                 resume_legacy_requests(db, reports, output)
                 self.assertFalse(process_next(db, reports, output, run.process_incident))
 
@@ -189,6 +208,47 @@ class InvestigationFlowTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Contradicting evidence"):
             _candidate(Hypothesis(service=finding["service"], explanation="test",
                                   supporting_rows=[2], related_rows=[]), rows)
+
+    def test_invalid_evidence_reference_is_reported_as_unverified(self):
+        fixture = Path(__file__).parents[2] / "investigation" / "fixtures" / "investigation_result_completed.json"
+        raw = json.loads(fixture.read_bytes())
+        finding = raw["logs_output"]["findings"][1]
+        finding["claim_kind"] = "observation"
+        finding["evidence_links"][0]["support_status"] = "supported"
+        finding["evidence_links"].append({
+            "evidence_id": "INC-wrong/r1/metrics#bad-ref", "relation": "supports",
+            "reference_valid": False, "relevance_status": "relevant", "support_status": "supported",
+        })
+        report = get_structured_file(raw)
+        unresolved = collect_unresolved_evidence(report)
+        self.assertEqual(len(unresolved), 1)
+        rows = collect_supported_observations(report)
+        log_row = next(i for i, row in enumerate(rows, 1)
+                       if row.service == finding["service"] and row.signal == "logs")
+        metric_row = next(i for i, row in enumerate(rows, 1)
+                          if row.service == finding["service"] and row.signal == "metrics")
+        result = resolve(SubmitCause(candidates=[Hypothesis(service=finding["service"],
+            explanation="Supported by logs and metrics", supporting_rows=[log_row, metric_row],
+            related_rows=[])], effects=[]), report, rows, [], unresolved_evidence=unresolved)
+        public = to_contract_result(result).model_dump()
+        reported = [gap for gap in public["missing_evidence"]
+                    if gap["required"].endswith("INC-wrong/r1/metrics#bad-ref")]
+        self.assertEqual(len(reported), 1)
+        self.assertEqual(reported[0]["status"], "unverified")
+        candidate = next(item for item in public["root_cause_candidates"]
+                         if item["candidate_id"] == public["leading_candidate_id"])
+        invalid_link = next(link for link in candidate["evidence_links"]
+                            if link["evidence_id"] == "INC-wrong/r1/metrics#bad-ref")
+        self.assertEqual(invalid_link["reference_valid"], "unknown")
+        self.assertEqual(invalid_link["support_status"], "unverified")
+
+    def test_exhausted_follow_up_maps_to_inconclusive_contract_status(self):
+        fixture = Path(__file__).parents[2] / "investigation" / "fixtures" / "investigation_result_completed.json"
+        report = get_structured_file(json.loads(fixture.read_bytes()))
+        result = resolve(RequestEvidence(requests=[EvidenceRequest(signal="logs", required="more logs",
+            reason="No origin evidence yet")], candidates=[]), report, [], [])
+        result.report.follow_up_stop_reason = "round_limit"
+        self.assertEqual(to_contract_result(result).status, "inconclusive")
 
     def test_source_follow_up_yields_a_citable_cause(self):
         from langchain_core.messages import HumanMessage
@@ -248,7 +308,7 @@ class InvestigationFlowTests(unittest.TestCase):
                 return {"status": "success", "data": {"resultType": "matrix", "result": [
                     {"values": [[1000, "4"]]}]}}
 
-            source = LiveEvidence(folder / "follow-up-evidence", "loki", "prom", fetch)
+            source = LiveEvidence(folder / "f2" / "follow-up-evidence", "loki", "prom", fetch)
             agents = {"logs": LogsSignalAgent(reports, use_llm=False, live=source),
                       "metrics": MetricsSignalAgent(reports, use_llm=False, live=source),
                       "traces": TracesSignalAgent(reports, use_llm=False)}
@@ -265,12 +325,20 @@ class InvestigationFlowTests(unittest.TestCase):
                     "correlation_agent.agent.graph.groq_model", return_value=ReviewPool()):
                 run.process_incident(reports, doc["id"], folder, doc["snapshot_id"])
             self.assertEqual(follow_call.call_count, 1)
-            report = json.loads((folder / "report.json").read_bytes())
-            self.assertEqual(report["status"], "probable_cause")
-            self.assertEqual(report["steps"][0]["service"], "inventory-service")
-            self.assertEqual({a["signal"] for a in report["follow_up_answers"]}, {"logs", "metrics"})
-            for row in report["steps"][0]["evidence"]:
-                key = row["evidence_ids"][0].split("#")[1]
-                record = json.loads((source.directory / (key + ".json")).read_bytes())
-                self.assertEqual(record["claim"], row["claim"])
+            report = json.loads((folder / "f3" / "output.initial.json").read_bytes())
+            self.assertEqual(set(report), {"incident_id", "run_id", "root_cause_candidates",
+                                           "leading_candidate_id", "missing_evidence", "status",
+                                           "follow_up_requests"})
+            self.assertEqual(report["status"], "completed")
+            self.assertIsNotNone(report["leading_candidate_id"])
+            self.assertEqual(set(report["root_cause_candidates"][0]),
+                             {"candidate_id", "description", "evidence_links", "uncertainty"})
+            self.assertEqual(len(report["root_cause_candidates"]), 1)
+            self.assertEqual({link["evidence_id"].split("/")[2].split("#")[0] for link in report["root_cause_candidates"][0]["evidence_links"]}, {"logs", "metrics"})
+            markdown = (folder / "f3" / "output.initial.md").read_text(encoding="utf-8")
+            self.assertIn("inventory-service", markdown)
+            self.assertTrue((folder / "f2" / "investigation.initial.json").is_file())
+            self.assertTrue((folder / "f3" / ".state" / "correlation.initial.json").is_file())
+            for path in source.directory.glob("live-*.json"):
+                record = json.loads(path.read_bytes())
                 self.assertEqual(record["snapshot_id"], doc["snapshot_id"])

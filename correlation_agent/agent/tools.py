@@ -7,10 +7,10 @@ from langchain.tools import ToolRuntime, tool
 from langchain_core.messages import ToolMessage
 from langgraph.types import Command
 
-from investigation.observa_investigation.contracts import (
+from observa_investigation.contracts import (
     SIGNALS, FollowUpRequest, InvestigationResult, MissingEvidence, SignalType,
 )
-from .state import Candidate, CorrelationResult, Observation
+from .state import Candidate, CorrelationResult, Observation, UnresolvedEvidence
 from ..reporting.report import ProposedEffect, build_report, upstream_services
 
 MemoryLookup = Callable[[str, list[str]], list[str]]
@@ -65,6 +65,35 @@ def collect_supported_observations(report: InvestigationResult) -> list[Observat
                             evidence_ids=sorted(refs), relation=relation, support_status=status,
                         ))
     return observations
+
+
+def collect_unresolved_evidence(report: InvestigationResult) -> list[UnresolvedEvidence]:
+    """Keep invalid or unverified F2 references visible instead of treating them as evidence."""
+    unresolved = {}
+    for signal in SIGNALS:
+        output = getattr(report, f"{signal}_output")
+        for finding in output.findings:
+            for link in finding.evidence_links:
+                parts = link.evidence_id.split("/", 2)
+                ref_ok = (
+                    link.reference_valid is True
+                    and len(parts) == 3
+                    and parts[0] == report.incident_id
+                    and bool(parts[1])
+                    and parts[2].partition("#")[0] == signal
+                    and bool(parts[2].partition("#")[2])
+                )
+                if ref_ok:
+                    continue
+                if link.reference_valid is not True:
+                    reason = f"F2 marked reference_valid={link.reference_valid!r}."
+                else:
+                    reason = "Evidence ID does not match this incident and signal's reference format."
+                item = UnresolvedEvidence(finding_id=finding.finding_id, signal=signal,
+                    service=finding.service, evidence_id=link.evidence_id,
+                    relation=link.relation, reason=reason)
+                unresolved[(finding.finding_id, link.evidence_id)] = item
+    return list(unresolved.values())
 
 
 @tool("InspectFinding")
@@ -149,7 +178,8 @@ def trigger_gap(alert, cited):
 
 
 def resolve(decision: SubmitCause | RequestEvidence, report: InvestigationResult,
-            rows: list[Observation], memory: list[str], history=None) -> CorrelationResult:
+            rows: list[Observation], memory: list[str], history=None,
+            unresolved_evidence: list[UnresolvedEvidence] | None = None) -> CorrelationResult:
     candidates = [_candidate(p, rows) for p in decision.candidates]
     if isinstance(decision, SubmitCause) and history and history.opening_alert:
         leading = decision.candidates[0]
@@ -183,6 +213,11 @@ def resolve(decision: SubmitCause | RequestEvidence, report: InvestigationResult
               and not any(req.signal == "metrics" and "pool" in req.required.lower() for req in decision.requests)):
             decision = decision.model_copy(update={"requests": [*decision.requests, capacity]})
     gaps = list(report.missing_evidence)
+    unresolved_evidence = unresolved_evidence or []
+    for item in unresolved_evidence:
+        gaps.append(MissingEvidence(required=f"Evidence reference {item.evidence_id}",
+            reason=f"Finding {item.finding_id} is unverified: {item.reason}",
+            requested_from=item.signal, status="unverified"))
     if history and history.first_snapshot != history.snapshot_id:
         gaps = [gap.model_copy(update={"reason": f"Opening investigation: {gap.reason}"}) for gap in gaps]
     follow_up = None
@@ -206,7 +241,8 @@ def resolve(decision: SubmitCause | RequestEvidence, report: InvestigationResult
     handoff = build_report(report, rows, final, decision.effects if final else [], gaps, history)
     return CorrelationResult(report=handoff, incident_id=report.incident_id, source_run_id=report.run_id,
                              agent_status="completed" if final else "needs_more_analysis",
-                             correlated_findings=rows, relevant_data_from_memory=memory,
+                             correlated_findings=rows, unresolved_evidence=unresolved_evidence,
+                             relevant_data_from_memory=memory,
                              root_cause_candidates=candidates, final_root_cause=final,
                              missing_evidence=gaps, follow_up_request=follow_up)
 
@@ -214,7 +250,8 @@ def resolve(decision: SubmitCause | RequestEvidence, report: InvestigationResult
 def _record_decision(decision: SubmitCause | RequestEvidence, runtime: ToolRuntime) -> Command | str:
     state = runtime.state
     try:
-        result = resolve(decision, state["investigation"], state["observations"], state["memory"], state.get("history"))
+        result = resolve(decision, state["investigation"], state["observations"], state["memory"],
+                         state.get("history"), state.get("unresolved_evidence"))
     except ValueError as exc:
         return str(exc)  # The agent can correct its citations or request more evidence.
     for investigation in [state["investigation"], *state.get("additional_investigations", [])]:

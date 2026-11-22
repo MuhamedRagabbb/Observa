@@ -57,7 +57,12 @@ def unanswered_legacy_request(result):
 def resume_legacy_requests(db, reports: Path, output: Path):
     with db:
         db.execute("BEGIN IMMEDIATE")
-        for path in output.glob("INC-*/correlation*.json"):
+        paths = list(output.glob("INC-*/correlation*.json"))
+        paths.extend(output.glob("INC-*/f3/.state/correlation*.json"))
+        for path in paths:
+            if path.parent.parent == output and (
+                    output / path.parent.name / "f3" / ".state" / path.name).exists():
+                continue
             if path.name not in ("correlation.initial.json", "correlation.json"):
                 continue
             try:
@@ -79,7 +84,7 @@ def resume_legacy_requests(db, reports: Path, output: Path):
                           WHERE incident=? AND phase=? AND snapshot=? AND done=1""", (iid, phase, sid))
 
 
-def process_next(db, reports: Path, output: Path, process) -> bool:
+def process_next(db, reports: Path, output: Path, process, on_failure=None) -> bool:
     now = time.time()
     with db:
         db.execute("BEGIN IMMEDIATE")
@@ -97,21 +102,30 @@ def process_next(db, reports: Path, output: Path, process) -> bool:
         process(reports, iid, output / iid, snapshot)
     except Exception as exc:
         next_attempt = attempts + 1
-        failed = next_attempt >= MAX_ATTEMPTS
+        retryable = getattr(exc, "retryable", True)
+        failed = not retryable or next_attempt >= MAX_ATTEMPTS
         delay = min(300, 5 * 2 ** min(attempts, 6))
         message = f"{type(exc).__name__}: {exc}"[:1000]
         with db:
             if failed:
                 db.execute("""UPDATE report_jobs SET attempts=?, done=1, claimed_until=0,
                               last_error=? WHERE rowid=?""", (next_attempt, message, key))
-                print(f"[{iid}] {phase} report failed permanently after {next_attempt}/{MAX_ATTEMPTS} "
-                      f"attempts. Last error: {message}. Job is marked failed.")
+                if retryable:
+                    reason = f"after {next_attempt}/{MAX_ATTEMPTS} attempts"
+                else:
+                    reason = f"without retry because the error is non-retryable"
+                print(f"[{iid}] {phase} report failed {reason}. Last error: {message}. Job is marked failed.")
             else:
                 db.execute("""UPDATE report_jobs SET attempts=?, retry_at=?, claimed_until=0,
                               last_error=? WHERE rowid=?""",
                            (next_attempt, time.time() + delay, message, key))
                 print(f"[{iid}] {phase} report is still pending after attempt {next_attempt}/{MAX_ATTEMPTS}. "
                       f"Last error: {message}. Next retry in {delay}s.")
+        if failed and on_failure is not None:
+            try:
+                on_failure(reports, iid, output / iid, snapshot, phase, message, retryable, type(exc).__name__)
+            except Exception as publish_error:
+                print(f"[{iid}] Could not publish failed F3 result: {type(publish_error).__name__}: {publish_error}")
     else:
         with db:
             db.execute("""UPDATE report_jobs SET done=1, claimed_until=0, last_error=NULL
@@ -130,7 +144,7 @@ def watch(reports: Path, output: Path, process):
         resume_legacy_requests(db, reports, output)
         last_waiting = None
         while True:
-            if not process_next(db, reports, output, process):
+            if not process_next(db, reports, output, process, getattr(process, "on_failure", None)):
                 waiting = db.execute("""SELECT incident, phase, snapshot, attempts, retry_at
                                         FROM report_jobs WHERE done=0 ORDER BY rowid""").fetchall()
                 signature = tuple((iid, phase, snapshot, attempts, retry_at > time.time())

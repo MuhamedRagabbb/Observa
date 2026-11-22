@@ -1,9 +1,9 @@
 """State and handoff types for the F3 graph."""
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_serializer
 from langchain.agents import AgentState
-from investigation.observa_investigation.contracts import (
+from observa_investigation.contracts import (
     EvidenceAnswer, FollowUpRequest, InvestigationResult, MissingEvidence, SignalType,
 )
 
@@ -18,6 +18,15 @@ class Observation(BaseModel):
     snapshot_id: str
     relation: Literal["supports", "contradicts"] = "supports"
     support_status: Literal["supported", "contradicted"] = "supported"
+
+
+class UnresolvedEvidence(BaseModel):
+    finding_id: str
+    signal: SignalType
+    service: str
+    evidence_id: str
+    relation: Literal["supports", "contradicts", "context_only", "unknown"]
+    reason: str
 
 
 class Candidate(BaseModel):
@@ -94,6 +103,7 @@ class CorrelationResult(BaseModel):
     source_run_id: str
     agent_status: Literal["completed", "needs_more_analysis"]
     correlated_findings: list[Observation]
+    unresolved_evidence: list[UnresolvedEvidence] = Field(default_factory=list)
     relevant_data_from_memory: list[str]
     root_cause_candidates: list[Candidate]
     final_root_cause: Candidate | None
@@ -107,5 +117,48 @@ class CorrelationState(AgentState, total=False):
     additional_investigations: list[InvestigationResult]
     history: IncidentHistory
     observations: list[Observation]
+    unresolved_evidence: list[UnresolvedEvidence]
     memory: list[str]
     result: CorrelationResult
+
+
+class ContractEvidenceLink(BaseModel):
+    evidence_id: str
+    relation: Literal["supports", "contradicts", "context_only", "unknown"]
+    reference_valid: bool | Literal["unknown"]
+    relevance_status: Literal["relevant", "irrelevant", "unknown"]
+    support_status: Literal["supported", "contradicted", "unverified"]
+
+
+class ContractCandidate(BaseModel):
+    candidate_id: str
+    description: str
+    evidence_links: list[ContractEvidenceLink]
+    uncertainty: str | None
+
+
+class ContractErrorEnvelope(BaseModel):
+    code: str
+    message: str
+    retryable: bool
+    operation_id: str
+    details: dict | None
+
+
+class ContractCorrelationResult(BaseModel):
+    """Public F3 handoff shape from the proposed shared contract v1."""
+    incident_id: str
+    run_id: str
+    root_cause_candidates: list[ContractCandidate]
+    leading_candidate_id: str | None
+    missing_evidence: list[MissingEvidence]
+    status: Literal["completed", "partial", "inconclusive", "failed"]
+    follow_up_requests: list[FollowUpRequest]
+    error: ContractErrorEnvelope | None = None
+
+    @model_serializer(mode="wrap")
+    def serialize_contract(self, handler):
+        data = handler(self)
+        if self.error is None:
+            data.pop("error", None)
+        return data

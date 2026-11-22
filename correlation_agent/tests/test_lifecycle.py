@@ -60,6 +60,7 @@ class LifecycleTests(unittest.TestCase):
                 discover(db, root)
                 original_limit = watch.MAX_ATTEMPTS
                 watch.MAX_ATTEMPTS = 2
+                failures = []
                 try:
                     def process(*_):
                         with closing(sqlite3.connect(queue, timeout=0.1)) as other:
@@ -71,14 +72,43 @@ class LifecycleTests(unittest.TestCase):
                     self.assertEqual(db.execute("SELECT attempts, done FROM report_jobs").fetchone(), (1, 0))
                     db.execute("UPDATE report_jobs SET retry_at=0")
                     db.commit()
-                    self.assertTrue(process_next(db, root, root, process))
+                    self.assertTrue(process_next(db, root, root, process,
+                                                 on_failure=lambda *args: failures.append(args)))
                     attempts, done, error = db.execute(
                         "SELECT attempts, done, last_error FROM report_jobs").fetchone()
                     self.assertEqual((attempts, done), (2, 1))
                     self.assertIn("offline", error)
+                    self.assertEqual(len(failures), 1)
+                    self.assertEqual(failures[0][1:5], ("INC-a", root / "INC-a", "r1", "final"))
                     self.assertFalse(process_next(db, root, root, process))
                 finally:
                     watch.MAX_ATTEMPTS = original_limit
+
+    def test_non_retryable_provider_error_fails_without_backoff_retries(self):
+        class InvalidProviderRequest(RuntimeError):
+            retryable = False
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            queue = root / "queue.sqlite3"
+            incident = root / "INC-a"
+            incident.mkdir()
+            (incident / "incident.json").write_text(json.dumps(
+                dict(id="INC-a", status="open", snapshot_id="r1")))
+            calls = []
+            with closing(sqlite3.connect(queue)) as db:
+                discover(db, root)
+
+                def fail(*_):
+                    calls.append(1)
+                    raise InvalidProviderRequest("Groq rejected the request")
+
+                self.assertTrue(process_next(db, root, root, fail))
+                attempts, done, retry_at = db.execute(
+                    "SELECT attempts, done, retry_at FROM report_jobs").fetchone()
+                self.assertEqual(calls, [1])
+                self.assertEqual((attempts, done, retry_at), (1, 1, 0))
+                self.assertFalse(process_next(db, root, root, fail))
 
     def test_release_requires_service_version_and_time(self):
         base = {"service.name": "orders", "service.version": "v2", "deployment.id": "d"}
