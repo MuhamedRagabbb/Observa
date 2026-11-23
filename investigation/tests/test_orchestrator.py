@@ -107,7 +107,7 @@ class OrchestratorTests(unittest.TestCase):
         d = make()[0].investigate(INCIDENT).model_dump()
         self.assertEqual(set(d), {"incident_id", "run_id", "logs_output", "metrics_output", "traces_output",
                                   "missing_evidence", "status", "investigation_plan_id", "parent_run_id"})
-        self.assertEqual(set(d["logs_output"]), {"findings", "status"})
+        self.assertEqual(set(d["logs_output"]), {"answers", "findings", "status"})
 
 
 if __name__ == "__main__":

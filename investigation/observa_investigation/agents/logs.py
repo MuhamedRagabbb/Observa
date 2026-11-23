@@ -7,6 +7,7 @@ from typing import Callable, Optional
 
 from ..contracts import EvidenceLink, MissingEvidence, SignalFinding
 from .base import AgentResult, AgentTask
+from .follow_up import answer_questions
 
 
 def evidence_id(incident_id: str, snapshot_id: str, row_id: str) -> str:
@@ -57,7 +58,7 @@ def finding_to_agent_result(finding: dict, profile: dict) -> AgentResult:
     rows = {r["id"]: r for r in finding.get("evidence", [])}
     findings = [
         SignalFinding(finding_id=f"{iid}:logs:F{n}", signal_type="logs", service=row["service"],
-                      claim=_describe(row), claim_kind="observation",
+                      indicator=row.get("event"), claim=_describe(row), claim_kind="observation",
                       evidence_links=[_link(iid, sid, rid, "supported")],
                       execution_status=exec_status, uncertainty=sample_note)
         for n, (rid, row) in enumerate(rows.items(), 1)
@@ -78,12 +79,13 @@ class LogsSignalAgent:
     signal = "logs"
 
     def __init__(self, reports_dir, llm=None, use_llm: bool = True,
-                 fetcher_factory: Optional[Callable[[str, str], Callable]] = None):
+                 fetcher_factory: Optional[Callable[[str, str], Callable]] = None, live=None):
         self.reports_dir, self.llm, self.use_llm = reports_dir, llm, use_llm
+        self.live = live
         self.fetcher_factory = fetcher_factory
 
     def run(self, task: AgentTask) -> AgentResult:
-        from logs_agent.finding import build_finding
+        from logs_agent.finding import build_finding, make_view
         from logs_agent.llm import LLMClient, LLMError
         from logs_agent.profiler import profile_logs
         from logs_agent.reader import make_fetcher, read_all_logs
@@ -98,9 +100,12 @@ class LogsSignalAgent:
         profile["incident_id"], profile["snapshot_id"] = iid, task.snapshot_id
 
         llm = None
-        if self.use_llm and profile["sample"]["records"] > 0:
+        if self.use_llm and (profile["sample"]["records"] > 0 or (task.follow_up and self.live is not None)):
             try:
                 llm = self.llm or LLMClient.from_env()
             except LLMError:
                 llm = None  # no key/model configured: deterministic observations only
+        if task.follow_up:
+            view = make_view(profile, incident)["profile"]
+            return answer_questions("logs", task, view["patterns"] + view["other_events"], _describe, _link, "event", llm, LLMError, self.live)
         return finding_to_agent_result(build_finding(profile, incident, llm), profile)

@@ -4,7 +4,7 @@ from typing import List, Optional, Protocol
 
 from pydantic import Field
 
-from ..contracts import ExecutionStatus, MissingEvidence, SignalFinding, _Model
+from ..contracts import EvidenceAnswer, ExecutionStatus, MissingEvidence, SignalFinding, _Model
 
 
 @dataclass(frozen=True)
@@ -14,10 +14,12 @@ class AgentTask:
     run_id: str
     objectives: List[str] = field(default_factory=list)
     attempt: int = 1
+    follow_up: bool = False
 
 
 class AgentResult(_Model):
     """What one signal agent hands back. status=failed means 'could not run': the orchestrator may retry."""
+    answers: List[EvidenceAnswer] = Field(default_factory=list)
     status: ExecutionStatus
     findings: List[SignalFinding] = Field(default_factory=list)
     missing_evidence: List[MissingEvidence] = Field(default_factory=list)

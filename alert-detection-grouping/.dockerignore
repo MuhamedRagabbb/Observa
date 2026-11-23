@@ -3,6 +3,7 @@ reports
 tests
 __pycache__
 **/__pycache__
-.env
+**/.env
+**/.env.*
 .git
 validation

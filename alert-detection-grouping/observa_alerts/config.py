@@ -7,7 +7,7 @@ SERVICES = ("api-gateway", "orders-service", "inventory-service", "payments-serv
 DEFAULTS = {
     "environment": "local", "poll_seconds": 10, "window_seconds": 60,
     "pending_seconds": 20, "recovery_seconds": 60, "group_window_seconds": 120,
-    "freshness_seconds": 30, "min_requests": 10, "log_limit": 1000, "trace_limit": 12,
+    "startup_grace_seconds": 120, "freshness_seconds": 30, "min_requests": 10, "log_limit": 1000, "trace_limit": 12,
     "thresholds": {"http_errors": .15, "latency": 2.0, "pool_pressure": .9,
                    "pool_timeouts": 2, "payment_failures": .25,
                    "dependency_errors": .15, "new_exception": 3, "persistence_errors": 2},
@@ -24,7 +24,7 @@ def settings(path=None):
         result["thresholds"].update(supplied.pop("thresholds", {}))
         result.update(supplied)
     for key in ("poll_seconds", "window_seconds", "recovery_seconds", "group_window_seconds",
-                "freshness_seconds", "min_requests", "log_limit", "trace_limit"):
+                "startup_grace_seconds", "freshness_seconds", "min_requests", "log_limit", "trace_limit"):
         if not isinstance(result[key], (int, float)) or result[key] <= 0:
             raise ValueError(f"{key} must be positive")
     if result["pending_seconds"] < 0 or any(v <= 0 for v in result["thresholds"].values()):

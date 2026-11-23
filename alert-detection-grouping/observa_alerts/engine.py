@@ -25,7 +25,7 @@ METRIC_RULES = {
 }
 
 
-def observations(snapshot, config):
+def observations(snapshot, config, awaiting, startup_time):
     now = snapshot["time"]
     metrics = snapshot["metrics"]
     result = []
@@ -39,11 +39,13 @@ def observations(snapshot, config):
     for service in SERVICES:
         age = metrics.get("age", {}).get(service)
         fresh = age is not None and 0 <= age <= config["freshness_seconds"]
+        if fresh and snapshot["source_health"].get("prometheus") == "ok":
+            awaiting.discard(service)
         result.append({"rule": "service_signal_missing", "service": service,
                        "family": "telemetry", "title": "Service telemetry missing or not progressing",
                        "value": age, "unit": "seconds", "threshold": config["freshness_seconds"],
                        "verdict": "unknown" if snapshot["source_health"].get("prometheus") != "ok"
-                                  else "good" if fresh else "bad",
+                                  else "unknown" if service in awaiting else "good" if fresh else "bad",
                        "evidence": {"source": "prometheus", "query": snapshot["queries"].get("uptime"),
                                     "note": "Missing telemetry is not proof that the service is down."}})
         for rule, (family, title, unit) in METRIC_RULES.items():
@@ -78,6 +80,12 @@ def observations(snapshot, config):
                            "evidence": {"source": "loki", "query": snapshot.get("log_query"),
                                         "window_end": utc(now), "window_seconds": config["window_seconds"],
                                         "records": records[:20]}})
+    startup_elapsed = now - startup_time
+    coverage_late = awaiting and startup_elapsed >= config["startup_grace_seconds"]
+    result.append({"rule": "startup_coverage", "service": "observability:coverage", "family": "telemetry",
+                   "title": "Waiting for initial service telemetry", "value": len(awaiting),
+                   "threshold": 0, "unit": "services", "verdict": "bad" if coverage_late else "good",
+                   "evidence": {"awaiting_services": sorted(awaiting), "elapsed_seconds": startup_elapsed}})
     return result
 
 
@@ -129,6 +137,8 @@ def relation(alert, incident, snapshot, config):
 class Engine:
     def __init__(self, data_dir, config):
         self.config = config
+        self.awaiting_first_sample = set(SERVICES)
+        self.startup_time = None
         self.directory = Path(data_dir)
         self.directory.mkdir(parents=True, exist_ok=True)
         self.db = sqlite3.connect(self.directory / "state.sqlite3", timeout=10)
@@ -154,9 +164,12 @@ class Engine:
                 progress[service] = {"value": value, "changed": now}
             else:
                 age = snapshot["metrics"].get("age", {}).get(service)
-                snapshot["metrics"].setdefault("age", {})[service] = max(age or 0, now-previous["changed"])
+                if age is not None:
+                    snapshot["metrics"]["age"][service] = max(age, now-previous["changed"])
         seen = set()
-        for obs in observations(snapshot, self.config):
+        if self.startup_time is None:
+            self.startup_time = now
+        for obs in observations(snapshot, self.config, self.awaiting_first_sample, self.startup_time):
             key = fingerprint(snapshot["environment"], obs["service"], obs["rule"])
             seen.add(key)
             alert = self.state["alerts"].get(key)
