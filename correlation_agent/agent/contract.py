@@ -1,12 +1,38 @@
 """Adapter from F3 internal state to the proposed shared contract v1."""
 import hashlib
 
-from .state import (ContractCandidate, ContractCorrelationResult, ContractErrorEnvelope,
-                    ContractEvidenceLink, CorrelationResult)
+from .state import (Candidate, ContractCandidate, ContractCorrelationResult, ContractErrorEnvelope,
+                    ContractEvidenceLink, CorrelationResult, Observation)
 
 
 def _stable_id(prefix: str, value: str) -> str:
     return f"{prefix}-{hashlib.sha256(value.encode()).hexdigest()[:16]}"
+
+
+def _candidate_links(candidate: Candidate, rows: list[Observation]) -> list[ContractEvidenceLink]:
+    """Publish what the candidate cited, from its own snapshot only.
+
+    F2 reuses finding IDs across snapshots, so rows are matched on finding ID and snapshot.
+    Cited evidence is support; related rows are context; contradictions stay visible.
+    """
+    links = [ContractEvidenceLink(evidence_id=evidence_id, relation="supports", reference_valid=True,
+                                  relevance_status="relevant", support_status="supported")
+             for evidence_id in candidate.evidence_ids]
+    cited = set(candidate.finding_ids)
+    related = set(candidate.related_finding_ids)
+    for row in rows:
+        if row.snapshot_id != candidate.snapshot_id or row.finding_id not in cited | related:
+            continue
+        if row.relation == "contradicts":
+            relation, support_status = "contradicts", "contradicted"
+        elif row.finding_id in related:
+            relation, support_status = "context_only", "unverified"
+        else:
+            continue  # Supporting rows of cited findings are already covered by evidence_ids.
+        links += [ContractEvidenceLink(evidence_id=evidence_id, relation=relation, reference_valid=True,
+                                       relevance_status="relevant", support_status=support_status)
+                  for evidence_id in row.evidence_ids]
+    return links
 
 
 def to_contract_result(result: CorrelationResult) -> ContractCorrelationResult:
@@ -17,15 +43,8 @@ def to_contract_result(result: CorrelationResult) -> ContractCorrelationResult:
                          history.snapshot_id if history else "unknown"))
     candidates = []
     for candidate in result.root_cause_candidates:
-        links = []
         related_ids = set(candidate.finding_ids) | set(candidate.related_finding_ids)
-        for row in result.correlated_findings:
-            if row.finding_id not in related_ids:
-                continue
-            for evidence_id in row.evidence_ids:
-                links.append(ContractEvidenceLink(
-                    evidence_id=evidence_id, relation=row.relation, reference_valid=True,
-                    relevance_status="relevant", support_status=row.support_status))
+        links = _candidate_links(candidate, result.correlated_findings)
         links = list({(link.evidence_id, link.relation, link.support_status): link
                       for link in links}.values())
         for item in result.unresolved_evidence:
