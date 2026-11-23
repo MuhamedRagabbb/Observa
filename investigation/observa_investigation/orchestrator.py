@@ -10,6 +10,9 @@ from langgraph.graph import END, START, StateGraph
 from .agents.base import AgentResult, AgentTask, SignalAgent
 from .config import InvestigationConfig
 from .contracts import (
+    F2Error,
+    ErrorEnvelope,
+    IncidentV1,
     SIGNALS,
     EvidenceAnswer,
     FeedbackIntent,
@@ -22,8 +25,51 @@ from .contracts import (
 from .state import InvestigationState
 
 
-def incident_id_of(incident: dict) -> Optional[str]:
-    return incident.get("id") or incident.get("incident_id")
+def validate_incident(incident: Any) -> IncidentV1:
+    """Validate inbound incident payload at the F2 boundary (F2-6)."""
+    if isinstance(incident, IncidentV1):
+        return incident
+    if isinstance(incident, dict):
+        raw = dict(incident)
+        if "id" in raw and "incident_id" not in raw:
+            raw["incident_id"] = raw["id"]
+        if "first_observed_at" in raw and "start_time" not in raw:
+            raw["start_time"] = raw["first_observed_at"]
+        if isinstance(raw.get("alerts"), dict):
+            raw["alerts"] = sorted(list(raw["alerts"].keys()))
+        if not raw.get("incident_id"):
+            raise F2Error(
+                ErrorEnvelope(
+                    code="VALIDATION_ERROR",
+                    message="incident payload is missing required 'incident_id'",
+                    retryable=False,
+                    operation_id="VALIDATE_INCIDENT",
+                )
+            )
+        try:
+            return IncidentV1.model_validate(raw)
+        except Exception as e:
+            raise F2Error(
+                ErrorEnvelope(
+                    code="VALIDATION_ERROR",
+                    message=f"malformed incident payload: {e}",
+                    retryable=False,
+                    operation_id="VALIDATE_INCIDENT",
+                )
+            )
+    raise F2Error(
+        ErrorEnvelope(
+            code="VALIDATION_ERROR",
+            message=f"expected dict or IncidentV1, got {type(incident).__name__}",
+            retryable=False,
+            operation_id="VALIDATE_INCIDENT",
+        )
+    )
+
+
+def incident_id_of(incident: Any) -> str:
+    inc_obj = validate_incident(incident)
+    return inc_obj.incident_id
 
 
 def _new_id(prefix: str) -> str:
@@ -77,18 +123,36 @@ class Orchestrator:
         prior_result: Optional[InvestigationResult] = None,
         *,
         reinvestigation_count: int = 0,
+        review_cycle_count: Optional[int] = None,
     ) -> InvestigationResult:
         iid = incident_id_of(incident)
         if not iid or iid != request.incident_id:
             request.status = "rejected"
             raise ValueError(f"FollowUpRequest incident_id {request.incident_id!r} does not match incident {iid!r}")
 
-        if reinvestigation_count >= self.config.max_reinvestigations:
-            request.status = "rejected"
-            raise ValueError(
-                f"RETRY_LIMIT_REACHED: re-investigation count ({reinvestigation_count}) "
-                f"reached limit ({self.config.max_reinvestigations})"
-            )
+        if request.origin == "human_feedback":
+            eff_review = review_cycle_count if review_cycle_count is not None else 0
+            if eff_review >= self.config.max_review_cycles:
+                request.status = "rejected"
+                raise F2Error(
+                    ErrorEnvelope(
+                        code="RETRY_LIMIT_REACHED",
+                        message=f"review cycle count ({eff_review}) reached limit ({self.config.max_review_cycles})",
+                        retryable=False,
+                        operation_id=request.request_id,
+                    )
+                )
+        else:
+            if reinvestigation_count >= self.config.max_reinvestigations:
+                request.status = "rejected"
+                raise F2Error(
+                    ErrorEnvelope(
+                        code="RETRY_LIMIT_REACHED",
+                        message=f"re-investigation count ({reinvestigation_count}) reached limit ({self.config.max_reinvestigations})",
+                        retryable=False,
+                        operation_id=request.request_id,
+                    )
+                )
 
         targets: Set[str] = set(request.target_agents) if request.target_agents else set(SIGNALS)
         invalid = targets - set(SIGNALS)
@@ -128,7 +192,7 @@ class Orchestrator:
                 }
 
         inc = incident
-        start = inc.get("first_observed_at") or inc.get("start_time") or "unknown start"
+        start = validate_incident(inc).start_time or "unknown start"
         end = inc.get("last_observed_at") or inc.get("end_time") or "ongoing"
         services = ", ".join(inc.get("affected_services", [])) or "all services"
         window = f"for {services} from {start} to {end}"
@@ -189,15 +253,26 @@ class Orchestrator:
             raise ValueError(f"FeedbackIntent incident_id {intent.incident_id!r} does not match incident {iid!r}")
 
         if review_cycle_count >= self.config.max_review_cycles:
-            raise ValueError(
-                f"RETRY_LIMIT_REACHED: review cycle count ({review_cycle_count}) "
-                f"reached limit ({self.config.max_review_cycles})"
+            raise F2Error(
+                ErrorEnvelope(
+                    code="RETRY_LIMIT_REACHED",
+                    message=f"review cycle count ({review_cycle_count}) reached limit ({self.config.max_review_cycles})",
+                    retryable=False,
+                    operation_id=intent.feedback_id,
+                )
             )
 
         if intent.agent_status == "inconclusive":
             if prior_result:
                 return prior_result
-            return self.investigate(incident)
+            raise F2Error(
+                ErrorEnvelope(
+                    code="VALIDATION_ERROR",
+                    message="Ambiguous feedback with no prior result; auto-reinvestigation is prohibited",
+                    retryable=False,
+                    operation_id=intent.feedback_id,
+                )
+            )
 
         targets: Set[str] = set()
         objectives: List[str] = []
@@ -228,7 +303,7 @@ class Orchestrator:
             req,
             incident,
             prior_result,
-            reinvestigation_count=review_cycle_count,
+            review_cycle_count=review_cycle_count,
         )
 
     # ---- graph --------------------------------------------------------
@@ -245,7 +320,7 @@ class Orchestrator:
 
     def _plan(self, state):
         inc = state["incident"]
-        start = inc.get("first_observed_at") or inc.get("start_time") or "unknown start"
+        start = validate_incident(inc).start_time or "unknown start"
         end = inc.get("last_observed_at") or inc.get("end_time") or "ongoing"
         services = ", ".join(inc.get("affected_services", [])) or "all services"
         window = f"for {services} from {start} to {end}"
@@ -305,14 +380,16 @@ class Orchestrator:
             else:
                 res = AgentResult(status="failed", error=f"timed out after {self.config.agent_timeout_s:g}s")
             findings = [f.model_dump() for f in res.findings]
-            if res.status == "failed" and not findings:
+            missing_evidence = [m.model_dump() for m in res.missing_evidence]
+            if res.status == "failed" and not findings and prev.get("findings"):
                 findings = prev["findings"]
+                missing_evidence = prev.get("missing_evidence", [])
             agents[s] = {
                 "status": res.status,
                 "answers": [a.model_dump() for a in res.answers],
                 "attempts": prev["attempts"] + 1,
                 "findings": findings,
-                "missing_evidence": [m.model_dump() for m in res.missing_evidence],
+                "missing_evidence": missing_evidence,
                 "error": res.error,
             }
         return {"agents": agents}
@@ -370,8 +447,10 @@ class Orchestrator:
         total = sum(len(o.findings) for o in outputs.values())
         if all(x == "completed" for x in statuses) and not missing:
             overall = "completed"
-        elif total == 0:
-            overall = "failed" if "failed" in statuses else "inconclusive"
+        elif all(x == "failed" for x in statuses):
+            overall = "failed"
+        elif total == 0 and "completed" not in statuses:
+            overall = "inconclusive"
         else:
             overall = "partial"
 

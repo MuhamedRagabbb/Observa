@@ -111,3 +111,23 @@ class ErrorEnvelope(_Model):
     retryable: bool
     operation_id: str
     details: Optional[Dict[str, Any]] = None
+
+class F2Error(ValueError):
+    """Typed domain exception carrying a contract ErrorEnvelope."""
+    def __init__(self, envelope: ErrorEnvelope):
+        self.envelope = envelope
+        super().__init__(f"[{envelope.code}] {envelope.message}")
+
+
+
+class IncidentV1(BaseModel):
+    """F1 -> F2/F7 contract incident."""
+    model_config = ConfigDict(extra="ignore")
+    incident_id: str
+    title: Optional[str] = None
+    alerts: List[str] = Field(default_factory=list)
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
+    affected_services: List[str] = Field(default_factory=list)
+    severity: Optional[str] = None
+    snapshot_id: Optional[str] = None
