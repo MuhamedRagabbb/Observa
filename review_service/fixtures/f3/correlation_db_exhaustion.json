@@ -1,0 +1,45 @@
+{
+  "incident_id": "INC-f95e93197fa8419fd4de",
+  "run_id": "RUN-1709e645ee275472",
+  "root_cause_candidates": [
+    {
+      "candidate_id": "CAUSE-6d067e86c643fc32",
+      "description": "orders-service: The database connection pool reached capacity and connection acquisitions timed out.",
+      "evidence_links": [
+        {
+          "evidence_id": "INC-f95e93197fa8419fd4de/r1-921dab1f6e7aaf06dd7a27b32d3bda0d6b3225c9ead6bc0d7cae0bfc7c311ea0/logs#P1",
+          "relation": "supports",
+          "reference_valid": true,
+          "relevance_status": "relevant",
+          "support_status": "supported"
+        },
+        {
+          "evidence_id": "INC-f95e93197fa8419fd4de/r1-921dab1f6e7aaf06dd7a27b32d3bda0d6b3225c9ead6bc0d7cae0bfc7c311ea0/metrics#M1",
+          "relation": "supports",
+          "reference_valid": true,
+          "relevance_status": "relevant",
+          "support_status": "supported"
+        },
+        {
+          "evidence_id": "INC-f95e93197fa8419fd4de/r1-921dab1f6e7aaf06dd7a27b32d3bda0d6b3225c9ead6bc0d7cae0bfc7c311ea0/metrics#M2",
+          "relation": "supports",
+          "reference_valid": true,
+          "relevance_status": "relevant",
+          "support_status": "supported"
+        },
+        {
+          "evidence_id": "INC-f95e93197fa8419fd4de/r1-921dab1f6e7aaf06dd7a27b32d3bda0d6b3225c9ead6bc0d7cae0bfc7c311ea0/traces#T1",
+          "relation": "supports",
+          "reference_valid": true,
+          "relevance_status": "relevant",
+          "support_status": "supported"
+        }
+      ],
+      "uncertainty": null
+    }
+  ],
+  "leading_candidate_id": "CAUSE-6d067e86c643fc32",
+  "missing_evidence": [],
+  "status": "completed",
+  "follow_up_requests": []
+}

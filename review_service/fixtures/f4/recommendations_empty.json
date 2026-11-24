@@ -1,0 +1,27 @@
+{
+  "incident_id": "INC-6558d5b7036a44934e9e",
+  "correlation_run_id": "RUN-83749c92bf2f8531",
+  "recommendation_options": [
+    {
+      "recommendation_id": "REC-57b55bd0",
+      "action": "Collect traces for failed checkout requests during a controlled retry",
+      "action_type": "verification",
+      "evidence_links": [],
+      "risk_or_caveat": null,
+      "validation": "supported",
+      "rationale": "The missing call path blocks a diagnosis."
+    },
+    {
+      "recommendation_id": "REC-808023e9",
+      "action": "Review payments-service dependency health for the window",
+      "action_type": "investigation",
+      "evidence_links": [],
+      "risk_or_caveat": null,
+      "validation": "supported",
+      "rationale": "No cause is established; this narrows the search."
+    }
+  ],
+  "ranked_recommendation_ids": [],
+  "top_recommendation_id": null,
+  "status": "inconclusive"
+}

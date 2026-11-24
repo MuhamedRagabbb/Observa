@@ -1,0 +1,85 @@
+{
+  "incident_id": "INC-ba74b9436c4b2309ac9b",
+  "correlation_run_id": "RUN-9d47676027bd4639",
+  "recommendation_options": [
+    {
+      "recommendation_id": "REC-1fc2791b",
+      "action": "Roll orders-service back to release 2.4.0",
+      "action_type": "remediation",
+      "evidence_links": [
+        {
+          "evidence_id": "INC-ba74b9436c4b2309ac9b/r1-fe9785df0072570501ae90a1539cebe1e5e1642813a0646c6efeeef01e265ede/logs#P1",
+          "relation": "supports",
+          "reference_valid": true,
+          "relevance_status": "relevant",
+          "support_status": "supported"
+        },
+        {
+          "evidence_id": "INC-ba74b9436c4b2309ac9b/r1-fe9785df0072570501ae90a1539cebe1e5e1642813a0646c6efeeef01e265ede/logs#P2",
+          "relation": "supports",
+          "reference_valid": true,
+          "relevance_status": "relevant",
+          "support_status": "supported"
+        },
+        {
+          "evidence_id": "INC-ba74b9436c4b2309ac9b/r1-fe9785df0072570501ae90a1539cebe1e5e1642813a0646c6efeeef01e265ede/metrics#M1",
+          "relation": "supports",
+          "reference_valid": true,
+          "relevance_status": "relevant",
+          "support_status": "supported"
+        },
+        {
+          "evidence_id": "INC-ba74b9436c4b2309ac9b/r1-fe9785df0072570501ae90a1539cebe1e5e1642813a0646c6efeeef01e265ede/traces#T1",
+          "relation": "supports",
+          "reference_valid": true,
+          "relevance_status": "relevant",
+          "support_status": "supported"
+        }
+      ],
+      "risk_or_caveat": "Rolling back also removes any fixes shipped in 2.4.1.",
+      "validation": "supported",
+      "rationale": "Failures begin on 2.4.1 and are confined to orders-service."
+    },
+    {
+      "recommendation_id": "REC-917018f8",
+      "action": "Diff the 2.4.1 order-state write path against 2.4.0",
+      "action_type": "investigation",
+      "evidence_links": [
+        {
+          "evidence_id": "INC-ba74b9436c4b2309ac9b/r1-fe9785df0072570501ae90a1539cebe1e5e1642813a0646c6efeeef01e265ede/logs#P1",
+          "relation": "supports",
+          "reference_valid": true,
+          "relevance_status": "relevant",
+          "support_status": "supported"
+        }
+      ],
+      "risk_or_caveat": null,
+      "validation": "supported",
+      "rationale": "Locates the regression for a forward fix."
+    },
+    {
+      "recommendation_id": "REC-59906cf9",
+      "action": "Confirm order_persistence_failed returns to zero after the rollback",
+      "action_type": "verification",
+      "evidence_links": [
+        {
+          "evidence_id": "INC-ba74b9436c4b2309ac9b/r1-fe9785df0072570501ae90a1539cebe1e5e1642813a0646c6efeeef01e265ede/logs#P1",
+          "relation": "supports",
+          "reference_valid": true,
+          "relevance_status": "relevant",
+          "support_status": "supported"
+        }
+      ],
+      "risk_or_caveat": null,
+      "validation": "supported",
+      "rationale": "Shows the rollback removed the regression."
+    }
+  ],
+  "ranked_recommendation_ids": [
+    "REC-1fc2791b",
+    "REC-917018f8",
+    "REC-59906cf9"
+  ],
+  "top_recommendation_id": "REC-1fc2791b",
+  "status": "completed"
+}

@@ -1,0 +1,66 @@
+{
+  "incident_id": "INC-6558d5b7036a44934e9e",
+  "run_id": "RUN-e0263cc03f8eff28",
+  "root_cause_candidates": [
+    {
+      "candidate_id": "CAUSE-29bfd1f2342e76f7",
+      "description": "payments-service: Payments-service experienced an internal failure causing it to return PaymentServiceUnavailable errors and HTTP 503 responses for its POST /payments/charge endpoint.",
+      "evidence_links": [
+        {
+          "evidence_id": "INC-6558d5b7036a44934e9e/r1-86bc3f518d9d66dfa96f466c9832cd2ebf260f3062dccb055af2cefe36ab9f80/logs#P1",
+          "relation": "supports",
+          "reference_valid": true,
+          "relevance_status": "relevant",
+          "support_status": "supported"
+        },
+        {
+          "evidence_id": "INC-6558d5b7036a44934e9e/r1-86bc3f518d9d66dfa96f466c9832cd2ebf260f3062dccb055af2cefe36ab9f80/metrics#M1",
+          "relation": "supports",
+          "reference_valid": true,
+          "relevance_status": "relevant",
+          "support_status": "supported"
+        },
+        {
+          "evidence_id": "INC-6558d5b7036a44934e9e/r1-86bc3f518d9d66dfa96f466c9832cd2ebf260f3062dccb055af2cefe36ab9f80/traces#T5",
+          "relation": "supports",
+          "reference_valid": true,
+          "relevance_status": "relevant",
+          "support_status": "supported"
+        },
+        {
+          "evidence_id": "INC-6558d5b7036a44934e9e/r1-86bc3f518d9d66dfa96f466c9832cd2ebf260f3062dccb055af2cefe36ab9f80/logs#P2",
+          "relation": "context_only",
+          "reference_valid": true,
+          "relevance_status": "relevant",
+          "support_status": "unverified"
+        },
+        {
+          "evidence_id": "INC-6558d5b7036a44934e9e/r1-86bc3f518d9d66dfa96f466c9832cd2ebf260f3062dccb055af2cefe36ab9f80/metrics#M2",
+          "relation": "context_only",
+          "reference_valid": true,
+          "relevance_status": "relevant",
+          "support_status": "unverified"
+        },
+        {
+          "evidence_id": "INC-6558d5b7036a44934e9e/r1-86bc3f518d9d66dfa96f466c9832cd2ebf260f3062dccb055af2cefe36ab9f80/metrics#M3",
+          "relation": "contradicts",
+          "reference_valid": true,
+          "relevance_status": "relevant",
+          "support_status": "contradicted"
+        },
+        {
+          "evidence_id": "INC-6558d5b7036a44934e9e/r1-86bc3f518d9d66dfa96f466c9832cd2ebf260f3062dccb055af2cefe36ab9f80/traces#T9",
+          "relation": "supports",
+          "reference_valid": "unknown",
+          "relevance_status": "unknown",
+          "support_status": "unverified"
+        }
+      ],
+      "uncertainty": "One metrics observation contradicts the cause and one trace reference could not be resolved."
+    }
+  ],
+  "leading_candidate_id": "CAUSE-29bfd1f2342e76f7",
+  "missing_evidence": [],
+  "status": "completed",
+  "follow_up_requests": []
+}

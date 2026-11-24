@@ -1,0 +1,49 @@
+{
+  "incident": {
+    "incident_id": "INC-ba74b9436c4b2309ac9b",
+    "title": "Observed regression symptoms in orders-service",
+    "alerts": [
+      "0d5ed9249d57d6462020",
+      "991a91da4f4b25c1dcba",
+      "cd55d2f5cc6b7c6eae3d"
+    ],
+    "start_time": "2026-11-24T11:05:12Z",
+    "end_time": null,
+    "affected_services": [
+      "orders-service"
+    ],
+    "severity": "high"
+  },
+  "alerts": [
+    {
+      "alert_id": "0d5ed9249d57d6462020",
+      "signal_type": "metrics",
+      "service": "orders-service",
+      "severity": "high",
+      "timestamp": "2026-11-24T11:05:50Z",
+      "description": "HTTP 5xx ratio on orders-service exceeded 0.15 ratio (peak 0.520)",
+      "evidence_ids": [],
+      "first_seen": "2026-11-24T11:05:50Z"
+    },
+    {
+      "alert_id": "991a91da4f4b25c1dcba",
+      "signal_type": "logs",
+      "service": "orders-service",
+      "severity": "medium",
+      "timestamp": "2026-11-24T11:05:40Z",
+      "description": "unexpected_exception on orders-service exceeded 3 events_per_window (peak 9)",
+      "evidence_ids": [],
+      "first_seen": "2026-11-24T11:05:40Z"
+    },
+    {
+      "alert_id": "cd55d2f5cc6b7c6eae3d",
+      "signal_type": "logs",
+      "service": "orders-service",
+      "severity": "high",
+      "timestamp": "2026-11-24T11:05:30Z",
+      "description": "order_persistence_failed on orders-service exceeded 2 events_per_window (peak 18)",
+      "evidence_ids": [],
+      "first_seen": "2026-11-24T11:05:30Z"
+    }
+  ]
+}

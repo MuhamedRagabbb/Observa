@@ -1,0 +1,102 @@
+{
+  "incident_id": "INC-ba74b9436c4b2309ac9b",
+  "run_id": "RUN-7d5365d1",
+  "logs_output": {
+    "answers": [],
+    "findings": [
+      {
+        "indicator": "release_changed",
+        "finding_id": "INC-ba74b9436c4b2309ac9b:logs:F1",
+        "signal_type": "logs",
+        "service": "orders-service",
+        "claim": "orders-service recorded release_changed to 2.4.1 at 2026-11-24T11:04:58Z; first retained OrderStateWriteError on that release at 2026-11-24T11:05:09Z.",
+        "claim_kind": "observation",
+        "evidence_links": [
+          {
+            "evidence_id": "INC-ba74b9436c4b2309ac9b/r1-fe9785df0072570501ae90a1539cebe1e5e1642813a0646c6efeeef01e265ede/logs#P1",
+            "relation": "supports",
+            "reference_valid": true,
+            "relevance_status": "relevant",
+            "support_status": "supported"
+          }
+        ],
+        "execution_status": "completed",
+        "uncertainty": null
+      },
+      {
+        "indicator": "order_persistence_failed",
+        "finding_id": "INC-ba74b9436c4b2309ac9b:logs:F2",
+        "signal_type": "logs",
+        "service": "orders-service",
+        "claim": "orders-service logged 18 'order_persistence_failed' failure records (OrderStateWriteError) over 60 s in the retained sample",
+        "claim_kind": "observation",
+        "evidence_links": [
+          {
+            "evidence_id": "INC-ba74b9436c4b2309ac9b/r1-fe9785df0072570501ae90a1539cebe1e5e1642813a0646c6efeeef01e265ede/logs#P2",
+            "relation": "supports",
+            "reference_valid": true,
+            "relevance_status": "relevant",
+            "support_status": "supported"
+          }
+        ],
+        "execution_status": "completed",
+        "uncertainty": null
+      }
+    ],
+    "status": "completed"
+  },
+  "metrics_output": {
+    "answers": [],
+    "findings": [
+      {
+        "indicator": "persistence_errors",
+        "finding_id": "INC-ba74b9436c4b2309ac9b:metrics:F1",
+        "signal_type": "metrics",
+        "service": "orders-service",
+        "claim": "orders-service breached persistence_errors (regression) with trigger value 18 vs threshold 2 events_per_window, trend: worsening",
+        "claim_kind": "observation",
+        "evidence_links": [
+          {
+            "evidence_id": "INC-ba74b9436c4b2309ac9b/r1-fe9785df0072570501ae90a1539cebe1e5e1642813a0646c6efeeef01e265ede/metrics#M1",
+            "relation": "supports",
+            "reference_valid": true,
+            "relevance_status": "relevant",
+            "support_status": "supported"
+          }
+        ],
+        "execution_status": "completed",
+        "uncertainty": null
+      }
+    ],
+    "status": "completed"
+  },
+  "traces_output": {
+    "answers": [],
+    "findings": [
+      {
+        "indicator": "POST /orders",
+        "finding_id": "INC-ba74b9436c4b2309ac9b:traces:F1",
+        "signal_type": "traces",
+        "service": "orders-service",
+        "claim": "orders-service observed 12 'failed_span' events for 'POST /orders', HTTP 500 (deepest failure origin) in the retained traces",
+        "claim_kind": "observation",
+        "evidence_links": [
+          {
+            "evidence_id": "INC-ba74b9436c4b2309ac9b/r1-fe9785df0072570501ae90a1539cebe1e5e1642813a0646c6efeeef01e265ede/traces#T1",
+            "relation": "supports",
+            "reference_valid": true,
+            "relevance_status": "relevant",
+            "support_status": "supported"
+          }
+        ],
+        "execution_status": "completed",
+        "uncertainty": null
+      }
+    ],
+    "status": "completed"
+  },
+  "missing_evidence": [],
+  "status": "completed",
+  "investigation_plan_id": "PLAN-05c0e9ac",
+  "parent_run_id": null
+}

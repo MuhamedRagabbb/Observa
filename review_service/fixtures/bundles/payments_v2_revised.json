@@ -1,0 +1,458 @@
+{
+  "incident": {
+    "incident_id": "INC-6558d5b7036a44934e9e",
+    "title": "Observed payment symptoms in payments-service",
+    "alerts": [
+      "145cbaa27f2d469d3c89",
+      "45bc9975ca15de626cfc",
+      "630181566e955989cfd8",
+      "983c3dbbb004b61eae17"
+    ],
+    "start_time": "2026-11-23T14:31:15.066959Z",
+    "end_time": "2026-11-23T14:35:05.058730Z",
+    "affected_services": [
+      "payments-service",
+      "orders-service",
+      "api-gateway"
+    ],
+    "severity": "medium"
+  },
+  "alerts": [
+    {
+      "alert_id": "145cbaa27f2d469d3c89",
+      "signal_type": "metrics",
+      "service": "orders-service",
+      "severity": "medium",
+      "timestamp": "2026-11-23T14:31:55.064333Z",
+      "description": "HTTP 5xx ratio on orders-service exceeded 0.15 ratio (peak 0.223)",
+      "evidence_ids": [],
+      "first_seen": "2026-11-23T14:31:55.064333Z",
+      "last_seen": "2026-11-23T14:34:25.061511Z"
+    },
+    {
+      "alert_id": "45bc9975ca15de626cfc",
+      "signal_type": "metrics",
+      "service": "payments-service",
+      "severity": "medium",
+      "timestamp": "2026-11-23T14:31:45.064132Z",
+      "description": "Payment failure ratio including declines on payments-service exceeded 0.25 ratio (peak 0.907)",
+      "evidence_ids": [],
+      "first_seen": "2026-11-23T14:31:45.064132Z",
+      "last_seen": "2026-11-23T14:34:55.060434Z"
+    },
+    {
+      "alert_id": "630181566e955989cfd8",
+      "signal_type": "metrics",
+      "service": "api-gateway",
+      "severity": "medium",
+      "timestamp": "2026-11-23T14:32:15.064641Z",
+      "description": "Dependency 5xx or transport failure ratio on api-gateway exceeded 0.15 ratio (peak 0.181)",
+      "evidence_ids": [],
+      "first_seen": "2026-11-23T14:32:15.064641Z",
+      "last_seen": "2026-11-23T14:34:15.061315Z"
+    },
+    {
+      "alert_id": "983c3dbbb004b61eae17",
+      "signal_type": "metrics",
+      "service": "payments-service",
+      "severity": "medium",
+      "timestamp": "2026-11-23T14:31:45.064132Z",
+      "description": "HTTP 5xx ratio on payments-service exceeded 0.15 ratio (peak 0.892)",
+      "evidence_ids": [],
+      "first_seen": "2026-11-23T14:31:45.064132Z",
+      "last_seen": "2026-11-23T14:35:05.058730Z"
+    }
+  ],
+  "investigation": {
+    "incident_id": "INC-6558d5b7036a44934e9e",
+    "run_id": "RUN-5ba98a18",
+    "logs_output": {
+      "answers": [],
+      "findings": [
+        {
+          "indicator": "payment_failed",
+          "finding_id": "INC-6558d5b7036a44934e9e:logs:F1",
+          "signal_type": "logs",
+          "service": "payments-service",
+          "claim": "payments-service logged 37 'payment_failed' failure records (PaymentServiceUnavailable) over 49.7 s in the retained sample",
+          "claim_kind": "observation",
+          "evidence_links": [
+            {
+              "evidence_id": "INC-6558d5b7036a44934e9e/r1-86bc3f518d9d66dfa96f466c9832cd2ebf260f3062dccb055af2cefe36ab9f80/logs#P1",
+              "relation": "supports",
+              "reference_valid": true,
+              "relevance_status": "relevant",
+              "support_status": "supported"
+            }
+          ],
+          "execution_status": "completed",
+          "uncertainty": "sample of 76 retained sanitized records, not all source logs"
+        },
+        {
+          "indicator": "request_completed",
+          "finding_id": "INC-6558d5b7036a44934e9e:logs:F2",
+          "signal_type": "logs",
+          "service": "payments-service",
+          "claim": "payments-service logged 37 'request_completed' failure records, HTTP 503 over 49.7 s in the retained sample",
+          "claim_kind": "observation",
+          "evidence_links": [
+            {
+              "evidence_id": "INC-6558d5b7036a44934e9e/r1-86bc3f518d9d66dfa96f466c9832cd2ebf260f3062dccb055af2cefe36ab9f80/logs#P2",
+              "relation": "supports",
+              "reference_valid": true,
+              "relevance_status": "relevant",
+              "support_status": "supported"
+            }
+          ],
+          "execution_status": "completed",
+          "uncertainty": "sample of 76 retained sanitized records, not all source logs"
+        },
+        {
+          "indicator": null,
+          "finding_id": "INC-6558d5b7036a44934e9e:logs:F3",
+          "signal_type": "logs",
+          "service": "payments-service",
+          "claim": "The payments-service is generating a high rate of PaymentServiceUnavailable errors and HTTP 503 responses, suggesting an internal failure or unavailable dependency within that service.",
+          "claim_kind": "inference",
+          "evidence_links": [
+            {
+              "evidence_id": "INC-6558d5b7036a44934e9e/r1-86bc3f518d9d66dfa96f466c9832cd2ebf260f3062dccb055af2cefe36ab9f80/logs#P1",
+              "relation": "supports",
+              "reference_valid": true,
+              "relevance_status": "relevant",
+              "support_status": "unverified"
+            },
+            {
+              "evidence_id": "INC-6558d5b7036a44934e9e/r1-86bc3f518d9d66dfa96f466c9832cd2ebf260f3062dccb055af2cefe36ab9f80/logs#P2",
+              "relation": "supports",
+              "reference_valid": true,
+              "relevance_status": "relevant",
+              "support_status": "unverified"
+            }
+          ],
+          "execution_status": "completed",
+          "uncertainty": "confidence: medium; The sample contains only 76 sanitized records and may not represent the full incident. No cross‑service traces are present, so downstream impacts cannot be confirmed. No information about specific internal components or external dependencies is available."
+        }
+      ],
+      "status": "completed"
+    },
+    "metrics_output": {
+      "answers": [],
+      "findings": [
+        {
+          "indicator": "http_errors",
+          "finding_id": "INC-6558d5b7036a44934e9e:metrics:F1",
+          "signal_type": "metrics",
+          "service": "payments-service",
+          "claim": "payments-service breached http_errors (error_rate) with trigger value 0.32499999999999996 vs threshold 0.15 ratio, trend: worsening",
+          "claim_kind": "observation",
+          "evidence_links": [
+            {
+              "evidence_id": "INC-6558d5b7036a44934e9e/r1-86bc3f518d9d66dfa96f466c9832cd2ebf260f3062dccb055af2cefe36ab9f80/metrics#M1",
+              "relation": "supports",
+              "reference_valid": true,
+              "relevance_status": "relevant",
+              "support_status": "supported"
+            }
+          ],
+          "execution_status": "completed",
+          "uncertainty": "retained sample of 4 observations across 1 services; metrics reflect alert evaluation windows and queries, not full continuous history"
+        },
+        {
+          "indicator": "payment_failures",
+          "finding_id": "INC-6558d5b7036a44934e9e:metrics:F2",
+          "signal_type": "metrics",
+          "service": "payments-service",
+          "claim": "payments-service breached payment_failures (business_decline) with trigger value 0.39999999999999997 vs threshold 0.25 ratio, trend: worsening",
+          "claim_kind": "observation",
+          "evidence_links": [
+            {
+              "evidence_id": "INC-6558d5b7036a44934e9e/r1-86bc3f518d9d66dfa96f466c9832cd2ebf260f3062dccb055af2cefe36ab9f80/metrics#M2",
+              "relation": "supports",
+              "reference_valid": true,
+              "relevance_status": "relevant",
+              "support_status": "supported"
+            }
+          ],
+          "execution_status": "completed",
+          "uncertainty": "retained sample of 4 observations across 1 services; metrics reflect alert evaluation windows and queries, not full continuous history"
+        },
+        {
+          "indicator": null,
+          "finding_id": "INC-6558d5b7036a44934e9e:metrics:F3",
+          "signal_type": "metrics",
+          "service": "payments-service",
+          "claim": "The payments-service is experiencing a surge in HTTP errors and business-level payment failures, both exceeding their thresholds and worsening, which likely explains the observed payment symptoms.",
+          "claim_kind": "inference",
+          "evidence_links": [
+            {
+              "evidence_id": "INC-6558d5b7036a44934e9e/r1-86bc3f518d9d66dfa96f466c9832cd2ebf260f3062dccb055af2cefe36ab9f80/metrics#M1",
+              "relation": "supports",
+              "reference_valid": true,
+              "relevance_status": "relevant",
+              "support_status": "unverified"
+            },
+            {
+              "evidence_id": "INC-6558d5b7036a44934e9e/r1-86bc3f518d9d66dfa96f466c9832cd2ebf260f3062dccb055af2cefe36ab9f80/metrics#M2",
+              "relation": "supports",
+              "reference_valid": true,
+              "relevance_status": "relevant",
+              "support_status": "unverified"
+            }
+          ],
+          "execution_status": "completed",
+          "uncertainty": "confidence: medium; Only a retained sample of 4 observations is available; metrics do not cover the full time series. No resource saturation metrics were reported, so specific exhaustion cannot be confirmed. Observations are limited to two metrics on a single service; upstream or downstream factors cannot be ruled out."
+        }
+      ],
+      "status": "completed"
+    },
+    "traces_output": {
+      "answers": [],
+      "findings": [
+        {
+          "indicator": "POST /payments/charge",
+          "finding_id": "INC-6558d5b7036a44934e9e:traces:F1",
+          "signal_type": "traces",
+          "service": "payments-service",
+          "claim": "payments-service observed 3 'failed_span' events for 'POST /payments/charge', HTTP 503, p95 6.09 ms (deepest failure origin) in the retained traces",
+          "claim_kind": "observation",
+          "evidence_links": [
+            {
+              "evidence_id": "INC-6558d5b7036a44934e9e/r1-86bc3f518d9d66dfa96f466c9832cd2ebf260f3062dccb055af2cefe36ab9f80/traces#T5",
+              "relation": "supports",
+              "reference_valid": true,
+              "relevance_status": "relevant",
+              "support_status": "supported"
+            }
+          ],
+          "execution_status": "completed",
+          "uncertainty": "sample of 3 retained traces (81 spans); traces represent bounded snapshots, not continuous distributed trace history"
+        },
+        {
+          "indicator": "POST /payments/charge",
+          "finding_id": "INC-6558d5b7036a44934e9e:traces:F2",
+          "signal_type": "traces",
+          "service": "orders-service",
+          "claim": "orders-service observed 3 'failed_span' events for 'POST /payments/charge', HTTP 503, p95 9.52 ms in the retained traces",
+          "claim_kind": "observation",
+          "evidence_links": [
+            {
+              "evidence_id": "INC-6558d5b7036a44934e9e/r1-86bc3f518d9d66dfa96f466c9832cd2ebf260f3062dccb055af2cefe36ab9f80/traces#T3",
+              "relation": "supports",
+              "reference_valid": true,
+              "relevance_status": "relevant",
+              "support_status": "supported"
+            }
+          ],
+          "execution_status": "completed",
+          "uncertainty": "sample of 3 retained traces (81 spans); traces represent bounded snapshots, not continuous distributed trace history"
+        },
+        {
+          "indicator": "POST /api/orders",
+          "finding_id": "INC-6558d5b7036a44934e9e:traces:F3",
+          "signal_type": "traces",
+          "service": "api-gateway",
+          "claim": "api-gateway observed 3 'failed_span' events for 'POST /api/orders', HTTP 503, p95 62.73 ms in the retained traces",
+          "claim_kind": "observation",
+          "evidence_links": [
+            {
+              "evidence_id": "INC-6558d5b7036a44934e9e/r1-86bc3f518d9d66dfa96f466c9832cd2ebf260f3062dccb055af2cefe36ab9f80/traces#T4",
+              "relation": "supports",
+              "reference_valid": true,
+              "relevance_status": "relevant",
+              "support_status": "supported"
+            }
+          ],
+          "execution_status": "completed",
+          "uncertainty": "sample of 3 retained traces (81 spans); traces represent bounded snapshots, not continuous distributed trace history"
+        },
+        {
+          "indicator": "POST /orders",
+          "finding_id": "INC-6558d5b7036a44934e9e:traces:F4",
+          "signal_type": "traces",
+          "service": "api-gateway",
+          "claim": "api-gateway observed 3 'failed_span' events for 'POST /orders', HTTP 503, p95 60.71 ms in the retained traces",
+          "claim_kind": "observation",
+          "evidence_links": [
+            {
+              "evidence_id": "INC-6558d5b7036a44934e9e/r1-86bc3f518d9d66dfa96f466c9832cd2ebf260f3062dccb055af2cefe36ab9f80/traces#T6",
+              "relation": "supports",
+              "reference_valid": true,
+              "relevance_status": "relevant",
+              "support_status": "supported"
+            }
+          ],
+          "execution_status": "completed",
+          "uncertainty": "sample of 3 retained traces (81 spans); traces represent bounded snapshots, not continuous distributed trace history"
+        },
+        {
+          "indicator": null,
+          "finding_id": "INC-6558d5b7036a44934e9e:traces:F5",
+          "signal_type": "traces",
+          "service": "payments-service",
+          "claim": "The 503 failures observed in payments-service’s POST /payments/charge operation (T5) appear to be the origin of the incident, and the errors propagate upstream through orders-service and api-gateway, producing the payment symptoms.",
+          "claim_kind": "inference",
+          "evidence_links": [
+            {
+              "evidence_id": "INC-6558d5b7036a44934e9e/r1-86bc3f518d9d66dfa96f466c9832cd2ebf260f3062dccb055af2cefe36ab9f80/traces#T5",
+              "relation": "supports",
+              "reference_valid": true,
+              "relevance_status": "relevant",
+              "support_status": "unverified"
+            },
+            {
+              "evidence_id": "INC-6558d5b7036a44934e9e/r1-86bc3f518d9d66dfa96f466c9832cd2ebf260f3062dccb055af2cefe36ab9f80/traces#T3",
+              "relation": "supports",
+              "reference_valid": true,
+              "relevance_status": "relevant",
+              "support_status": "unverified"
+            },
+            {
+              "evidence_id": "INC-6558d5b7036a44934e9e/r1-86bc3f518d9d66dfa96f466c9832cd2ebf260f3062dccb055af2cefe36ab9f80/traces#T4",
+              "relation": "supports",
+              "reference_valid": true,
+              "relevance_status": "relevant",
+              "support_status": "unverified"
+            },
+            {
+              "evidence_id": "INC-6558d5b7036a44934e9e/r1-86bc3f518d9d66dfa96f466c9832cd2ebf260f3062dccb055af2cefe36ab9f80/traces#T6",
+              "relation": "supports",
+              "reference_valid": true,
+              "relevance_status": "relevant",
+              "support_status": "unverified"
+            }
+          ],
+          "execution_status": "completed",
+          "uncertainty": "confidence: high; Only 3 retained traces (81 spans) are sampled; this may not capture the full failure window. Traces show error propagation but cannot prove the underlying cause of the payments-service failure. Latency measurements are low (single‑digit ms) and do not indicate a performance bottleneck."
+        }
+      ],
+      "status": "completed"
+    },
+    "missing_evidence": [],
+    "status": "completed",
+    "investigation_plan_id": "PLAN-5ba98a18",
+    "parent_run_id": "RUN-2ccc9df9"
+  },
+  "correlation": {
+    "incident_id": "INC-6558d5b7036a44934e9e",
+    "run_id": "RUN-d9d8f1b35fa6bbef",
+    "root_cause_candidates": [
+      {
+        "candidate_id": "CAUSE-29bfd1f2342e76f7",
+        "description": "payments-service: Payments-service experienced an internal failure causing it to return PaymentServiceUnavailable errors and HTTP 503 responses for its POST /payments/charge endpoint.",
+        "evidence_links": [
+          {
+            "evidence_id": "INC-6558d5b7036a44934e9e/r1-86bc3f518d9d66dfa96f466c9832cd2ebf260f3062dccb055af2cefe36ab9f80/logs#P1",
+            "relation": "supports",
+            "reference_valid": true,
+            "relevance_status": "relevant",
+            "support_status": "supported"
+          },
+          {
+            "evidence_id": "INC-6558d5b7036a44934e9e/r1-86bc3f518d9d66dfa96f466c9832cd2ebf260f3062dccb055af2cefe36ab9f80/metrics#M1",
+            "relation": "supports",
+            "reference_valid": true,
+            "relevance_status": "relevant",
+            "support_status": "supported"
+          },
+          {
+            "evidence_id": "INC-6558d5b7036a44934e9e/r1-86bc3f518d9d66dfa96f466c9832cd2ebf260f3062dccb055af2cefe36ab9f80/traces#T5",
+            "relation": "supports",
+            "reference_valid": true,
+            "relevance_status": "relevant",
+            "support_status": "supported"
+          },
+          {
+            "evidence_id": "INC-6558d5b7036a44934e9e/r1-86bc3f518d9d66dfa96f466c9832cd2ebf260f3062dccb055af2cefe36ab9f80/logs#P2",
+            "relation": "context_only",
+            "reference_valid": true,
+            "relevance_status": "relevant",
+            "support_status": "unverified"
+          },
+          {
+            "evidence_id": "INC-6558d5b7036a44934e9e/r1-86bc3f518d9d66dfa96f466c9832cd2ebf260f3062dccb055af2cefe36ab9f80/metrics#M2",
+            "relation": "context_only",
+            "reference_valid": true,
+            "relevance_status": "relevant",
+            "support_status": "unverified"
+          }
+        ],
+        "uncertainty": null
+      }
+    ],
+    "leading_candidate_id": "CAUSE-29bfd1f2342e76f7",
+    "missing_evidence": [],
+    "status": "completed",
+    "follow_up_requests": []
+  },
+  "recommendations": {
+    "incident_id": "INC-6558d5b7036a44934e9e",
+    "correlation_run_id": "RUN-d9d8f1b35fa6bbef",
+    "recommendation_options": [
+      {
+        "recommendation_id": "REC-ded8b7e6",
+        "action": "Restart payments-service and confirm POST /payments/charge returns 2xx before resuming traffic",
+        "action_type": "remediation",
+        "evidence_links": [
+          {
+            "evidence_id": "INC-6558d5b7036a44934e9e/r1-86bc3f518d9d66dfa96f466c9832cd2ebf260f3062dccb055af2cefe36ab9f80/logs#P1",
+            "relation": "supports",
+            "reference_valid": true,
+            "relevance_status": "relevant",
+            "support_status": "supported"
+          },
+          {
+            "evidence_id": "INC-6558d5b7036a44934e9e/r1-86bc3f518d9d66dfa96f466c9832cd2ebf260f3062dccb055af2cefe36ab9f80/metrics#M1",
+            "relation": "supports",
+            "reference_valid": true,
+            "relevance_status": "relevant",
+            "support_status": "supported"
+          },
+          {
+            "evidence_id": "INC-6558d5b7036a44934e9e/r1-86bc3f518d9d66dfa96f466c9832cd2ebf260f3062dccb055af2cefe36ab9f80/traces#T5",
+            "relation": "supports",
+            "reference_valid": true,
+            "relevance_status": "relevant",
+            "support_status": "supported"
+          }
+        ],
+        "risk_or_caveat": "A restart clears the symptom but not an upstream payment-provider outage.",
+        "validation": "conditional",
+        "rationale": "Logs, metrics and traces localise the 503 responses to payments-service."
+      },
+      {
+        "recommendation_id": "REC-83779e15",
+        "action": "Check the payment provider's status for the incident window",
+        "action_type": "investigation",
+        "evidence_links": [
+          {
+            "evidence_id": "INC-6558d5b7036a44934e9e/r1-86bc3f518d9d66dfa96f466c9832cd2ebf260f3062dccb055af2cefe36ab9f80/logs#P1",
+            "relation": "supports",
+            "reference_valid": true,
+            "relevance_status": "relevant",
+            "support_status": "supported"
+          }
+        ],
+        "risk_or_caveat": null,
+        "validation": "supported",
+        "rationale": "PaymentServiceUnavailable is raised inside payments-service; its dependency was not observed."
+      },
+      {
+        "recommendation_id": "REC-f4bc245c",
+        "action": "Verify that orders-service and api-gateway 5xx ratios fall below their thresholds",
+        "action_type": "verification",
+        "evidence_links": [],
+        "risk_or_caveat": null,
+        "validation": "supported",
+        "rationale": "Downstream alerts should clear once payments-service recovers."
+      }
+    ],
+    "ranked_recommendation_ids": [
+      "REC-ded8b7e6",
+      "REC-83779e15",
+      "REC-f4bc245c"
+    ],
+    "top_recommendation_id": "REC-ded8b7e6",
+    "status": "completed"
+  }
+}

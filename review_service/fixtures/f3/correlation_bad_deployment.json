@@ -1,0 +1,45 @@
+{
+  "incident_id": "INC-ba74b9436c4b2309ac9b",
+  "run_id": "RUN-9d47676027bd4639",
+  "root_cause_candidates": [
+    {
+      "candidate_id": "CAUSE-ca0c80b00a68354f",
+      "description": "orders-service: Release 2.4.1 introduced failing order-state writes (OrderStateWriteError).",
+      "evidence_links": [
+        {
+          "evidence_id": "INC-ba74b9436c4b2309ac9b/r1-fe9785df0072570501ae90a1539cebe1e5e1642813a0646c6efeeef01e265ede/logs#P1",
+          "relation": "supports",
+          "reference_valid": true,
+          "relevance_status": "relevant",
+          "support_status": "supported"
+        },
+        {
+          "evidence_id": "INC-ba74b9436c4b2309ac9b/r1-fe9785df0072570501ae90a1539cebe1e5e1642813a0646c6efeeef01e265ede/logs#P2",
+          "relation": "supports",
+          "reference_valid": true,
+          "relevance_status": "relevant",
+          "support_status": "supported"
+        },
+        {
+          "evidence_id": "INC-ba74b9436c4b2309ac9b/r1-fe9785df0072570501ae90a1539cebe1e5e1642813a0646c6efeeef01e265ede/metrics#M1",
+          "relation": "supports",
+          "reference_valid": true,
+          "relevance_status": "relevant",
+          "support_status": "supported"
+        },
+        {
+          "evidence_id": "INC-ba74b9436c4b2309ac9b/r1-fe9785df0072570501ae90a1539cebe1e5e1642813a0646c6efeeef01e265ede/traces#T1",
+          "relation": "supports",
+          "reference_valid": true,
+          "relevance_status": "relevant",
+          "support_status": "supported"
+        }
+      ],
+      "uncertainty": null
+    }
+  ],
+  "leading_candidate_id": "CAUSE-ca0c80b00a68354f",
+  "missing_evidence": [],
+  "status": "completed",
+  "follow_up_requests": []
+}

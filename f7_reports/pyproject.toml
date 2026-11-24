@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "observa-reports"
+version = "0.1.0"
+description = "OBSERVA F7: incident report assembly, presentation and immutable versioning"
+requires-python = ">=3.12"
+dependencies = [
+    "observa-investigation==0.1.0",
+    "pydantic==2.14.4",
+]
+
+[project.optional-dependencies]
+test = ["pytest==9.2.0"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["observa_reports*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

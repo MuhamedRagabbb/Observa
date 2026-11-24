@@ -1,0 +1,85 @@
+{
+  "incident_id": "INC-f95e93197fa8419fd4de",
+  "correlation_run_id": "RUN-1709e645ee275472",
+  "recommendation_options": [
+    {
+      "recommendation_id": "REC-3cbf61ff",
+      "action": "Raise the orders-service pool maximum from 10 to 20 connections and restart",
+      "action_type": "remediation",
+      "evidence_links": [
+        {
+          "evidence_id": "INC-f95e93197fa8419fd4de/r1-921dab1f6e7aaf06dd7a27b32d3bda0d6b3225c9ead6bc0d7cae0bfc7c311ea0/logs#P1",
+          "relation": "supports",
+          "reference_valid": true,
+          "relevance_status": "relevant",
+          "support_status": "supported"
+        },
+        {
+          "evidence_id": "INC-f95e93197fa8419fd4de/r1-921dab1f6e7aaf06dd7a27b32d3bda0d6b3225c9ead6bc0d7cae0bfc7c311ea0/metrics#M1",
+          "relation": "supports",
+          "reference_valid": true,
+          "relevance_status": "relevant",
+          "support_status": "supported"
+        },
+        {
+          "evidence_id": "INC-f95e93197fa8419fd4de/r1-921dab1f6e7aaf06dd7a27b32d3bda0d6b3225c9ead6bc0d7cae0bfc7c311ea0/metrics#M2",
+          "relation": "supports",
+          "reference_valid": true,
+          "relevance_status": "relevant",
+          "support_status": "supported"
+        },
+        {
+          "evidence_id": "INC-f95e93197fa8419fd4de/r1-921dab1f6e7aaf06dd7a27b32d3bda0d6b3225c9ead6bc0d7cae0bfc7c311ea0/traces#T1",
+          "relation": "supports",
+          "reference_valid": true,
+          "relevance_status": "relevant",
+          "support_status": "supported"
+        }
+      ],
+      "risk_or_caveat": "Check PostgreSQL max_connections headroom before raising the pool size.",
+      "validation": "conditional",
+      "rationale": "Occupancy reached 100% while acquisitions timed out."
+    },
+    {
+      "recommendation_id": "REC-edc33e9c",
+      "action": "Identify long-held connections in pg_stat_activity for the incident window",
+      "action_type": "investigation",
+      "evidence_links": [
+        {
+          "evidence_id": "INC-f95e93197fa8419fd4de/r1-921dab1f6e7aaf06dd7a27b32d3bda0d6b3225c9ead6bc0d7cae0bfc7c311ea0/logs#P1",
+          "relation": "supports",
+          "reference_valid": true,
+          "relevance_status": "relevant",
+          "support_status": "supported"
+        }
+      ],
+      "risk_or_caveat": null,
+      "validation": "supported",
+      "rationale": "Saturation may come from slow queries rather than load."
+    },
+    {
+      "recommendation_id": "REC-3905895e",
+      "action": "Confirm pool occupancy stays below 70% for 15 minutes after the change",
+      "action_type": "verification",
+      "evidence_links": [
+        {
+          "evidence_id": "INC-f95e93197fa8419fd4de/r1-921dab1f6e7aaf06dd7a27b32d3bda0d6b3225c9ead6bc0d7cae0bfc7c311ea0/logs#P1",
+          "relation": "supports",
+          "reference_valid": true,
+          "relevance_status": "relevant",
+          "support_status": "supported"
+        }
+      ],
+      "risk_or_caveat": null,
+      "validation": "supported",
+      "rationale": "Shows whether the remediation removed the pressure."
+    }
+  ],
+  "ranked_recommendation_ids": [
+    "REC-3cbf61ff",
+    "REC-edc33e9c",
+    "REC-3905895e"
+  ],
+  "top_recommendation_id": "REC-3cbf61ff",
+  "status": "completed"
+}

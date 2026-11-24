@@ -1,0 +1,70 @@
+{
+  "incident_id": "INC-6558d5b7036a44934e9e",
+  "correlation_run_id": "RUN-b161df39a5b71ec5",
+  "recommendation_options": [
+    {
+      "recommendation_id": "REC-ded8b7e6",
+      "action": "Restart payments-service and confirm POST /payments/charge returns 2xx before resuming traffic",
+      "action_type": "remediation",
+      "evidence_links": [
+        {
+          "evidence_id": "INC-6558d5b7036a44934e9e/r1-86bc3f518d9d66dfa96f466c9832cd2ebf260f3062dccb055af2cefe36ab9f80/logs#P1",
+          "relation": "supports",
+          "reference_valid": true,
+          "relevance_status": "relevant",
+          "support_status": "supported"
+        },
+        {
+          "evidence_id": "INC-6558d5b7036a44934e9e/r1-86bc3f518d9d66dfa96f466c9832cd2ebf260f3062dccb055af2cefe36ab9f80/metrics#M1",
+          "relation": "supports",
+          "reference_valid": true,
+          "relevance_status": "relevant",
+          "support_status": "supported"
+        },
+        {
+          "evidence_id": "INC-6558d5b7036a44934e9e/r1-86bc3f518d9d66dfa96f466c9832cd2ebf260f3062dccb055af2cefe36ab9f80/traces#T5",
+          "relation": "supports",
+          "reference_valid": true,
+          "relevance_status": "relevant",
+          "support_status": "supported"
+        }
+      ],
+      "risk_or_caveat": "A restart clears the symptom but not an upstream payment-provider outage.",
+      "validation": "conditional",
+      "rationale": "Logs, metrics and traces localise the 503 responses to payments-service."
+    },
+    {
+      "recommendation_id": "REC-83779e15",
+      "action": "Check the payment provider's status for the incident window",
+      "action_type": "investigation",
+      "evidence_links": [
+        {
+          "evidence_id": "INC-6558d5b7036a44934e9e/r1-86bc3f518d9d66dfa96f466c9832cd2ebf260f3062dccb055af2cefe36ab9f80/logs#P1",
+          "relation": "supports",
+          "reference_valid": true,
+          "relevance_status": "relevant",
+          "support_status": "supported"
+        }
+      ],
+      "risk_or_caveat": null,
+      "validation": "supported",
+      "rationale": "PaymentServiceUnavailable is raised inside payments-service; its dependency was not observed."
+    },
+    {
+      "recommendation_id": "REC-f4bc245c",
+      "action": "Verify that orders-service and api-gateway 5xx ratios fall below their thresholds",
+      "action_type": "verification",
+      "evidence_links": [],
+      "risk_or_caveat": null,
+      "validation": "supported",
+      "rationale": "Downstream alerts should clear once payments-service recovers."
+    }
+  ],
+  "ranked_recommendation_ids": [
+    "REC-ded8b7e6",
+    "REC-83779e15",
+    "REC-f4bc245c"
+  ],
+  "top_recommendation_id": "REC-ded8b7e6",
+  "status": "completed"
+}

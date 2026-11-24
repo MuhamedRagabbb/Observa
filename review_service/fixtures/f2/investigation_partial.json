@@ -1,0 +1,65 @@
+{
+  "incident_id": "INC-c02e782e399918e7b491",
+  "run_id": "RUN-0ca5f65b",
+  "logs_output": {
+    "findings": [
+      {
+        "finding_id": "INC-c02e782e399918e7b491:logs:F1",
+        "signal_type": "logs",
+        "service": "api-gateway",
+        "claim": "api-gateway logged 4 'dependency_request_failed' failure records, HTTP 503 over 30 s in the retained sample",
+        "claim_kind": "observation",
+        "evidence_links": [
+          {
+            "evidence_id": "INC-c02e782e399918e7b491/r4-95bf64e96f6fdddd2b22f95848c13fd4a663b2f24620ae311dd051812de885ba/logs#P1",
+            "relation": "supports",
+            "reference_valid": true,
+            "relevance_status": "relevant",
+            "support_status": "supported"
+          }
+        ],
+        "execution_status": "partial",
+        "uncertainty": "sample of 4 retained sanitized records; no log records from orders-service"
+      }
+    ],
+    "status": "partial"
+  },
+  "metrics_output": {
+    "findings": [
+      {
+        "finding_id": "INC-c02e782e399918e7b491:metrics:F1",
+        "signal_type": "metrics",
+        "service": "orders-service",
+        "claim": "orders-service breached pool_pressure (resource_saturation) with trigger value 0.98 vs threshold 0.9 ratio",
+        "claim_kind": "observation",
+        "evidence_links": [
+          {
+            "evidence_id": "INC-c02e782e399918e7b491/r4-95bf64e96f6fdddd2b22f95848c13fd4a663b2f24620ae311dd051812de885ba/metrics#M3",
+            "relation": "supports",
+            "reference_valid": true,
+            "relevance_status": "relevant",
+            "support_status": "supported"
+          }
+        ],
+        "execution_status": "partial",
+        "uncertainty": "retained sample of 8 observations across 2 services"
+      }
+    ],
+    "status": "partial"
+  },
+  "traces_output": {
+    "findings": [],
+    "status": "inconclusive"
+  },
+  "missing_evidence": [
+    {
+      "required": "log records from orders-service",
+      "reason": "no log records from orders-service in the retained sample",
+      "requested_from": "logs",
+      "status": "unavailable"
+    }
+  ],
+  "status": "partial",
+  "investigation_plan_id": "PLAN-9ecec179",
+  "parent_run_id": null
+}

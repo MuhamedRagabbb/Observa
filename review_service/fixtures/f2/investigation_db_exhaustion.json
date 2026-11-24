@@ -1,0 +1,121 @@
+{
+  "incident_id": "INC-f95e93197fa8419fd4de",
+  "run_id": "RUN-8f2fd11a",
+  "logs_output": {
+    "answers": [],
+    "findings": [
+      {
+        "indicator": "db_pool_timeout",
+        "finding_id": "INC-f95e93197fa8419fd4de:logs:F1",
+        "signal_type": "logs",
+        "service": "orders-service",
+        "claim": "orders-service logged 42 'db_pool_timeout' failure records (PoolTimeoutError) over 60 s in the retained sample",
+        "claim_kind": "observation",
+        "evidence_links": [
+          {
+            "evidence_id": "INC-f95e93197fa8419fd4de/r1-921dab1f6e7aaf06dd7a27b32d3bda0d6b3225c9ead6bc0d7cae0bfc7c311ea0/logs#P1",
+            "relation": "supports",
+            "reference_valid": true,
+            "relevance_status": "relevant",
+            "support_status": "supported"
+          }
+        ],
+        "execution_status": "completed",
+        "uncertainty": null
+      },
+      {
+        "indicator": null,
+        "finding_id": "INC-f95e93197fa8419fd4de:logs:F2",
+        "signal_type": "logs",
+        "service": "orders-service",
+        "claim": "Connection acquisitions waited for the full timeout while every connection was busy.",
+        "claim_kind": "inference",
+        "evidence_links": [
+          {
+            "evidence_id": "INC-f95e93197fa8419fd4de/r1-921dab1f6e7aaf06dd7a27b32d3bda0d6b3225c9ead6bc0d7cae0bfc7c311ea0/logs#P1",
+            "relation": "supports",
+            "reference_valid": true,
+            "relevance_status": "relevant",
+            "support_status": "unverified"
+          }
+        ],
+        "execution_status": "completed",
+        "uncertainty": "confidence: medium"
+      }
+    ],
+    "status": "completed"
+  },
+  "metrics_output": {
+    "answers": [],
+    "findings": [
+      {
+        "indicator": "pool_pressure",
+        "finding_id": "INC-f95e93197fa8419fd4de:metrics:F1",
+        "signal_type": "metrics",
+        "service": "orders-service",
+        "claim": "orders-service breached pool_pressure (database) with trigger value 1.0 vs threshold 0.9 ratio, trend: worsening",
+        "claim_kind": "observation",
+        "evidence_links": [
+          {
+            "evidence_id": "INC-f95e93197fa8419fd4de/r1-921dab1f6e7aaf06dd7a27b32d3bda0d6b3225c9ead6bc0d7cae0bfc7c311ea0/metrics#M1",
+            "relation": "supports",
+            "reference_valid": true,
+            "relevance_status": "relevant",
+            "support_status": "supported"
+          }
+        ],
+        "execution_status": "completed",
+        "uncertainty": null
+      },
+      {
+        "indicator": "pool_timeouts",
+        "finding_id": "INC-f95e93197fa8419fd4de:metrics:F2",
+        "signal_type": "metrics",
+        "service": "orders-service",
+        "claim": "orders-service breached pool_timeouts (database) with trigger value 14 vs threshold 2 count_per_window, trend: worsening",
+        "claim_kind": "observation",
+        "evidence_links": [
+          {
+            "evidence_id": "INC-f95e93197fa8419fd4de/r1-921dab1f6e7aaf06dd7a27b32d3bda0d6b3225c9ead6bc0d7cae0bfc7c311ea0/metrics#M2",
+            "relation": "supports",
+            "reference_valid": true,
+            "relevance_status": "relevant",
+            "support_status": "supported"
+          }
+        ],
+        "execution_status": "completed",
+        "uncertainty": null
+      }
+    ],
+    "status": "completed"
+  },
+  "traces_output": {
+    "answers": [],
+    "findings": [
+      {
+        "indicator": "db.acquire",
+        "finding_id": "INC-f95e93197fa8419fd4de:traces:F1",
+        "signal_type": "traces",
+        "service": "orders-service",
+        "claim": "orders-service observed 9 'failed_span' events for 'db.acquire', p95 5000 ms (deepest failure origin) in the retained traces",
+        "claim_kind": "observation",
+        "evidence_links": [
+          {
+            "evidence_id": "INC-f95e93197fa8419fd4de/r1-921dab1f6e7aaf06dd7a27b32d3bda0d6b3225c9ead6bc0d7cae0bfc7c311ea0/traces#T1",
+            "relation": "supports",
+            "reference_valid": true,
+            "relevance_status": "relevant",
+            "support_status": "supported"
+          }
+        ],
+        "execution_status": "completed",
+        "uncertainty": null
+      }
+    ],
+    "status": "completed"
+  },
+  "missing_evidence": [],
+  "status": "completed",
+  "investigation_plan_id": "PLAN-056f15b4",
+  "parent_run_id": null
+}

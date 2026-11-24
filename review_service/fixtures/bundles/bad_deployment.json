@@ -1,0 +1,281 @@
+{
+  "incident": {
+    "incident_id": "INC-ba74b9436c4b2309ac9b",
+    "title": "Observed regression symptoms in orders-service",
+    "alerts": [
+      "0d5ed9249d57d6462020",
+      "991a91da4f4b25c1dcba",
+      "cd55d2f5cc6b7c6eae3d"
+    ],
+    "start_time": "2026-11-24T11:05:12Z",
+    "end_time": null,
+    "affected_services": [
+      "orders-service"
+    ],
+    "severity": "high"
+  },
+  "alerts": [
+    {
+      "alert_id": "0d5ed9249d57d6462020",
+      "signal_type": "metrics",
+      "service": "orders-service",
+      "severity": "high",
+      "timestamp": "2026-11-24T11:05:50Z",
+      "description": "HTTP 5xx ratio on orders-service exceeded 0.15 ratio (peak 0.520)",
+      "evidence_ids": [],
+      "first_seen": "2026-11-24T11:05:50Z"
+    },
+    {
+      "alert_id": "991a91da4f4b25c1dcba",
+      "signal_type": "logs",
+      "service": "orders-service",
+      "severity": "medium",
+      "timestamp": "2026-11-24T11:05:40Z",
+      "description": "unexpected_exception on orders-service exceeded 3 events_per_window (peak 9)",
+      "evidence_ids": [],
+      "first_seen": "2026-11-24T11:05:40Z"
+    },
+    {
+      "alert_id": "cd55d2f5cc6b7c6eae3d",
+      "signal_type": "logs",
+      "service": "orders-service",
+      "severity": "high",
+      "timestamp": "2026-11-24T11:05:30Z",
+      "description": "order_persistence_failed on orders-service exceeded 2 events_per_window (peak 18)",
+      "evidence_ids": [],
+      "first_seen": "2026-11-24T11:05:30Z"
+    }
+  ],
+  "investigation": {
+    "incident_id": "INC-ba74b9436c4b2309ac9b",
+    "run_id": "RUN-7d5365d1",
+    "logs_output": {
+      "answers": [],
+      "findings": [
+        {
+          "indicator": "release_changed",
+          "finding_id": "INC-ba74b9436c4b2309ac9b:logs:F1",
+          "signal_type": "logs",
+          "service": "orders-service",
+          "claim": "orders-service recorded release_changed to 2.4.1 at 2026-11-24T11:04:58Z; first retained OrderStateWriteError on that release at 2026-11-24T11:05:09Z.",
+          "claim_kind": "observation",
+          "evidence_links": [
+            {
+              "evidence_id": "INC-ba74b9436c4b2309ac9b/r1-fe9785df0072570501ae90a1539cebe1e5e1642813a0646c6efeeef01e265ede/logs#P1",
+              "relation": "supports",
+              "reference_valid": true,
+              "relevance_status": "relevant",
+              "support_status": "supported"
+            }
+          ],
+          "execution_status": "completed",
+          "uncertainty": null
+        },
+        {
+          "indicator": "order_persistence_failed",
+          "finding_id": "INC-ba74b9436c4b2309ac9b:logs:F2",
+          "signal_type": "logs",
+          "service": "orders-service",
+          "claim": "orders-service logged 18 'order_persistence_failed' failure records (OrderStateWriteError) over 60 s in the retained sample",
+          "claim_kind": "observation",
+          "evidence_links": [
+            {
+              "evidence_id": "INC-ba74b9436c4b2309ac9b/r1-fe9785df0072570501ae90a1539cebe1e5e1642813a0646c6efeeef01e265ede/logs#P2",
+              "relation": "supports",
+              "reference_valid": true,
+              "relevance_status": "relevant",
+              "support_status": "supported"
+            }
+          ],
+          "execution_status": "completed",
+          "uncertainty": null
+        }
+      ],
+      "status": "completed"
+    },
+    "metrics_output": {
+      "answers": [],
+      "findings": [
+        {
+          "indicator": "persistence_errors",
+          "finding_id": "INC-ba74b9436c4b2309ac9b:metrics:F1",
+          "signal_type": "metrics",
+          "service": "orders-service",
+          "claim": "orders-service breached persistence_errors (regression) with trigger value 18 vs threshold 2 events_per_window, trend: worsening",
+          "claim_kind": "observation",
+          "evidence_links": [
+            {
+              "evidence_id": "INC-ba74b9436c4b2309ac9b/r1-fe9785df0072570501ae90a1539cebe1e5e1642813a0646c6efeeef01e265ede/metrics#M1",
+              "relation": "supports",
+              "reference_valid": true,
+              "relevance_status": "relevant",
+              "support_status": "supported"
+            }
+          ],
+          "execution_status": "completed",
+          "uncertainty": null
+        }
+      ],
+      "status": "completed"
+    },
+    "traces_output": {
+      "answers": [],
+      "findings": [
+        {
+          "indicator": "POST /orders",
+          "finding_id": "INC-ba74b9436c4b2309ac9b:traces:F1",
+          "signal_type": "traces",
+          "service": "orders-service",
+          "claim": "orders-service observed 12 'failed_span' events for 'POST /orders', HTTP 500 (deepest failure origin) in the retained traces",
+          "claim_kind": "observation",
+          "evidence_links": [
+            {
+              "evidence_id": "INC-ba74b9436c4b2309ac9b/r1-fe9785df0072570501ae90a1539cebe1e5e1642813a0646c6efeeef01e265ede/traces#T1",
+              "relation": "supports",
+              "reference_valid": true,
+              "relevance_status": "relevant",
+              "support_status": "supported"
+            }
+          ],
+          "execution_status": "completed",
+          "uncertainty": null
+        }
+      ],
+      "status": "completed"
+    },
+    "missing_evidence": [],
+    "status": "completed",
+    "investigation_plan_id": "PLAN-05c0e9ac",
+    "parent_run_id": null
+  },
+  "correlation": {
+    "incident_id": "INC-ba74b9436c4b2309ac9b",
+    "run_id": "RUN-9d47676027bd4639",
+    "root_cause_candidates": [
+      {
+        "candidate_id": "CAUSE-ca0c80b00a68354f",
+        "description": "orders-service: Release 2.4.1 introduced failing order-state writes (OrderStateWriteError).",
+        "evidence_links": [
+          {
+            "evidence_id": "INC-ba74b9436c4b2309ac9b/r1-fe9785df0072570501ae90a1539cebe1e5e1642813a0646c6efeeef01e265ede/logs#P1",
+            "relation": "supports",
+            "reference_valid": true,
+            "relevance_status": "relevant",
+            "support_status": "supported"
+          },
+          {
+            "evidence_id": "INC-ba74b9436c4b2309ac9b/r1-fe9785df0072570501ae90a1539cebe1e5e1642813a0646c6efeeef01e265ede/logs#P2",
+            "relation": "supports",
+            "reference_valid": true,
+            "relevance_status": "relevant",
+            "support_status": "supported"
+          },
+          {
+            "evidence_id": "INC-ba74b9436c4b2309ac9b/r1-fe9785df0072570501ae90a1539cebe1e5e1642813a0646c6efeeef01e265ede/metrics#M1",
+            "relation": "supports",
+            "reference_valid": true,
+            "relevance_status": "relevant",
+            "support_status": "supported"
+          },
+          {
+            "evidence_id": "INC-ba74b9436c4b2309ac9b/r1-fe9785df0072570501ae90a1539cebe1e5e1642813a0646c6efeeef01e265ede/traces#T1",
+            "relation": "supports",
+            "reference_valid": true,
+            "relevance_status": "relevant",
+            "support_status": "supported"
+          }
+        ],
+        "uncertainty": null
+      }
+    ],
+    "leading_candidate_id": "CAUSE-ca0c80b00a68354f",
+    "missing_evidence": [],
+    "status": "completed",
+    "follow_up_requests": []
+  },
+  "recommendations": {
+    "incident_id": "INC-ba74b9436c4b2309ac9b",
+    "correlation_run_id": "RUN-9d47676027bd4639",
+    "recommendation_options": [
+      {
+        "recommendation_id": "REC-1fc2791b",
+        "action": "Roll orders-service back to release 2.4.0",
+        "action_type": "remediation",
+        "evidence_links": [
+          {
+            "evidence_id": "INC-ba74b9436c4b2309ac9b/r1-fe9785df0072570501ae90a1539cebe1e5e1642813a0646c6efeeef01e265ede/logs#P1",
+            "relation": "supports",
+            "reference_valid": true,
+            "relevance_status": "relevant",
+            "support_status": "supported"
+          },
+          {
+            "evidence_id": "INC-ba74b9436c4b2309ac9b/r1-fe9785df0072570501ae90a1539cebe1e5e1642813a0646c6efeeef01e265ede/logs#P2",
+            "relation": "supports",
+            "reference_valid": true,
+            "relevance_status": "relevant",
+            "support_status": "supported"
+          },
+          {
+            "evidence_id": "INC-ba74b9436c4b2309ac9b/r1-fe9785df0072570501ae90a1539cebe1e5e1642813a0646c6efeeef01e265ede/metrics#M1",
+            "relation": "supports",
+            "reference_valid": true,
+            "relevance_status": "relevant",
+            "support_status": "supported"
+          },
+          {
+            "evidence_id": "INC-ba74b9436c4b2309ac9b/r1-fe9785df0072570501ae90a1539cebe1e5e1642813a0646c6efeeef01e265ede/traces#T1",
+            "relation": "supports",
+            "reference_valid": true,
+            "relevance_status": "relevant",
+            "support_status": "supported"
+          }
+        ],
+        "risk_or_caveat": "Rolling back also removes any fixes shipped in 2.4.1.",
+        "validation": "supported",
+        "rationale": "Failures begin on 2.4.1 and are confined to orders-service."
+      },
+      {
+        "recommendation_id": "REC-917018f8",
+        "action": "Diff the 2.4.1 order-state write path against 2.4.0",
+        "action_type": "investigation",
+        "evidence_links": [
+          {
+            "evidence_id": "INC-ba74b9436c4b2309ac9b/r1-fe9785df0072570501ae90a1539cebe1e5e1642813a0646c6efeeef01e265ede/logs#P1",
+            "relation": "supports",
+            "reference_valid": true,
+            "relevance_status": "relevant",
+            "support_status": "supported"
+          }
+        ],
+        "risk_or_caveat": null,
+        "validation": "supported",
+        "rationale": "Locates the regression for a forward fix."
+      },
+      {
+        "recommendation_id": "REC-59906cf9",
+        "action": "Confirm order_persistence_failed returns to zero after the rollback",
+        "action_type": "verification",
+        "evidence_links": [
+          {
+            "evidence_id": "INC-ba74b9436c4b2309ac9b/r1-fe9785df0072570501ae90a1539cebe1e5e1642813a0646c6efeeef01e265ede/logs#P1",
+            "relation": "supports",
+            "reference_valid": true,
+            "relevance_status": "relevant",
+            "support_status": "supported"
+          }
+        ],
+        "risk_or_caveat": null,
+        "validation": "supported",
+        "rationale": "Shows the rollback removed the regression."
+      }
+    ],
+    "ranked_recommendation_ids": [
+      "REC-1fc2791b",
+      "REC-917018f8",
+      "REC-59906cf9"
+    ],
+    "top_recommendation_id": "REC-1fc2791b",
+    "status": "completed"
+  }
+}

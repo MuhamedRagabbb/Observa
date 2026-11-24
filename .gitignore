@@ -36,3 +36,8 @@ docs/superpowers/
 # Team reference documents and design exports stay local unless approved
 docs/project-reference/
 docs/design/
+
+# OBSERVA review service (F6/F7): local reviewer tokens and the SQLite database
+review_service/reviewers.json
+review_service/data/
+*.egg-info/

@@ -1,0 +1,66 @@
+{
+  "incident": {
+    "incident_id": "INC-6558d5b7036a44934e9e",
+    "title": "Observed payment symptoms in payments-service",
+    "alerts": [
+      "145cbaa27f2d469d3c89",
+      "45bc9975ca15de626cfc",
+      "630181566e955989cfd8",
+      "983c3dbbb004b61eae17"
+    ],
+    "start_time": "2026-11-23T14:31:15.066959Z",
+    "end_time": "2026-11-23T14:35:05.058730Z",
+    "affected_services": [
+      "payments-service",
+      "orders-service",
+      "api-gateway"
+    ],
+    "severity": "medium"
+  },
+  "alerts": [
+    {
+      "alert_id": "145cbaa27f2d469d3c89",
+      "signal_type": "metrics",
+      "service": "orders-service",
+      "severity": "medium",
+      "timestamp": "2026-11-23T14:31:55.064333Z",
+      "description": "HTTP 5xx ratio on orders-service exceeded 0.15 ratio (peak 0.223)",
+      "evidence_ids": [],
+      "first_seen": "2026-11-23T14:31:55.064333Z",
+      "last_seen": "2026-11-23T14:34:25.061511Z"
+    },
+    {
+      "alert_id": "45bc9975ca15de626cfc",
+      "signal_type": "metrics",
+      "service": "payments-service",
+      "severity": "medium",
+      "timestamp": "2026-11-23T14:31:45.064132Z",
+      "description": "Payment failure ratio including declines on payments-service exceeded 0.25 ratio (peak 0.907)",
+      "evidence_ids": [],
+      "first_seen": "2026-11-23T14:31:45.064132Z",
+      "last_seen": "2026-11-23T14:34:55.060434Z"
+    },
+    {
+      "alert_id": "630181566e955989cfd8",
+      "signal_type": "metrics",
+      "service": "api-gateway",
+      "severity": "medium",
+      "timestamp": "2026-11-23T14:32:15.064641Z",
+      "description": "Dependency 5xx or transport failure ratio on api-gateway exceeded 0.15 ratio (peak 0.181)",
+      "evidence_ids": [],
+      "first_seen": "2026-11-23T14:32:15.064641Z",
+      "last_seen": "2026-11-23T14:34:15.061315Z"
+    },
+    {
+      "alert_id": "983c3dbbb004b61eae17",
+      "signal_type": "metrics",
+      "service": "payments-service",
+      "severity": "medium",
+      "timestamp": "2026-11-23T14:31:45.064132Z",
+      "description": "HTTP 5xx ratio on payments-service exceeded 0.15 ratio (peak 0.892)",
+      "evidence_ids": [],
+      "first_seen": "2026-11-23T14:31:45.064132Z",
+      "last_seen": "2026-11-23T14:35:05.058730Z"
+    }
+  ]
+}

@@ -1,0 +1,61 @@
+{
+  "incident": {
+    "incident_id": "INC-f95e93197fa8419fd4de",
+    "title": "Observed database symptoms in orders-service",
+    "alerts": [
+      "0e8022612ae168c0c750",
+      "34f5b67f21f31ec6a792",
+      "8ac693c70d52aded0318",
+      "ab267b3af175afbc308e"
+    ],
+    "start_time": "2026-11-24T09:12:05Z",
+    "end_time": null,
+    "affected_services": [
+      "api-gateway",
+      "orders-service"
+    ],
+    "severity": "high"
+  },
+  "alerts": [
+    {
+      "alert_id": "0e8022612ae168c0c750",
+      "signal_type": "metrics",
+      "service": "api-gateway",
+      "severity": "medium",
+      "timestamp": "2026-11-24T09:13:00Z",
+      "description": "Dependency 5xx or transport failure ratio on api-gateway exceeded 0.15 ratio (peak 0.330)",
+      "evidence_ids": [],
+      "first_seen": "2026-11-24T09:13:00Z"
+    },
+    {
+      "alert_id": "34f5b67f21f31ec6a792",
+      "signal_type": "metrics",
+      "service": "orders-service",
+      "severity": "medium",
+      "timestamp": "2026-11-24T09:12:40Z",
+      "description": "HTTP 5xx ratio on orders-service exceeded 0.15 ratio (peak 0.410)",
+      "evidence_ids": [],
+      "first_seen": "2026-11-24T09:12:40Z"
+    },
+    {
+      "alert_id": "8ac693c70d52aded0318",
+      "signal_type": "metrics",
+      "service": "orders-service",
+      "severity": "high",
+      "timestamp": "2026-11-24T09:12:20Z",
+      "description": "Database pool utilization on orders-service exceeded 0.9 ratio (peak 1.000)",
+      "evidence_ids": [],
+      "first_seen": "2026-11-24T09:12:20Z"
+    },
+    {
+      "alert_id": "ab267b3af175afbc308e",
+      "signal_type": "metrics",
+      "service": "orders-service",
+      "severity": "high",
+      "timestamp": "2026-11-24T09:12:30Z",
+      "description": "Database acquire timeouts on orders-service exceeded 2 count_per_window (peak 14)",
+      "evidence_ids": [],
+      "first_seen": "2026-11-24T09:12:30Z"
+    }
+  ]
+}

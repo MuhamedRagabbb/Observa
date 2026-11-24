@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "observa-review-service"
+version = "0.1.0"
+description = "OBSERVA F6/F7 composition root: API, review UI, workers and database migrations"
+requires-python = ">=3.12"
+dependencies = [
+    "observa-reports==0.1.0",
+    "observa-hitl==0.1.0",
+    "SQLAlchemy==2.1.9",
+    "alembic==1.20.1",
+    "pydantic==2.14.4",
+    "pydantic-settings==2.16.3",
+]
+
+[project.optional-dependencies]
+test = ["pytest==9.2.0"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["observa_review_service*"]
+
+[tool.setuptools.package-data]
+observa_review_service = ["migrations/*.py", "migrations/versions/*.py", "migrations/script.py.mako"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

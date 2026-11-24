@@ -1,0 +1,50 @@
+{
+  "incident_id": "INC-6558d5b7036a44934e9e",
+  "run_id": "RUN-83749c92bf2f8531",
+  "root_cause_candidates": [
+    {
+      "candidate_id": "CAUSE-63bb26a1db2af1da",
+      "description": "payments-service: Payments-service returned HTTP 503 for POST /payments/charge.",
+      "evidence_links": [
+        {
+          "evidence_id": "INC-6558d5b7036a44934e9e/r1-86bc3f518d9d66dfa96f466c9832cd2ebf260f3062dccb055af2cefe36ab9f80/logs#P1",
+          "relation": "supports",
+          "reference_valid": true,
+          "relevance_status": "relevant",
+          "support_status": "supported"
+        }
+      ],
+      "uncertainty": "Only log evidence supports this; no second signal type confirms it."
+    }
+  ],
+  "leading_candidate_id": null,
+  "missing_evidence": [
+    {
+      "required": "Failed call path from api-gateway to payments-service",
+      "requested_from": "traces",
+      "reason": "No retained trace links the gateway errors to payments-service.",
+      "status": "unavailable"
+    }
+  ],
+  "status": "inconclusive",
+  "follow_up_requests": [
+    {
+      "request_id": "REQ-3c7799f5604b9521",
+      "incident_id": "INC-6558d5b7036a44934e9e",
+      "origin": "correlation",
+      "target_agents": [
+        "traces"
+      ],
+      "objectives": [
+        "Failed call path from api-gateway to payments-service"
+      ],
+      "evidence_needed": [
+        "Failed call path from api-gateway to payments-service"
+      ],
+      "signal_objectives": {},
+      "source_run_id": "RUN-2ccc9df9",
+      "review_cycle_id": null,
+      "status": "rejected"
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "incident_id": "INC-6558d5b7036a44934e9e",
+  "run_id": "RUN-d953f640e4806c7e",
+  "root_cause_candidates": [],
+  "leading_candidate_id": null,
+  "missing_evidence": [],
+  "status": "failed",
+  "follow_up_requests": [],
+  "error": {
+    "code": "INVESTIGATION_FAILED",
+    "message": "Groq openai/gpt-oss-120b: RateLimitError (HTTP 429)",
+    "retryable": true,
+    "operation_id": "RUN-d953f640e4806c7e",
+    "details": {
+      "error_type": "RateLimitError",
+      "status_code": 429
+    }
+  }
+}

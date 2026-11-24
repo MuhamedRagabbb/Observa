@@ -1,0 +1,312 @@
+{
+  "incident": {
+    "incident_id": "INC-f95e93197fa8419fd4de",
+    "title": "Observed database symptoms in orders-service",
+    "alerts": [
+      "0e8022612ae168c0c750",
+      "34f5b67f21f31ec6a792",
+      "8ac693c70d52aded0318",
+      "ab267b3af175afbc308e"
+    ],
+    "start_time": "2026-11-24T09:12:05Z",
+    "end_time": null,
+    "affected_services": [
+      "api-gateway",
+      "orders-service"
+    ],
+    "severity": "high"
+  },
+  "alerts": [
+    {
+      "alert_id": "0e8022612ae168c0c750",
+      "signal_type": "metrics",
+      "service": "api-gateway",
+      "severity": "medium",
+      "timestamp": "2026-11-24T09:13:00Z",
+      "description": "Dependency 5xx or transport failure ratio on api-gateway exceeded 0.15 ratio (peak 0.330)",
+      "evidence_ids": [],
+      "first_seen": "2026-11-24T09:13:00Z"
+    },
+    {
+      "alert_id": "34f5b67f21f31ec6a792",
+      "signal_type": "metrics",
+      "service": "orders-service",
+      "severity": "medium",
+      "timestamp": "2026-11-24T09:12:40Z",
+      "description": "HTTP 5xx ratio on orders-service exceeded 0.15 ratio (peak 0.410)",
+      "evidence_ids": [],
+      "first_seen": "2026-11-24T09:12:40Z"
+    },
+    {
+      "alert_id": "8ac693c70d52aded0318",
+      "signal_type": "metrics",
+      "service": "orders-service",
+      "severity": "high",
+      "timestamp": "2026-11-24T09:12:20Z",
+      "description": "Database pool utilization on orders-service exceeded 0.9 ratio (peak 1.000)",
+      "evidence_ids": [],
+      "first_seen": "2026-11-24T09:12:20Z"
+    },
+    {
+      "alert_id": "ab267b3af175afbc308e",
+      "signal_type": "metrics",
+      "service": "orders-service",
+      "severity": "high",
+      "timestamp": "2026-11-24T09:12:30Z",
+      "description": "Database acquire timeouts on orders-service exceeded 2 count_per_window (peak 14)",
+      "evidence_ids": [],
+      "first_seen": "2026-11-24T09:12:30Z"
+    }
+  ],
+  "investigation": {
+    "incident_id": "INC-f95e93197fa8419fd4de",
+    "run_id": "RUN-8f2fd11a",
+    "logs_output": {
+      "answers": [],
+      "findings": [
+        {
+          "indicator": "db_pool_timeout",
+          "finding_id": "INC-f95e93197fa8419fd4de:logs:F1",
+          "signal_type": "logs",
+          "service": "orders-service",
+          "claim": "orders-service logged 42 'db_pool_timeout' failure records (PoolTimeoutError) over 60 s in the retained sample",
+          "claim_kind": "observation",
+          "evidence_links": [
+            {
+              "evidence_id": "INC-f95e93197fa8419fd4de/r1-921dab1f6e7aaf06dd7a27b32d3bda0d6b3225c9ead6bc0d7cae0bfc7c311ea0/logs#P1",
+              "relation": "supports",
+              "reference_valid": true,
+              "relevance_status": "relevant",
+              "support_status": "supported"
+            }
+          ],
+          "execution_status": "completed",
+          "uncertainty": null
+        },
+        {
+          "indicator": null,
+          "finding_id": "INC-f95e93197fa8419fd4de:logs:F2",
+          "signal_type": "logs",
+          "service": "orders-service",
+          "claim": "Connection acquisitions waited for the full timeout while every connection was busy.",
+          "claim_kind": "inference",
+          "evidence_links": [
+            {
+              "evidence_id": "INC-f95e93197fa8419fd4de/r1-921dab1f6e7aaf06dd7a27b32d3bda0d6b3225c9ead6bc0d7cae0bfc7c311ea0/logs#P1",
+              "relation": "supports",
+              "reference_valid": true,
+              "relevance_status": "relevant",
+              "support_status": "unverified"
+            }
+          ],
+          "execution_status": "completed",
+          "uncertainty": "confidence: medium"
+        }
+      ],
+      "status": "completed"
+    },
+    "metrics_output": {
+      "answers": [],
+      "findings": [
+        {
+          "indicator": "pool_pressure",
+          "finding_id": "INC-f95e93197fa8419fd4de:metrics:F1",
+          "signal_type": "metrics",
+          "service": "orders-service",
+          "claim": "orders-service breached pool_pressure (database) with trigger value 1.0 vs threshold 0.9 ratio, trend: worsening",
+          "claim_kind": "observation",
+          "evidence_links": [
+            {
+              "evidence_id": "INC-f95e93197fa8419fd4de/r1-921dab1f6e7aaf06dd7a27b32d3bda0d6b3225c9ead6bc0d7cae0bfc7c311ea0/metrics#M1",
+              "relation": "supports",
+              "reference_valid": true,
+              "relevance_status": "relevant",
+              "support_status": "supported"
+            }
+          ],
+          "execution_status": "completed",
+          "uncertainty": null
+        },
+        {
+          "indicator": "pool_timeouts",
+          "finding_id": "INC-f95e93197fa8419fd4de:metrics:F2",
+          "signal_type": "metrics",
+          "service": "orders-service",
+          "claim": "orders-service breached pool_timeouts (database) with trigger value 14 vs threshold 2 count_per_window, trend: worsening",
+          "claim_kind": "observation",
+          "evidence_links": [
+            {
+              "evidence_id": "INC-f95e93197fa8419fd4de/r1-921dab1f6e7aaf06dd7a27b32d3bda0d6b3225c9ead6bc0d7cae0bfc7c311ea0/metrics#M2",
+              "relation": "supports",
+              "reference_valid": true,
+              "relevance_status": "relevant",
+              "support_status": "supported"
+            }
+          ],
+          "execution_status": "completed",
+          "uncertainty": null
+        }
+      ],
+      "status": "completed"
+    },
+    "traces_output": {
+      "answers": [],
+      "findings": [
+        {
+          "indicator": "db.acquire",
+          "finding_id": "INC-f95e93197fa8419fd4de:traces:F1",
+          "signal_type": "traces",
+          "service": "orders-service",
+          "claim": "orders-service observed 9 'failed_span' events for 'db.acquire', p95 5000 ms (deepest failure origin) in the retained traces",
+          "claim_kind": "observation",
+          "evidence_links": [
+            {
+              "evidence_id": "INC-f95e93197fa8419fd4de/r1-921dab1f6e7aaf06dd7a27b32d3bda0d6b3225c9ead6bc0d7cae0bfc7c311ea0/traces#T1",
+              "relation": "supports",
+              "reference_valid": true,
+              "relevance_status": "relevant",
+              "support_status": "supported"
+            }
+          ],
+          "execution_status": "completed",
+          "uncertainty": null
+        }
+      ],
+      "status": "completed"
+    },
+    "missing_evidence": [],
+    "status": "completed",
+    "investigation_plan_id": "PLAN-056f15b4",
+    "parent_run_id": null
+  },
+  "correlation": {
+    "incident_id": "INC-f95e93197fa8419fd4de",
+    "run_id": "RUN-1709e645ee275472",
+    "root_cause_candidates": [
+      {
+        "candidate_id": "CAUSE-6d067e86c643fc32",
+        "description": "orders-service: The database connection pool reached capacity and connection acquisitions timed out.",
+        "evidence_links": [
+          {
+            "evidence_id": "INC-f95e93197fa8419fd4de/r1-921dab1f6e7aaf06dd7a27b32d3bda0d6b3225c9ead6bc0d7cae0bfc7c311ea0/logs#P1",
+            "relation": "supports",
+            "reference_valid": true,
+            "relevance_status": "relevant",
+            "support_status": "supported"
+          },
+          {
+            "evidence_id": "INC-f95e93197fa8419fd4de/r1-921dab1f6e7aaf06dd7a27b32d3bda0d6b3225c9ead6bc0d7cae0bfc7c311ea0/metrics#M1",
+            "relation": "supports",
+            "reference_valid": true,
+            "relevance_status": "relevant",
+            "support_status": "supported"
+          },
+          {
+            "evidence_id": "INC-f95e93197fa8419fd4de/r1-921dab1f6e7aaf06dd7a27b32d3bda0d6b3225c9ead6bc0d7cae0bfc7c311ea0/metrics#M2",
+            "relation": "supports",
+            "reference_valid": true,
+            "relevance_status": "relevant",
+            "support_status": "supported"
+          },
+          {
+            "evidence_id": "INC-f95e93197fa8419fd4de/r1-921dab1f6e7aaf06dd7a27b32d3bda0d6b3225c9ead6bc0d7cae0bfc7c311ea0/traces#T1",
+            "relation": "supports",
+            "reference_valid": true,
+            "relevance_status": "relevant",
+            "support_status": "supported"
+          }
+        ],
+        "uncertainty": null
+      }
+    ],
+    "leading_candidate_id": "CAUSE-6d067e86c643fc32",
+    "missing_evidence": [],
+    "status": "completed",
+    "follow_up_requests": []
+  },
+  "recommendations": {
+    "incident_id": "INC-f95e93197fa8419fd4de",
+    "correlation_run_id": "RUN-1709e645ee275472",
+    "recommendation_options": [
+      {
+        "recommendation_id": "REC-3cbf61ff",
+        "action": "Raise the orders-service pool maximum from 10 to 20 connections and restart",
+        "action_type": "remediation",
+        "evidence_links": [
+          {
+            "evidence_id": "INC-f95e93197fa8419fd4de/r1-921dab1f6e7aaf06dd7a27b32d3bda0d6b3225c9ead6bc0d7cae0bfc7c311ea0/logs#P1",
+            "relation": "supports",
+            "reference_valid": true,
+            "relevance_status": "relevant",
+            "support_status": "supported"
+          },
+          {
+            "evidence_id": "INC-f95e93197fa8419fd4de/r1-921dab1f6e7aaf06dd7a27b32d3bda0d6b3225c9ead6bc0d7cae0bfc7c311ea0/metrics#M1",
+            "relation": "supports",
+            "reference_valid": true,
+            "relevance_status": "relevant",
+            "support_status": "supported"
+          },
+          {
+            "evidence_id": "INC-f95e93197fa8419fd4de/r1-921dab1f6e7aaf06dd7a27b32d3bda0d6b3225c9ead6bc0d7cae0bfc7c311ea0/metrics#M2",
+            "relation": "supports",
+            "reference_valid": true,
+            "relevance_status": "relevant",
+            "support_status": "supported"
+          },
+          {
+            "evidence_id": "INC-f95e93197fa8419fd4de/r1-921dab1f6e7aaf06dd7a27b32d3bda0d6b3225c9ead6bc0d7cae0bfc7c311ea0/traces#T1",
+            "relation": "supports",
+            "reference_valid": true,
+            "relevance_status": "relevant",
+            "support_status": "supported"
+          }
+        ],
+        "risk_or_caveat": "Check PostgreSQL max_connections headroom before raising the pool size.",
+        "validation": "conditional",
+        "rationale": "Occupancy reached 100% while acquisitions timed out."
+      },
+      {
+        "recommendation_id": "REC-edc33e9c",
+        "action": "Identify long-held connections in pg_stat_activity for the incident window",
+        "action_type": "investigation",
+        "evidence_links": [
+          {
+            "evidence_id": "INC-f95e93197fa8419fd4de/r1-921dab1f6e7aaf06dd7a27b32d3bda0d6b3225c9ead6bc0d7cae0bfc7c311ea0/logs#P1",
+            "relation": "supports",
+            "reference_valid": true,
+            "relevance_status": "relevant",
+            "support_status": "supported"
+          }
+        ],
+        "risk_or_caveat": null,
+        "validation": "supported",
+        "rationale": "Saturation may come from slow queries rather than load."
+      },
+      {
+        "recommendation_id": "REC-3905895e",
+        "action": "Confirm pool occupancy stays below 70% for 15 minutes after the change",
+        "action_type": "verification",
+        "evidence_links": [
+          {
+            "evidence_id": "INC-f95e93197fa8419fd4de/r1-921dab1f6e7aaf06dd7a27b32d3bda0d6b3225c9ead6bc0d7cae0bfc7c311ea0/logs#P1",
+            "relation": "supports",
+            "reference_valid": true,
+            "relevance_status": "relevant",
+            "support_status": "supported"
+          }
+        ],
+        "risk_or_caveat": null,
+        "validation": "supported",
+        "rationale": "Shows whether the remediation removed the pressure."
+      }
+    ],
+    "ranked_recommendation_ids": [
+      "REC-3cbf61ff",
+      "REC-edc33e9c",
+      "REC-3905895e"
+    ],
+    "top_recommendation_id": "REC-3cbf61ff",
+    "status": "completed"
+  }
+}
