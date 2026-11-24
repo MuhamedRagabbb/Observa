@@ -1,0 +1,38 @@
+{% from "_macros.html.j2" import card, signal_badge %}
+{% call card("Evidence register", "evidence-register") %}
+{% set ref_styles = {
+  "valid": ("Resolved", "text-emerald-300"),
+  "invalid": ("⚠ Invalid", "text-rose-300"),
+  "unresolved": ("⚠ Unresolved", "text-amber-300"),
+} %}
+<div class="-mx-5 overflow-x-auto">
+  <table class="w-full table-fixed text-left text-sm">
+    <colgroup><col class="w-36"><col class="w-24"><col class="w-36"><col class="w-28"><col></colgroup>
+    <thead class="border-b border-slate-800 text-[11px] uppercase tracking-wider text-slate-500">
+      <tr>
+        <th class="px-5 py-2 font-medium">Evidence</th>
+        <th class="px-3 py-2 font-medium">Signal</th>
+        <th class="px-3 py-2 font-medium">Services</th>
+        <th class="px-3 py-2 font-medium">Reference</th>
+        <th class="px-5 py-2 font-medium">Cited as</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-slate-800/70">
+      {% for e in content.evidence_register %}
+      {% set label, cls = ref_styles[e.reference_status] %}
+      <tr class="align-top">
+        <td class="px-5 py-2 font-mono text-[11px] text-slate-300" title="{{ e.evidence_id }}">{{ e.evidence_id.split("/")[-1] }}<span class="block text-slate-600">{{ (e.snapshot_id or "")[:14] }}</span></td>
+        <td class="px-3 py-2">{{ signal_badge(e.signal_type) }}</td>
+        <td class="px-3 py-2 text-xs text-slate-400">{{ e.services | join(", ") or "—" }}</td>
+        <td class="px-3 py-2 text-xs font-medium {{ cls }}">{{ label }}</td>
+        <td class="px-5 py-2 text-xs text-slate-400">
+          <div class="flex flex-wrap gap-x-3 gap-y-1">
+          {% for a in e.assessments %}<span>{{ a.claim_type | replace("_", " ") }} · <span class="{{ 'text-rose-300' if a.relation == 'contradicts' else 'text-slate-300' }}">{{ a.relation | replace("_", " ") }}</span>/{{ a.support_status }}</span>{% endfor %}
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endcall %}

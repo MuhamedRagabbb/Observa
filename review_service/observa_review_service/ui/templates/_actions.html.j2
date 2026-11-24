@@ -1,0 +1,51 @@
+{# Review action bar: only for the current, open version. F6 (Phase 4) wires the POST target. #}
+{% set n = this.version %}
+<div data-testid="action-bar" class="sticky bottom-4 z-20 mt-8 rounded-xl border border-slate-700 bg-slate-900/95 p-4 shadow-2xl shadow-black/40 backdrop-blur">
+  <form method="post" action="/ui/reports/{{ this.report_id }}/v/{{ n }}/decide" class="flex flex-col gap-4">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <p class="text-sm font-medium text-slate-100">Review v{{ n }}</p>
+        <p class="text-xs text-slate-400">Approve exactly this version, or request changes with written feedback.</p>
+      </div>
+      <div class="flex gap-3">
+        <button data-testid="request-changes-button" type="button" id="request-changes-toggle"
+                class="inline-flex items-center gap-2 rounded-lg border border-amber-500 px-4 py-2 text-sm font-semibold text-amber-300 transition hover:bg-amber-500/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
+                {% if not actions_available %}disabled aria-disabled="true"{% endif %}>
+          <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M2.695 14.763l-1.262 3.154a.5.5 0 00.65.65l3.155-1.262a4 4 0 001.343-.885L17.5 5.5a2.121 2.121 0 00-3-3L3.58 13.42a4 4 0 00-.885 1.343z"/></svg>
+          Request changes
+        </button>
+        <button data-testid="approve-button" type="submit" name="decision" value="approve"
+                onclick="return confirm('Approve version {{ n }} of this report? This records your decision for exactly this version.')"
+                class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-emerald-900/40 transition hover:bg-emerald-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+                {% if not actions_available %}disabled aria-disabled="true"{% endif %}>
+          <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"/></svg>
+          Approve v{{ n }}
+        </button>
+      </div>
+    </div>
+    <div id="request-changes-panel" class="hidden flex-col gap-3 border-t border-slate-800 pt-4">
+      <label for="feedback" class="text-xs font-medium text-slate-300">What should change? Your feedback is kept verbatim and is never treated as evidence.</label>
+      <textarea id="feedback" name="feedback" rows="3" required
+                class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                placeholder="e.g. Check the payment provider before blaming payments-service."></textarea>
+      <div class="flex justify-end">
+        <button id="send-changes" type="submit" name="decision" value="request_changes" disabled
+                class="rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-40">Send change request</button>
+      </div>
+    </div>
+    {% if not actions_available %}
+    <p class="text-xs text-slate-500">Review actions are enabled when F6 is installed (Phase 4): <code class="font-mono">pip install -e ./review_service[f6]</code>.</p>
+    {% endif %}
+  </form>
+</div>
+<script>
+  (function () {
+    const toggle = document.getElementById("request-changes-toggle");
+    const panel = document.getElementById("request-changes-panel");
+    const feedback = document.getElementById("feedback");
+    const send = document.getElementById("send-changes");
+    if (!toggle || !panel) return;
+    toggle.addEventListener("click", () => { panel.classList.toggle("hidden"); panel.classList.toggle("flex"); feedback.focus(); });
+    feedback.addEventListener("input", () => { send.disabled = feedback.value.trim().length === 0; });
+  })();
+</script>

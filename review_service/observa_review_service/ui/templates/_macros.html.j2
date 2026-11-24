@@ -1,0 +1,52 @@
+{# Shared visual vocabulary: review-status pills, signal badges and claim-to-evidence chips. #}
+
+{% macro status_pill(status, testid="status-pill") %}
+{% set styles = {
+  "pending_review": ("Pending review", "bg-amber-500/10 text-amber-300 ring-amber-500/30"),
+  "approved": ("Approved", "bg-emerald-500/10 text-emerald-300 ring-emerald-500/30"),
+  "changes_requested": ("Changes requested", "bg-orange-500/10 text-orange-300 ring-orange-500/30"),
+  "failed": ("Failed", "bg-rose-500/10 text-rose-300 ring-rose-500/30"),
+} %}
+{% set label, cls = styles.get(status, (status, "bg-slate-500/10 text-slate-300 ring-slate-500/30")) %}
+<span data-testid="{{ testid }}" class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset {{ cls }}"><span class="h-1.5 w-1.5 rounded-full bg-current"></span>{{ label }}</span>
+{% endmacro %}
+
+{% macro signal_badge(signal) %}
+{% set styles = {
+  "logs": "bg-sky-500/10 text-sky-300 ring-sky-500/30",
+  "metrics": "bg-violet-500/10 text-violet-300 ring-violet-500/30",
+  "traces": "bg-teal-500/10 text-teal-300 ring-teal-500/30",
+} %}
+<span data-signal="{{ signal }}" class="inline-flex items-center rounded-md px-2 py-0.5 font-mono text-[11px] font-medium uppercase tracking-wider ring-1 ring-inset {{ styles.get(signal, 'bg-slate-500/10 text-slate-300 ring-slate-500/30') }}">{{ signal or "unknown" }}</span>
+{% endmacro %}
+
+{% macro claim_kind(kind) %}
+{% if kind == "observation" %}
+<span class="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-300 ring-1 ring-inset ring-emerald-500/30">Observed</span>
+{% else %}
+<span class="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-violet-300 ring-1 ring-inset ring-violet-500/30">Inferred</span>
+{% endif %}
+{% endmacro %}
+
+{% macro evidence_chip(link) %}
+{% set ref = "valid" if link.reference_valid is sameas true else ("invalid" if link.reference_valid is sameas false else "unresolved") %}
+{% if ref != "valid" %}
+{% set cls = "border border-dashed border-amber-500 bg-amber-500/5 text-amber-300" %}
+{% elif link.relation == "supports" %}
+{% set cls = "bg-emerald-600 text-emerald-50" %}
+{% elif link.relation == "contradicts" %}
+{% set cls = "bg-rose-600 text-rose-50" %}
+{% elif link.relation == "context_only" %}
+{% set cls = "border border-slate-600 text-slate-300" %}
+{% else %}
+{% set cls = "border border-slate-700 text-slate-400" %}
+{% endif %}
+<span data-relation="{{ link.relation }}" data-reference="{{ ref }}" title="{{ link.evidence_id }} · {{ link.relation }} · {{ link.support_status }} · reference {{ ref }}" class="inline-flex max-w-full items-center gap-1 truncate rounded-md px-2 py-0.5 font-mono text-[11px] {{ cls }}">{% if ref != "valid" %}⚠ {% endif %}{{ link.evidence_id.split("/")[-1] }}<span class="opacity-75">· {{ link.relation | replace("_", " ") }}</span></span>
+{% endmacro %}
+
+{% macro card(title, testid=None) %}
+<section {% if testid %}data-testid="{{ testid }}" {% endif %}class="rounded-xl border border-slate-800 bg-slate-900 p-5 shadow-sm shadow-black/20">
+  <h2 class="mb-4 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">{{ title }}</h2>
+  {{ caller() }}
+</section>
+{% endmacro %}

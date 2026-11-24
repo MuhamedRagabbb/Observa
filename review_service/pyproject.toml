@@ -9,22 +9,28 @@ description = "OBSERVA F6/F7 composition root: API, review UI, workers and datab
 requires-python = ">=3.12"
 dependencies = [
     "observa-reports==0.1.0",
-    "observa-hitl==0.1.0",
     "SQLAlchemy==2.1.9",
     "alembic==1.20.1",
     "pydantic==2.14.4",
     "pydantic-settings==2.16.3",
+    "fastapi==0.165.0",
+    "uvicorn==0.54.0",
+    "Jinja2==3.1.6",
+    "markdown-it-py==4.3.0",
 ]
 
 [project.optional-dependencies]
-test = ["pytest==9.2.0"]
+# F6 (review gate, outbox, feedback) is optional so the F7 read side installs and runs alone.
+f6 = ["observa-hitl==0.1.0"]
+test = ["pytest==9.2.0", "httpx==0.28.1"]
 
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["observa_review_service*"]
 
 [tool.setuptools.package-data]
-observa_review_service = ["migrations/*.py", "migrations/versions/*.py", "migrations/script.py.mako"]
+observa_review_service = ["migrations/*.py", "migrations/versions/*.py", "migrations/script.py.mako",
+                          "ui/templates/*.j2"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

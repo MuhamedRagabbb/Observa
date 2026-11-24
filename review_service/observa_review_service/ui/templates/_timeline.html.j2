@@ -1,0 +1,23 @@
+{% from "_macros.html.j2" import card %}
+{% call card("Timeline · UTC", "timeline") %}
+<ol class="relative space-y-4 border-l border-slate-800 pl-5">
+  {% for e in content.timeline.events %}
+  {% set dot = {"incident_started": "bg-sky-400", "alert_raised": "bg-amber-400", "alert_last_seen": "bg-slate-500", "incident_ended": "bg-emerald-400"}[e.kind] %}
+  <li class="relative">
+    <span class="absolute -left-[1.6rem] top-1.5 h-2.5 w-2.5 rounded-full ring-4 ring-slate-900 {{ dot }}"></span>
+    <time data-testid="timeline-time" class="block font-mono text-[11px] text-slate-500">{{ e.at | ts }}</time>
+    <p class="text-sm text-slate-300">{{ e.description }}</p>
+  </li>
+  {% endfor %}
+</ol>
+{% if content.timeline.untimed %}
+<div class="mt-5 border-t border-slate-800 pt-4">
+  <p class="mb-2 text-xs font-medium text-slate-400">Known events without a recorded time</p>
+  <ul class="space-y-1">
+    {% for e in content.timeline.untimed %}
+    <li class="text-sm text-slate-400"><span class="font-mono text-xs text-slate-500">{{ e.ref }}</span> · {{ e.description }}</li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+{% endcall %}
