@@ -1,0 +1,9 @@
+{% extends "base.html.j2" %}
+{% block title %}Not available · OBSERVA{% endblock %}
+{% block content %}
+<div class="mx-auto max-w-xl rounded-xl border border-slate-800 bg-slate-900 p-8 text-center">
+  <p class="font-mono text-xs uppercase tracking-widest text-rose-300">{{ envelope.code }}</p>
+  <h1 class="mt-3 text-lg font-semibold text-slate-100">{{ envelope.message }}</h1>
+  <a href="/ui" class="mt-6 inline-flex rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300 transition hover:border-slate-500 hover:text-white">Back to reports</a>
+</div>
+{% endblock %}

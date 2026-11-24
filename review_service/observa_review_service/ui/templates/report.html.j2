@@ -1,0 +1,183 @@
+{% extends "base.html.j2" %}
+{% from "_macros.html.j2" import status_pill, signal_badge, claim_kind, evidence_chip, card %}
+{% block title %}{{ content.overview.incident_id }} · v{{ this.version }} · OBSERVA{% endblock %}
+{% block content %}
+{% set o = content.overview %}
+
+{# ---- Header -------------------------------------------------------------- #}
+<div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+  <div class="min-w-0">
+    <div class="flex flex-wrap items-center gap-2 text-xs">
+      <span class="font-mono text-slate-500">{{ o.incident_id }}</span>
+      <span class="text-slate-700">/</span>
+      <span class="font-mono text-slate-500">{{ this.report_id }}</span>
+    </div>
+    <h1 class="mt-2 text-2xl font-semibold tracking-tight text-slate-50">{{ o.title }}</h1>
+    <div class="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-400">
+      <span>{{ o.start_time | ts }} → {% if o.end_time %}{{ o.end_time | ts }}{% else %}<span class="text-amber-300">ongoing</span>{% endif %}</span>
+      {% if o.severity %}<span class="rounded-md bg-slate-800 px-2 py-0.5 text-slate-300">severity {{ o.severity }}</span>{% endif %}
+      {% for s in o.affected_services %}<span class="rounded-md border border-slate-700 px-2 py-0.5 font-mono text-slate-300">{{ s }}</span>{% endfor %}
+    </div>
+  </div>
+  <div class="flex shrink-0 items-center gap-3">
+    <span data-testid="version-label" class="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 font-mono text-sm font-semibold text-slate-100">v{{ this.version }}</span>
+    {{ status_pill(this.review_status) }}
+  </div>
+</div>
+
+<div data-testid="draft-banner" class="mb-6 flex items-start gap-3 rounded-xl border border-amber-500/20 bg-amber-500/[0.06] px-4 py-3 text-sm text-amber-200/90">
+  <svg class="mt-0.5 h-4 w-4 shrink-0 text-amber-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 6a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 6zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
+  <span>{{ content.draft_notice }}</span>
+</div>
+{% if not is_current %}
+<div class="mb-6 rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-slate-300">
+  This version was superseded by v{{ current_version }}. It is kept unchanged for comparison.
+  <a href="/ui/reports/{{ this.report_id }}" class="ml-1 font-medium text-sky-300 hover:text-sky-200">Open v{{ current_version }} →</a>
+</div>
+{% endif %}
+
+<div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+  <div class="min-w-0 space-y-6">
+
+    {% call card("Executive summary") %}
+    <div class="prose prose-invert prose-sm max-w-none prose-p:text-slate-300">{{ content.executive_summary | md }}</div>
+    {% endcall %}
+
+    {# ---- Root cause ------------------------------------------------------ #}
+    {% set rc = content.root_cause %}
+    {% call card("Root-cause assessment", "root-cause") %}
+    {% if rc.status == "leading" %}
+    <div class="rounded-lg border border-slate-700 bg-slate-950/60 p-4">
+      <div class="mb-2 flex flex-wrap items-center gap-2">
+        <span class="rounded-md bg-sky-500/10 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-sky-300 ring-1 ring-inset ring-sky-500/30">Probable cause</span>
+        <span class="text-[11px] text-slate-500">not verified by a human · {{ rc.leading.candidate_id }}</span>
+      </div>
+      <div class="prose prose-invert prose-sm max-w-none text-slate-200">{{ rc.leading.description | md }}</div>
+      {% if rc.leading.uncertainty %}<p class="mt-2 text-xs text-amber-300/90">Uncertainty: {{ rc.leading.uncertainty }}</p>{% endif %}
+      <div class="mt-3 flex flex-wrap gap-1.5">{% for l in rc.leading.evidence_links %}{{ evidence_chip(l) }}{% endfor %}</div>
+    </div>
+    {% elif rc.status == "inconclusive" %}
+    <div data-testid="inconclusive-banner" class="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
+      <p class="font-semibold text-amber-300">Inconclusive: no leading cause</p>
+      <p class="mt-1 text-amber-200/80">Correlation did not establish a cause. Nothing below should be read as a diagnosis.</p>
+    </div>
+    {% else %}
+    <div class="rounded-lg border border-slate-700 bg-slate-950/60 p-4 text-sm text-slate-300">No root-cause assessment is available. See Limitations.</div>
+    {% endif %}
+    {% for alt in rc.alternatives %}
+    <div class="mt-3 rounded-lg border border-slate-800 p-4">
+      <div class="mb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Alternative hypothesis · {{ alt.candidate_id }}</div>
+      <div class="prose prose-invert prose-sm max-w-none text-slate-300">{{ alt.description | md }}</div>
+      {% if alt.uncertainty %}<p class="mt-1 text-xs text-amber-300/90">Uncertainty: {{ alt.uncertainty }}</p>{% endif %}
+      <div class="mt-2 flex flex-wrap gap-1.5">{% for l in alt.evidence_links %}{{ evidence_chip(l) }}{% endfor %}</div>
+    </div>
+    {% endfor %}
+    {% endcall %}
+
+    {# ---- Findings by signal ---------------------------------------------- #}
+    {% call card("Multi-signal findings", "findings") %}
+    <div class="space-y-5">
+      {% for signal in ["logs", "metrics", "traces"] %}
+      {% set section = content.findings[signal] %}
+      <div>
+        <div class="mb-2 flex items-center gap-2">{{ signal_badge(signal) }}<span class="text-xs text-slate-500">status {{ section.status }} · {{ section.findings | length }} finding{{ "" if section.findings | length == 1 else "s" }}</span></div>
+        {% if not section.findings %}
+        <p class="text-sm text-slate-500">{{ "No findings were supplied by F2." if section.status == "unavailable" else "No findings." }}</p>
+        {% endif %}
+        <ul class="space-y-2">
+          {% for f in section.findings %}
+          <li class="rounded-lg border border-slate-800 bg-slate-950/40 p-3">
+            <div class="mb-1 flex flex-wrap items-center gap-2">{{ claim_kind(f.claim_kind) }}<span class="font-mono text-[11px] text-slate-500">{{ f.service }}</span></div>
+            <div class="prose prose-invert prose-sm max-w-none text-slate-300">{{ f.claim | md }}</div>
+            {% if f.uncertainty %}<p class="mt-1 text-xs text-slate-500">Uncertainty: {{ f.uncertainty }}</p>{% endif %}
+            <div class="mt-2 flex flex-wrap gap-1.5">{% for l in f.evidence_links %}{{ evidence_chip(l) }}{% endfor %}</div>
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endfor %}
+    </div>
+    {% endcall %}
+
+    {# ---- Recommendations ------------------------------------------------- #}
+    {% set recs = content.recommendations %}
+    {% call card("Recommendations", "recommendations") %}
+    {% if recs.status == "unavailable" %}
+    <p class="text-sm text-slate-400">Recommendations are unavailable for this version.</p>
+    {% elif recs.status == "no_validated_remediation" %}
+    <p class="mb-3 rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-sm text-slate-300">No validated remediation is proposed.</p>
+    {% endif %}
+    <ol class="space-y-3">
+      {% for r in recs.ranked + recs.other_options %}
+      {% set v = {"supported": "text-emerald-300 ring-emerald-500/30", "conditional": "text-amber-300 ring-amber-500/30", "unsupported": "text-rose-300 ring-rose-500/30"}[r.validation] %}
+      <li class="flex gap-3 rounded-lg border border-slate-800 bg-slate-950/40 p-3">
+        <span class="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-slate-800 font-mono text-xs text-slate-300">{{ r.rank or "·" }}</span>
+        <div class="min-w-0">
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-sm font-medium text-slate-100">{{ r.action }}</span>
+            <span class="rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400 ring-1 ring-inset ring-slate-700">{{ r.action_type }}</span>
+            <span class="rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ring-1 ring-inset {{ v }}">{{ r.validation }}</span>
+          </div>
+          <p class="mt-1 text-sm text-slate-400">{{ r.rationale }}</p>
+          {% if r.risk_or_caveat %}<p class="mt-1 text-xs text-amber-300/90">Caveat: {{ r.risk_or_caveat }}</p>{% endif %}
+        </div>
+      </li>
+      {% endfor %}
+    </ol>
+    {% endcall %}
+
+    {% include "_evidence.html.j2" %}
+
+    {% call card("Missing evidence & limitations", "gaps") %}
+    {% if not content.missing_evidence and not content.limitations %}
+    <p class="text-sm text-slate-500">None reported.</p>
+    {% endif %}
+    <ul class="space-y-2 text-sm">
+      {% for m in content.missing_evidence %}
+      <li class="rounded-lg border border-dashed border-amber-500/40 px-3 py-2 text-slate-300"><span class="font-mono text-[11px] text-amber-300">{{ m.source }} · {{ m.requested_from }} · {{ m.status }}</span><br>{{ m.required }}: <span class="text-slate-400">{{ m.reason }}</span></li>
+      {% endfor %}
+      {% for line in content.limitations %}
+      <li class="rounded-lg border border-slate-800 px-3 py-2 text-slate-400">{{ line }}</li>
+      {% endfor %}
+    </ul>
+    {% endcall %}
+
+    {% if can_review %}{% include "_actions.html.j2" %}{% endif %}
+  </div>
+
+  {# ---- Sidebar ------------------------------------------------------------ #}
+  <aside class="space-y-6 lg:sticky lg:top-20 lg:self-start">
+    {% call card("Versions", "version-history") %}
+    <ol class="space-y-2">
+      {% for v in history | reverse %}
+      <li>
+        <a href="/ui/reports/{{ v.report_id }}/v/{{ v.version }}" class="flex items-center justify-between gap-3 rounded-lg border px-3 py-2 transition {{ 'border-sky-500/50 bg-sky-500/5' if v.version == this.version else 'border-slate-800 hover:border-slate-700' }}">
+          <span class="min-w-0">
+            <span class="block font-mono text-sm text-slate-200">v{{ v.version }}</span>
+            <span class="block whitespace-nowrap font-mono text-[10px] text-slate-500" title="{{ v.created_at | ts }}">{{ v.created_at | ts_short }}</span>
+          </span>
+          {{ status_pill(v.review_status, "history-pill") }}
+        </a>
+      </li>
+      {% endfor %}
+    </ol>
+    {% endcall %}
+    {% call card("Review") %}
+    <p class="text-sm text-slate-400">No review decisions yet.</p>
+    <div class="mt-3 flex items-center justify-between text-xs">
+      <span class="text-slate-500">Memory sync</span>
+      <span class="rounded-full px-2 py-0.5 text-slate-300 ring-1 ring-inset ring-slate-600">not requested</span>
+    </div>
+    {% endcall %}
+    {% include "_timeline.html.j2" %}
+    {% call card("Content") %}
+    <dl class="space-y-2 text-xs">
+      <div><dt class="text-slate-500">Digest</dt><dd class="break-all font-mono text-slate-300">{{ record.content_ref }}</dd></div>
+      <div><dt class="text-slate-500">F2 run</dt><dd class="font-mono text-slate-300">{{ record.source_investigation_run_id }}</dd></div>
+      <div><dt class="text-slate-500">F3 run</dt><dd class="font-mono text-slate-300">{{ record.source_correlation_run_id or "—" }}</dd></div>
+      <div><a href="/api/v1/reports/{{ this.report_id }}/versions/{{ this.version }}/report.md" class="font-medium text-sky-300 hover:text-sky-200">Download Markdown →</a></div>
+    </dl>
+    {% endcall %}
+  </aside>
+</div>
+{% endblock %}
