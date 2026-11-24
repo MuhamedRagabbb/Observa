@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "observa-hitl"
+version = "0.1.0"
+description = "OBSERVA F6: human review gate, feedback interpretation and the outbox handoff"
+requires-python = ">=3.12"
+dependencies = [
+    "observa-reports==0.1.0",
+    "observa-investigation==0.1.0",
+    "pydantic==2.14.4",
+]
+
+[project.optional-dependencies]
+test = ["pytest==9.2.0"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["observa_hitl*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
