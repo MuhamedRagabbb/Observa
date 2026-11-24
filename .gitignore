@@ -36,3 +36,8 @@ docs/superpowers/
 # Team reference documents and design exports stay local unless approved
 docs/project-reference/
 docs/design/
+
+# Local databases and checkpointer stores
+*.db
+*.sqlite3
+investigation_checkpoints.db

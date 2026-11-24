@@ -91,7 +91,7 @@ class LogsSignalAgent:
         from logs_agent.reader import make_fetcher, read_all_logs
 
         incident = task.incident
-        iid = incident.get("id") or incident.get("incident_id")
+        iid = incident.get("incident_id")
         if not task.snapshot_id:
             return AgentResult(status="failed", error="incident has no snapshot_id")
         factory = self.fetcher_factory or (lambda i, s: make_fetcher(self.reports_dir, i, s))

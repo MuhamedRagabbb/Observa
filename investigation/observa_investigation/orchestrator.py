@@ -1,12 +1,15 @@
 """Investigation Orchestrator (F2-US-04): plan -> dispatch -> (retry) -> aggregate,
 with LangGraph checkpointer persistence, FollowUpRequest (F3), and FeedbackIntent (F6)."""
+import threading
 import uuid
 from concurrent.futures import ThreadPoolExecutor, wait
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
+from langgraph.types import RetryPolicy, Send
 
+from .checkpointer import SqliteSaver
 from .agents.base import AgentResult, AgentTask, SignalAgent
 from .config import InvestigationConfig
 from .contracts import (
@@ -35,6 +38,8 @@ def validate_incident(incident: Any) -> IncidentV1:
             raw["incident_id"] = raw["id"]
         if "first_observed_at" in raw and "start_time" not in raw:
             raw["start_time"] = raw["first_observed_at"]
+        if "last_observed_at" in raw and "end_time" not in raw:
+            raw["end_time"] = raw["last_observed_at"]
         if isinstance(raw.get("alerts"), dict):
             raw["alerts"] = sorted(list(raw["alerts"].keys()))
         if not raw.get("incident_id"):
@@ -76,6 +81,10 @@ def _new_id(prefix: str) -> str:
     return f"{prefix}-{uuid.uuid4().hex[:8]}"
 
 
+class _RetryableAgentError(RuntimeError):
+    """Internal exception raised so LangGraph RetryPolicy performs backoff and retry."""
+
+
 class Orchestrator:
     def __init__(
         self,
@@ -88,25 +97,54 @@ class Orchestrator:
             raise ValueError(f"no agent registered for: {absent}")
         self.agents = agents
         self.config = config or InvestigationConfig()
-        self.checkpointer = checkpointer if checkpointer is not None else MemorySaver()
+        self.checkpointer = checkpointer if checkpointer is not None else SqliteSaver()
+        self._lock = threading.Lock()
+        self._run_attempts: Dict[Tuple[str, str], int] = {}
+        self._last_partial: Dict[Tuple[str, str], Tuple[List[dict], List[dict]]] = {}
         self.graph = self._build()
+
+    def resume(self, run_id: str) -> InvestigationResult:
+        """Resume or retrieve an investigation from durable SQLite checkpoint (F2-4)."""
+        cfg = {"configurable": {"thread_id": run_id}}
+        state = self.graph.get_state(cfg)
+        if not state or not state.values:
+            raise F2Error(
+                ErrorEnvelope(
+                    code="VALIDATION_ERROR",
+                    message=f"no checkpoint found for run_id {run_id}",
+                    retryable=False,
+                    operation_id=run_id,
+                )
+            )
+        if "result" in state.values and state.values["result"] is not None:
+            return InvestigationResult.model_validate(state.values["result"])
+        final = self.graph.invoke(None, config=cfg)
+        return InvestigationResult.model_validate(final["result"])
 
     # ---- public: initial investigation --------------------------------
     def investigate(
         self,
-        incident: dict,
+        incident: Any,
         *,
         run_id: Optional[str] = None,
         plan_id: Optional[str] = None,
         parent_run_id: Optional[str] = None,
     ) -> InvestigationResult:
-        if not incident_id_of(incident):
-            raise ValueError("incident has no id")
+        valid_inc = validate_incident(incident)
+        if not valid_inc.incident_id:
+            raise F2Error(
+                ErrorEnvelope(
+                    code="VALIDATION_ERROR",
+                    message="incident has no incident_id",
+                    retryable=False,
+                    operation_id=run_id or "INITIAL",
+                )
+            )
         actual_run_id = run_id or _new_id("RUN")
         cfg = {"configurable": {"thread_id": actual_run_id}}
         final = self.graph.invoke(
             {
-                "incident": incident,
+                "incident": valid_inc.model_dump(),
                 "run_id": actual_run_id,
                 "plan_id": plan_id or _new_id("PLAN"),
                 "parent_run_id": parent_run_id,
@@ -127,13 +165,18 @@ class Orchestrator:
     ) -> InvestigationResult:
         iid = incident_id_of(incident)
         if not iid or iid != request.incident_id:
-            request.status = "rejected"
-            raise ValueError(f"FollowUpRequest incident_id {request.incident_id!r} does not match incident {iid!r}")
+            raise F2Error(
+                ErrorEnvelope(
+                    code="VALIDATION_ERROR",
+                    message=f"FollowUpRequest incident_id {request.incident_id!r} does not match incident {iid!r}",
+                    retryable=False,
+                    operation_id=request.request_id,
+                )
+            )
 
         if request.origin == "human_feedback":
             eff_review = review_cycle_count if review_cycle_count is not None else 0
             if eff_review >= self.config.max_review_cycles:
-                request.status = "rejected"
                 raise F2Error(
                     ErrorEnvelope(
                         code="RETRY_LIMIT_REACHED",
@@ -144,7 +187,6 @@ class Orchestrator:
                 )
         else:
             if reinvestigation_count >= self.config.max_reinvestigations:
-                request.status = "rejected"
                 raise F2Error(
                     ErrorEnvelope(
                         code="RETRY_LIMIT_REACHED",
@@ -157,10 +199,14 @@ class Orchestrator:
         targets: Set[str] = set(request.target_agents) if request.target_agents else set(SIGNALS)
         invalid = targets - set(SIGNALS)
         if invalid:
-            request.status = "rejected"
-            raise ValueError(f"invalid target_agents in FollowUpRequest: {sorted(invalid)}")
-
-        request.status = "accepted"
+            raise F2Error(
+                ErrorEnvelope(
+                    code="VALIDATION_ERROR",
+                    message=f"invalid target_agents in FollowUpRequest: {sorted(invalid)}",
+                    retryable=False,
+                    operation_id=request.request_id,
+                )
+            )
 
         agents_init: Dict[str, dict] = {}
         for s in SIGNALS:
@@ -191,10 +237,11 @@ class Orchestrator:
                     "error": None,
                 }
 
-        inc = incident
-        start = validate_incident(inc).start_time or "unknown start"
-        end = inc.get("last_observed_at") or inc.get("end_time") or "ongoing"
-        services = ", ".join(inc.get("affected_services", [])) or "all services"
+        valid_inc = validate_incident(incident)
+        inc_dict = valid_inc.model_dump()
+        start = valid_inc.start_time or "unknown start"
+        end = valid_inc.end_time or "ongoing"
+        services = ", ".join(valid_inc.affected_services) or "all services"
         window = f"for {services} from {start} to {end}"
 
         plan = {
@@ -212,7 +259,7 @@ class Orchestrator:
 
         final = self.graph.invoke(
             {
-                "incident": incident,
+                "incident": inc_dict,
                 "run_id": run_id,
                 "plan_id": plan_id,
                 "parent_run_id": request.source_run_id,
@@ -231,12 +278,11 @@ class Orchestrator:
                 out.findings = list(combined.values())
                 if not out.answers and out.status == "failed":
                     for question in plan[s]:
-                        out.answers.append(EvidenceAnswer(signal=s, snapshot_id=incident["snapshot_id"],
+                        out.answers.append(EvidenceAnswer(signal=s, snapshot_id=valid_inc.snapshot_id,
                                            question=question, answer="Unable to read or analyze the retained evidence."))
                 out.answers = [*prior.answers, *out.answers]
                 if out.findings and out.status in ("failed", "inconclusive"):
                     out.status = "partial"
-        request.status = "completed"
         return result
 
     # ---- public: F6 FeedbackIntent -------------------------------------
@@ -250,7 +296,14 @@ class Orchestrator:
     ) -> InvestigationResult:
         iid = incident_id_of(incident)
         if not iid or iid != intent.incident_id:
-            raise ValueError(f"FeedbackIntent incident_id {intent.incident_id!r} does not match incident {iid!r}")
+            raise F2Error(
+                ErrorEnvelope(
+                    code="VALIDATION_ERROR",
+                    message=f"FeedbackIntent incident_id {intent.incident_id!r} does not match incident {iid!r}",
+                    retryable=False,
+                    operation_id=intent.feedback_id,
+                )
+            )
 
         if review_cycle_count >= self.config.max_review_cycles:
             raise F2Error(
@@ -308,21 +361,35 @@ class Orchestrator:
 
     # ---- graph --------------------------------------------------------
     def _build(self):
+        retry_policy = RetryPolicy(
+            initial_interval=0.1,
+            backoff_factor=2.0,
+            max_interval=2.0,
+            max_attempts=1 + self.config.max_retries,
+            jitter=False,
+            retry_on=_RetryableAgentError,
+        )
         g = StateGraph(InvestigationState)
         g.add_node("plan", self._plan)
-        g.add_node("dispatch", self._dispatch)
+        for s in SIGNALS:
+            g.add_node(f"run_{s}", self._make_signal_node(s), retry_policy=retry_policy)
         g.add_node("aggregate", self._aggregate)
         g.add_edge(START, "plan")
-        g.add_edge("plan", "dispatch")
-        g.add_conditional_edges("dispatch", self._route, {"dispatch": "dispatch", "aggregate": "aggregate"})
+        g.add_conditional_edges(
+            "plan",
+            self._fan_out,
+            [f"run_{s}" for s in SIGNALS] + ["aggregate"],
+        )
+        for s in SIGNALS:
+            g.add_edge(f"run_{s}", "aggregate")
         g.add_edge("aggregate", END)
         return g.compile(checkpointer=self.checkpointer)
 
     def _plan(self, state):
-        inc = state["incident"]
-        start = validate_incident(inc).start_time or "unknown start"
-        end = inc.get("last_observed_at") or inc.get("end_time") or "ongoing"
-        services = ", ".join(inc.get("affected_services", [])) or "all services"
+        valid_inc = validate_incident(state["incident"])
+        start = valid_inc.start_time or "unknown start"
+        end = valid_inc.end_time or "ongoing"
+        services = ", ".join(valid_inc.affected_services) or "all services"
         window = f"for {services} from {start} to {end}"
 
         plan = state.get("plan")
@@ -333,7 +400,7 @@ class Orchestrator:
                 "traces": [f"Find slow or failed spans and the services they affect {window}"],
             }
 
-        agents = state.get("agents")
+        agents = dict(state.get("agents") or {})
         if not agents:
             agents = {
                 s: {
@@ -345,54 +412,95 @@ class Orchestrator:
                 }
                 for s in SIGNALS
             }
+
+        targets = set(state.get("follow_up_targets", SIGNALS))
+        for s in SIGNALS:
+            if s in targets and agents[s]["status"] in ("pending", "failed") and self._can_try(agents[s]):
+                agents[s] = {**agents[s], "status": "running"}
+
         return {"plan": plan, "agents": agents}
 
     def _can_try(self, a) -> bool:
         return a["attempts"] < 1 + self.config.max_retries
 
-    def _dispatch(self, state):
-        agents = {s: dict(a) for s, a in state["agents"].items()}
-        todo = [s for s, a in agents.items() if s in state.get("follow_up_targets", SIGNALS)
-                and a["status"] in ("pending", "failed") and self._can_try(a)]
-        if not todo:
-            return {"agents": agents}
+    def _fan_out(self, state):
+        targets = state.get("follow_up_targets", list(SIGNALS))
+        sends = [
+            Send(f"run_{s}", state)
+            for s in targets
+            if state["agents"][s]["status"] == "running"
+        ]
+        return sends if sends else "aggregate"
 
-        incident = state["incident"]
-        pool = ThreadPoolExecutor(max_workers=len(todo), thread_name_prefix="f2-agent")
-        futures = {}
-        for s in todo:
+    def _next_attempt(self, run_id: str, signal: str, base_attempts: int) -> int:
+        key = (run_id, signal)
+        with self._lock:
+            current = self._run_attempts.get(key, base_attempts) + 1
+            self._run_attempts[key] = current
+            return current
+
+    def _make_signal_node(self, signal: str):
+        def _run_signal(state: InvestigationState):
+            run_id = state["run_id"]
+            prev = state["agents"][signal]
+            attempt = self._next_attempt(run_id, signal, prev.get("attempts", 0))
+            incident = state["incident"]
             task = AgentTask(
                 incident=incident,
                 snapshot_id=incident.get("snapshot_id"),
-                run_id=state["run_id"],
-                objectives=state["plan"][s],
-                follow_up=s in state.get("follow_up_targets", []),
-                attempt=agents[s]["attempts"] + 1,
+                run_id=run_id,
+                objectives=state["plan"][signal],
+                follow_up=signal in state.get("follow_up_targets", []),
+                attempt=attempt,
             )
-            futures[s] = pool.submit(self.agents[s].run, task)
-        done, _ = wait(futures.values(), timeout=self.config.agent_timeout_s)
-        pool.shutdown(wait=False, cancel_futures=True)
 
-        for s, fut in futures.items():
-            prev = agents[s]
+            pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix=f"f2-{signal}")
+            fut = pool.submit(self.agents[signal].run, task)
+            done, _ = wait([fut], timeout=self.config.agent_timeout_s)
+            pool.shutdown(wait=False, cancel_futures=True)
+
             if fut in done:
-                res = self._collect(s, fut)
+                res = self._collect(signal, fut)
             else:
                 res = AgentResult(status="failed", error=f"timed out after {self.config.agent_timeout_s:g}s")
+
             findings = [f.model_dump() for f in res.findings]
             missing_evidence = [m.model_dump() for m in res.missing_evidence]
-            if res.status == "failed" and not findings and prev.get("findings"):
-                findings = prev["findings"]
-                missing_evidence = prev.get("missing_evidence", [])
-            agents[s] = {
-                "status": res.status,
-                "answers": [a.model_dump() for a in res.answers],
-                "attempts": prev["attempts"] + 1,
-                "findings": findings,
-                "missing_evidence": missing_evidence,
-                "error": res.error,
+            key = (run_id, signal)
+
+            if findings:
+                with self._lock:
+                    self._last_partial[key] = (findings, missing_evidence)
+            elif res.status == "failed":
+                with self._lock:
+                    saved = self._last_partial.get(key)
+                if saved:
+                    findings, missing_evidence = saved
+                elif prev.get("findings"):
+                    findings = prev["findings"]
+                    missing_evidence = prev.get("missing_evidence", [])
+
+            if res.status == "failed" and attempt < 1 + self.config.max_retries:
+                raise _RetryableAgentError(res.error or f"{signal} agent failed")
+
+            with self._lock:
+                self._run_attempts.pop(key, None)
+                self._last_partial.pop(key, None)
+
+            return {
+                "agents": {
+                    signal: {
+                        "status": res.status,
+                        "answers": [a.model_dump() for a in res.answers],
+                        "attempts": attempt,
+                        "findings": findings,
+                        "missing_evidence": missing_evidence,
+                        "error": res.error,
+                    }
+                }
             }
-        return {"agents": agents}
+
+        return _run_signal
 
     @staticmethod
     def _collect(signal: str, fut) -> AgentResult:
@@ -409,11 +517,6 @@ class Orchestrator:
                 error=f"contract violation: {signal} agent returned findings of another signal: {wrong}",
             )
         return res
-
-    def _route(self, state):
-        retry = any(self._can_try(state["agents"][s]) and state["agents"][s]["status"] == "failed"
-                    for s in state.get("follow_up_targets", SIGNALS))
-        return "dispatch" if retry else "aggregate"
 
     def _aggregate(self, state):
         outputs, missing = {}, []

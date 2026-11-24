@@ -133,7 +133,7 @@ class TracesSignalAgent:
         from traces_agent.reader import make_fetchers, read_all_traces
 
         incident = task.incident
-        iid = incident.get("id") or incident.get("incident_id")
+        iid = incident.get("incident_id")
         if not task.snapshot_id:
             return AgentResult(status="failed", error="incident has no snapshot_id")
         factory = self.fetcher_factory or (lambda i, s: make_fetchers(self.reports_dir, i, s))

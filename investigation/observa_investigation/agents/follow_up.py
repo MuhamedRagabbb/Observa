@@ -25,7 +25,7 @@ def select_rows(question, rows, llm, client_error):
 
 
 def answer_questions(signal, task, rows, describe, link, indicator, llm, client_error, live=None):
-    iid, sid = task.incident.get("id") or task.incident["incident_id"], task.snapshot_id
+    iid, sid = task.incident.get("incident_id"), task.snapshot_id
     retained = {r["id"]: {"service": r["service"], "indicator": r.get(indicator), "claim": describe(r)} for r in rows}
     findings, answers, gaps = {}, [], []
     for question in task.objectives:

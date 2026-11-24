@@ -1,8 +1,19 @@
-from typing import Dict, List, Optional, TypedDict
+from typing import Annotated, Dict, List, Optional, TypedDict
+
+
+def _merge_agents(
+    left: Optional[Dict[str, "AgentState"]],
+    right: Optional[Dict[str, "AgentState"]],
+) -> Dict[str, "AgentState"]:
+    """Merge per-signal agent updates from parallel Send nodes."""
+    merged = dict(left or {})
+    if right:
+        merged.update(right)
+    return merged
 
 
 class AgentState(TypedDict):
-    status: str                  # pending | completed | partial | inconclusive | failed
+    status: str                  # pending | running | completed | partial | inconclusive | failed
     attempts: int
     answers: List[dict]
     findings: List[dict]         # SignalFinding dumps, replaced (never appended) on every attempt
@@ -17,5 +28,5 @@ class InvestigationState(TypedDict, total=False):
     follow_up_targets: List[str]
     parent_run_id: Optional[str]
     plan: Dict[str, List[str]]   # signal -> objectives
-    agents: Dict[str, AgentState]
+    agents: Annotated[Dict[str, AgentState], _merge_agents]
     result: dict

@@ -85,7 +85,7 @@ class PassCTests(unittest.TestCase):
         res = self.orch.follow_up(req, INCIDENT, prior_result=initial)
         self.assertEqual(res.status, "completed")
         self.assertEqual(res.parent_run_id, initial.run_id)
-        self.assertEqual(req.status, "completed")
+        self.assertEqual(req.status, "pending")  # the caller's request is never mutated (F2-7)
 
         # Metrics agent ran again (count 2), while logs and traces were preserved (count 1)!
         self.assertEqual(self.metrics_agent.call_count, 2)
@@ -106,7 +106,7 @@ class PassCTests(unittest.TestCase):
         with self.assertRaises(ValueError) as ctx:
             self.orch.follow_up(req, INCIDENT, prior_result=initial, reinvestigation_count=2)
         self.assertIn("RETRY_LIMIT_REACHED", str(ctx.exception))
-        self.assertEqual(req.status, "rejected")
+        self.assertEqual(req.status, "pending")  # not mutated even when the follow-up is rejected (F2-7)
 
     def test_feedback_intent_with_inconclusive_does_not_reinvestigate(self):
         initial = self.orch.investigate(INCIDENT)

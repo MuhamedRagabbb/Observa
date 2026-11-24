@@ -124,10 +124,27 @@ class IncidentV1(BaseModel):
     """F1 -> F2/F7 contract incident."""
     model_config = ConfigDict(extra="ignore")
     incident_id: str
-    title: Optional[str] = None
+    title: Optional[str] = "Untitled incident"
     alerts: List[str] = Field(default_factory=list)
     start_time: Optional[str] = None
     end_time: Optional[str] = None
     affected_services: List[str] = Field(default_factory=list)
     severity: Optional[str] = None
     snapshot_id: Optional[str] = None
+
+    def get(self, key: str, default: Any = None) -> Any:
+        """Support dict-like get() access so investigate(IncidentV1(...)) never crashes."""
+        val = getattr(self, key, None)
+        if val is not None:
+            return val
+        if key == "id":
+            return self.incident_id
+        if key == "first_observed_at":
+            return self.start_time
+        return default
+
+    def __getitem__(self, key: str) -> Any:
+        val = self.get(key)
+        if val is not None:
+            return val
+        raise KeyError(key)
