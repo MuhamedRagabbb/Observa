@@ -87,12 +87,14 @@ def test_worker_interprets_change_requests_with_the_configured_fake(db_url, engi
         feedback="Re-check the traces for orders-service."))
     main(["--once", "--database-url", db_url, "--memory-dir", str(tmp_path / "memory")])
     with engine.connect() as conn:
-        assert conn.execute(text("SELECT state FROM review_cycles")).scalar_one() == "reinvestigating"
         assert conn.execute(text("SELECT interpreter, agent_status FROM feedback_intents")).one() == \
             ("fake", "completed")
-        # Phase 6 delivers this; until then it waits, unclaimed.
+        # One run delivers the follow-on re-investigation too; the mock F2 answered with v2.
         assert tuple(conn.execute(text("SELECT status, attempts FROM outbox_events "
-                                       "WHERE event_type='reinvestigation.request.v1'")).one()) == ("pending", 0)
+                                       "WHERE event_type='reinvestigation.request.v1'")).one()) == ("delivered", 1)
+        assert [tuple(r) for r in conn.execute(text(
+            "SELECT report_version, state FROM review_cycles ORDER BY report_version"))] == \
+            [(1, "superseded"), (2, "pending_review")]
 
 
 def test_groq_interpreter_needs_an_api_key(engine):
@@ -102,3 +104,33 @@ def test_groq_interpreter_needs_an_api_key(engine):
     assert build_interpreter(Settings(INTERPRETER="fake")).__class__.__name__ == "FakeInterpreter"
     groq = build_interpreter(Settings(INTERPRETER="groq", GROQ_API_KEY="gsk_test"))
     assert groq.__class__.__name__ == "GroqInterpreter"  # built without any network call
+
+
+def _request_changes(engine, tmp_path, record, feedback, key):
+    reviewer = ReviewerDirectory.from_file(write_reviewers(tmp_path / "reviewers.json")).get("rev-alice")
+    gate = ReviewGate()
+    with unit_of_work(engine) as conn:
+        gate.open(conn, record.report_id, record.version)
+    gate.submit(lambda: unit_of_work(engine), reviewer, DecisionCommand(
+        report_id=record.report_id, version=record.version, decision="request_changes", idempotency_key=key,
+        feedback=feedback))
+
+
+def test_worker_closes_the_loop_with_the_mock_f2(db_url, engine, publish, tmp_path, capsys):
+    """Mock F2 answers from the fixture bundles: a revised bundle for the incident -> vN+1 for review;
+    none -> the revision fails visibly and vN stays current."""
+    payments = publish("payments_v1")
+    other = publish("db_exhaustion")
+    _request_changes(engine, tmp_path, payments, "Re-check the traces for orders-service.", "loop-1")
+    _request_changes(engine, tmp_path, other, "Re-check the logs for orders-service.", "loop-2")
+    main(["--once", "--database-url", db_url, "--memory-dir", str(tmp_path / "memory")])
+    with engine.connect() as conn:
+        cycles = {tuple(r[:2]): r[2] for r in conn.execute(text(
+            "SELECT report_id, report_version, state FROM review_cycles"))}
+        heads = dict(conn.execute(text("SELECT report_id, current_version FROM report_heads")).all())
+        failures = conn.execute(text("SELECT status, last_error FROM reinvestigations ORDER BY status")).all()
+    assert cycles[(payments.report_id, 1)] == "superseded" and cycles[(payments.report_id, 2)] == "pending_review"
+    assert heads[payments.report_id] == 2 and heads[other.report_id] == 1
+    assert cycles[(other.report_id, 1)] == "revision_failed"
+    assert [s for s, _ in failures] == ["completed", "failed"] and "no revised" in failures[1][1]
+    assert "pending 0" in capsys.readouterr().out

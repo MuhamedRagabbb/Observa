@@ -17,13 +17,14 @@ from observa_reports.service import ReportService
 from observa_reports.tables import report_heads
 
 from .auth import Reviewer
-from .contracts import (DECIDABLE_STATES, DecisionCommand, DecisionOutcome, DecisionView, FeedbackIntentView,
-                        ReviewCycle, ReviewDecision, ReviewSummary, cycle_id_for, decision_id_for, iso)
+from .contracts import (APPROVE_ONLY_STATES, DECIDABLE_STATES, OPEN_STATES, DecisionCommand, DecisionOutcome,
+                        DecisionView, FeedbackIntentView, ReinvestigationView, ReviewCycle, ReviewDecision,
+                        ReviewSummary, cycle_id_for, decision_id_for, iso)
 from .errors import F6Error
 from .outbox import Outbox
 from .ports import MEMORY_EVENT, ApprovedReportHandoff
 from .projections import memory_sync_status
-from .tables import feedback_intents, review_audit, review_cycles, review_decisions
+from .tables import feedback_intents, reinvestigations, review_audit, review_cycles, review_decisions
 
 INTERPRET_EVENT = "feedback.interpret.v1"
 UnitOfWork = Callable[[], AbstractContextManager[Connection]]
@@ -57,17 +58,28 @@ class ReviewGate:
     # ---- opening ------------------------------------------------------------------------------
     def open(self, conn: Connection, report_id: str, version: int) -> ReviewCycle:
         """Open the review cycle for a published version (idempotent). It waits in pending_review
-        until a reviewer decides; the row is durable, so the wait survives restarts."""
+        until a reviewer decides; the row is durable, so the wait survives restarts. Opening a newer
+        version supersedes every still-open cycle of older versions; decided cycles keep their state."""
         cycle_id = cycle_id_for(report_id, version)
         existing = conn.execute(select(review_cycles).where(review_cycles.c.review_cycle_id == cycle_id)).first()
         if existing is not None:
             return _cycle(existing)
-        number = conn.execute(select(func.count()).select_from(review_cycles)
-                              .where(review_cycles.c.report_id == report_id)).scalar_one() + 1
+        now = iso(self._clock())
+        conn.execute(update(review_cycles).where(
+            review_cycles.c.report_id == report_id, review_cycles.c.report_version < version,
+            review_cycles.c.state.in_(OPEN_STATES),
+        ).values(state="superseded", state_version=review_cycles.c.state_version + 1, closed_at=now))
+        number = self.cycles_used(conn, report_id) + 1
         conn.execute(insert(review_cycles).values(
             review_cycle_id=cycle_id, report_id=report_id, report_version=version, cycle_number=number,
-            state="pending_review", state_version=0, opened_at=iso(self._clock()), closed_at=None))
+            state="pending_review", state_version=0, opened_at=now, closed_at=None))
         return _cycle(conn.execute(select(review_cycles).where(review_cycles.c.review_cycle_id == cycle_id)).one())
+
+    @staticmethod
+    def cycles_used(conn: Connection, report_id: str) -> int:
+        """Review rounds consumed so far, read from the database (never caller-supplied)."""
+        return conn.execute(select(func.count()).select_from(review_cycles)
+                            .where(review_cycles.c.report_id == report_id)).scalar_one()
 
     # ---- deciding -----------------------------------------------------------------------------
     def decide(self, conn: Connection, reviewer: Reviewer | None, cmd: DecisionCommand) -> DecisionOutcome:
@@ -103,14 +115,26 @@ class ReviewGate:
         if cycle.state not in DECIDABLE_STATES:
             raise F6Error("VERSION_CONFLICT", f"Version {cmd.version} is no longer awaiting a decision.",
                           operation_id=op, details={"state": cycle.state, "current_version": head.current_version})
-        new_state = "approved" if cmd.decision == "approve" else "changes_requested"
+        if cmd.decision == "request_changes" and cycle.state in APPROVE_ONLY_STATES:
+            if cycle.state == "limit_reached":
+                raise F6Error("RETRY_LIMIT_REACHED", f"The review limit of {self.max_review_cycles} rounds was "
+                              "reached; this version can only be approved.", operation_id=op,
+                              details={"state": cycle.state, "max_review_cycles": self.max_review_cycles})
+            raise F6Error("VERSION_CONFLICT", "The re-investigation for this version failed; it can only be "
+                          "approved as it stands.", operation_id=op, details={"state": cycle.state})
+        limit_hit = (cmd.decision == "request_changes"
+                     and self.cycles_used(conn, cmd.report_id) >= self.max_review_cycles)
+        if cmd.decision == "approve":
+            new_state = "approved"
+        else:  # the decision is recorded either way; at the limit nothing is dispatched
+            new_state = "limit_reached" if limit_hit else "changes_requested"
         now = self._clock()
         swapped = conn.execute(update(review_cycles).where(
             review_cycles.c.review_cycle_id == cycle.review_cycle_id,
             review_cycles.c.state.in_(DECIDABLE_STATES),
             review_cycles.c.state_version == cycle.state_version,
         ).values(state=new_state, state_version=cycle.state_version + 1,
-                 closed_at=iso(now) if new_state == "approved" else None))
+                 closed_at=iso(now) if new_state in ("approved", "limit_reached") else None))
         if swapped.rowcount != 1:
             raise F6Error("VERSION_CONFLICT", "Another decision was recorded for this version first.",
                           operation_id=op, details={"current_version": head.current_version})
@@ -135,11 +159,12 @@ class ReviewGate:
                 version=record.version, content_ref=record.content_ref, content_digest=record.content_digest,
                 approved_at=now, reviewer_id=reviewer.reviewer_id, evidence_ids=record.evidence_ids)
             self._outbox.enqueue(conn, MEMORY_EVENT, decision.decision_id, handoff.model_dump(mode="json"))
-        else:
+        elif not limit_hit:
             self._outbox.enqueue(conn, INTERPRET_EVENT, decision.decision_id, {
                 "decision_id": decision.decision_id, "review_cycle_id": cycle.review_cycle_id,
                 "report_id": cmd.report_id, "version": cmd.version})
-        self._audit(conn, reviewer.reviewer_id, cmd, "accepted", None, decision.decision_id)
+        self._audit(conn, reviewer.reviewer_id, cmd, "accepted", "limit_reached" if limit_hit else None,
+                    decision.decision_id)
         return DecisionOutcome(decision=decision, replayed=False)
 
     def submit(self, uow: UnitOfWork, reviewer: Reviewer | None, cmd: DecisionCommand) -> DecisionOutcome:
@@ -183,5 +208,9 @@ class ReviewGate:
             interpreter=r.interpreter, attempts=r.attempts, created_at=r.created_at)
             for r in conn.execute(select(feedback_intents).where(
                 feedback_intents.c.review_cycle_id.in_(cycle_ids)).order_by(feedback_intents.c.created_at))]
+        reinv = [ReinvestigationView(**dict(r._mapping)) for r in conn.execute(select(reinvestigations).where(
+            reinvestigations.c.review_cycle_id.in_(cycle_ids)).order_by(reinvestigations.c.created_at))]
         return ReviewSummary(report_id=report_id, current_version=head, cycles=cycles, decisions=decisions,
-                             feedback_intents=intents, max_review_cycles=self.max_review_cycles)
+                             feedback_intents=intents, reinvestigations=reinv,
+                             max_review_cycles=self.max_review_cycles, cycles_used=len(cycles),
+                             limit_reached=any(c.state == "limit_reached" for c in cycles))

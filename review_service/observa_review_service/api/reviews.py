@@ -1,10 +1,8 @@
-"""F6 review API: decisions, the review summary and internal service endpoints.
+"""F6 review API: decisions and the review summary (internal service endpoints live in internal.py).
 
 Every decision goes through ReviewGate.submit: one unit of work for the decision and its outbox
 event, and an audit row (in its own transaction) for a rejected attempt.
 """
-import hashlib
-import hmac
 from typing import Iterator, Literal
 
 from fastapi import APIRouter, Depends, Header, Request
@@ -15,13 +13,11 @@ from sqlalchemy import Connection
 from observa_hitl.contracts import DecisionCommand
 from observa_hitl.errors import F6Error
 from observa_hitl.gate import ReviewGate
-from observa_hitl.outbox import Outbox
 
 from ..db import unit_of_work
 from ..ui import session
 
 router = APIRouter(prefix="/api/v1/reports", tags=["reviews"])
-internal = APIRouter(prefix="/internal/v1", tags=["internal"])
 
 
 class DecisionBody(BaseModel):
@@ -59,23 +55,6 @@ def decide(report_id: str, version: int, body: DecisionBody, request: Request,
                           idempotency_key=idempotency_key.strip())
     outcome = submit(request, reviewer, cmd)
     return JSONResponse(outcome.decision.model_dump(mode="json"), status_code=200 if outcome.replayed else 201)
-
-
-def require_service(request: Request, authorization: str | None = Header(None)) -> None:
-    """Internal endpoints: a Bearer service token whose sha256 is SERVICE_TOKEN_SHA256 (closed when unset)."""
-    expected = request.app.state.settings.SERVICE_TOKEN_SHA256
-    scheme, _, token = (authorization or "").partition(" ")
-    presented = hashlib.sha256(token.strip().encode()).hexdigest()
-    if not expected or scheme.lower() != "bearer" or not token.strip() \
-            or not hmac.compare_digest(expected.lower(), presented):
-        raise session.AuthFailure(401, "A valid service token is required.", operation_id="internal")
-
-
-@internal.post("/outbox/{event_id}/retry", dependencies=[Depends(require_service)])
-def retry_event(event_id: str, request: Request) -> dict:
-    with unit_of_work(request.app.state.engine) as conn:
-        Outbox().retry(conn, event_id)
-    return {"event_id": event_id, "status": "pending"}
 
 
 @router.get("/{report_id}/review")

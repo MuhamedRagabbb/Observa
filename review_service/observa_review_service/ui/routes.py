@@ -128,16 +128,26 @@ def _report_page(request: Request, conn: Connection, report_id: str, version: in
     current = history[-1].version
     this = next(v for v in history if v.version == stored.record.version)
     review = _review(request, conn, report_id)
-    if review is not None:  # F6 owns the cycle state: a cycle awaiting clarification is decidable again
+    reinvestigation, intents = None, {}
+    if review is not None:  # F6 owns the cycle state (see observa_hitl.contracts)
         cycle = next((c for c in review.cycles if c.report_version == this.version), None)
-        open_for_decision = cycle is None or cycle.state in DECIDABLE_STATES
+        state = cycle.state if cycle else "pending_review"
+        open_for_decision = state in DECIDABLE_STATES
+        can_request = state in CHANGEABLE_STATES
         decisions = [d for d in review.decisions if d.version == this.version]
+        intents = {i.decision_id: i for i in review.feedback_intents}
+        if cycle is not None:
+            reinvestigation = next((r for r in review.reinvestigations
+                                    if r.review_cycle_id == cycle.review_cycle_id), None)
     else:
-        cycle, open_for_decision, decisions = None, this.review_status == "pending_review", []
+        cycle, decisions = None, []
+        open_for_decision = can_request = this.review_status == "pending_review"
     return templates.TemplateResponse(request, "report.html.j2", {
         "content": stored.content, "record": stored.record, "this": this, "history": history,
         "is_current": this.version == current, "current_version": current,
         "can_review": this.version == current and open_for_decision,
+        "can_request_changes": this.version == current and can_request,
+        "reinvestigation": reinvestigation, "intents": intents,
         "actions_available": request.app.state.review_actions_available,
         "viewer_can_review": bool(viewer is not None and viewer.can_review),
         "cycle": cycle, "decisions": decisions, "review": review,
@@ -153,9 +163,10 @@ def _review(request: Request, conn: Connection, report_id: str):
     return gate_for(request).summary(conn, report_id)
 
 
-DECIDABLE_STATES = ("pending_review", "clarification_needed")
+DECIDABLE_STATES = ("pending_review", "clarification_needed", "revision_failed", "limit_reached")
+CHANGEABLE_STATES = ("pending_review", "clarification_needed")  # mirrors observa_hitl.contracts (F6 is optional)
 _UI_STATUS = {"VALIDATION_ERROR": 422, "NOT_AUTHORIZED": 403, "VERSION_CONFLICT": 409, "IDEMPOTENCY_CONFLICT": 409,
-              "NOT_FOUND": 404}
+              "NOT_FOUND": 404, "RETRY_LIMIT_REACHED": 409}
 
 
 @router.post("/ui/reports/{report_id}/v/{version}/decide", response_class=HTMLResponse)

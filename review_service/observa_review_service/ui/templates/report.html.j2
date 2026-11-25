@@ -29,12 +29,7 @@
   <svg class="mt-0.5 h-4 w-4 shrink-0 text-amber-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 6a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 6zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
   <span>{{ content.draft_notice }}</span>
 </div>
-{% if not is_current %}
-<div class="mb-6 rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-slate-300">
-  This version was superseded by v{{ current_version }}. It is kept unchanged for comparison.
-  <a href="/ui/reports/{{ this.report_id }}" class="ml-1 font-medium text-sky-300 hover:text-sky-200">Open v{{ current_version }} →</a>
-</div>
-{% endif %}
+{% include "_cycle_banner.html.j2" %}
 
 <div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
   <div class="min-w-0 space-y-6">
@@ -142,7 +137,18 @@
     </ul>
     {% endcall %}
 
-    <div id="review">{% if can_review %}{% include "_actions.html.j2" %}{% endif %}</div>
+    <div id="review">
+    {% if can_review %}{% include "_actions.html.j2" %}
+    {% elif decision_error %}
+    <div class="mt-8 rounded-xl border border-rose-500/40 bg-rose-500/10 p-4">
+      <p data-testid="decision-error" role="alert" class="text-sm text-rose-200">{{ decision_error }}</p>
+      {% if feedback_value %}
+      <label for="unsent-feedback" class="mt-3 block text-xs text-slate-400">Your feedback was not sent. Copy it before leaving this page:</label>
+      <textarea id="unsent-feedback" data-testid="unsent-feedback" readonly rows="3" class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200">{{ feedback_value }}</textarea>
+      {% endif %}
+    </div>
+    {% endif %}
+    </div>
   </div>
 
   {# ---- Sidebar ------------------------------------------------------------ #}
@@ -176,6 +182,18 @@
         </div>
         <p class="mt-1 text-xs text-slate-400">by <span class="font-mono text-slate-300">{{ d.reviewer_id }}</span> · v{{ d.version }}</p>
         {% if d.feedback %}<p class="mt-2 whitespace-pre-line border-l-2 border-amber-500/40 pl-2 text-xs text-slate-300">{{ d.feedback }}</p>{% endif %}
+        {% set intent = intents.get(d.decision_id) %}
+        {% if intent %}
+        <div data-testid="feedback-intent" data-status="{{ intent.agent_status }}" class="mt-2 rounded-md bg-slate-950/60 px-2 py-1.5 text-xs">
+          <p class="text-slate-500">Interpreted ({{ intent.interpreter }}, {{ intent.agent_status }})</p>
+          {% if intent.summary_of_human_intent %}<p class="mt-0.5 text-slate-300">{{ intent.summary_of_human_intent }}</p>{% endif %}
+          {% for c in intent.requested_changes %}
+          <p class="mt-0.5 font-mono text-[11px] text-slate-400">{{ c.action | replace("_", " ") }} → {{ c.target }}</p>
+          {% else %}
+          <p class="mt-0.5 text-amber-300">No change could be identified; nothing was re-investigated.</p>
+          {% endfor %}
+        </div>
+        {% endif %}
         {% if d.decision == "approve" %}
         {% set sync = d.memory_sync_status %}
         <div class="mt-2 flex items-center justify-between text-xs">

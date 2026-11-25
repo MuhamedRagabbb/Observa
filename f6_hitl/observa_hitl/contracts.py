@@ -14,7 +14,14 @@ ReviewStatus = Literal["pending_review", "changes_requested", "approved"]
 MemorySyncStatus = Literal["not_requested", "pending", "stored", "failed"]
 CycleState = Literal["pending_review", "approved", "changes_requested", "interpreting", "clarification_needed",
                      "reinvestigating", "superseded", "revision_failed", "limit_reached"]
-DECIDABLE_STATES = ("pending_review", "clarification_needed")
+# States in which a reviewer may decide, and which decisions each allows. revision_failed and
+# limit_reached stop the loop: the reviewer may still approve the current version explicitly, but
+# cannot start another round of changes.
+CHANGEABLE_STATES = ("pending_review", "clarification_needed")
+APPROVE_ONLY_STATES = ("revision_failed", "limit_reached")
+DECIDABLE_STATES = CHANGEABLE_STATES + APPROVE_ONLY_STATES
+# Cycles still in flight; a newer version of the report supersedes them.
+OPEN_STATES = ("pending_review", "changes_requested", "interpreting", "clarification_needed", "reinvestigating")
 
 
 def _h(text: str) -> str:
@@ -120,6 +127,18 @@ class FeedbackIntentView(BaseModel):
     created_at: UtcDatetime | None
 
 
+class ReinvestigationView(BaseModel):
+    model_config = ConfigDict(frozen=True)
+    request_id: str
+    review_cycle_id: str
+    feedback_id: str
+    status: Literal["requested", "completed", "failed"]
+    f2_run_id: str | None
+    last_error: str | None
+    created_at: UtcDatetime | None
+    updated_at: UtcDatetime | None
+
+
 class ReviewSummary(BaseModel):
     model_config = ConfigDict(frozen=True)
     report_id: str
@@ -127,4 +146,7 @@ class ReviewSummary(BaseModel):
     cycles: list[ReviewCycle]
     decisions: list[DecisionView]
     feedback_intents: list[FeedbackIntentView]
+    reinvestigations: list[ReinvestigationView]
     max_review_cycles: int
+    cycles_used: int  # counted from the database, so restarts never reset it
+    limit_reached: bool

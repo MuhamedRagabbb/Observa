@@ -3,6 +3,7 @@ from typing import Protocol
 
 from pydantic import BaseModel, ConfigDict
 
+from observa_investigation.contracts import FeedbackIntent, FollowUpRequest
 from observa_reports.inputs import UtcDatetime
 
 MEMORY_EVENT = "memory.approved_report.v1"
@@ -26,3 +27,9 @@ class ApprovedReportHandoff(BaseModel):
 class MemorySink(Protocol):
     def store(self, handoff: ApprovedReportHandoff) -> None:
         """Store approved knowledge. Must be idempotent on handoff.decision_id."""
+
+
+class Reinvestigator(Protocol):
+    def request(self, follow_up: FollowUpRequest, intent: FeedbackIntent) -> None:
+        """Ask F2 for a targeted follow-up. Must be idempotent on follow_up.request_id. F2 answers later
+        through the revision intake (a new report version) or by reporting the request failed."""

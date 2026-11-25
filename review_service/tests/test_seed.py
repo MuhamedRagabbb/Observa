@@ -40,4 +40,7 @@ def test_seed_opens_a_review_cycle_for_every_version_when_f6_is_installed(tmp_pa
     finally:
         engine.dispose()
     assert sorted((r, v) for r, v, _ in cycles) == sorted(tuple(v) for v in versions)
-    assert {s for *_, s in cycles} == {"pending_review"}
+    by_version = {(r, v): s for r, v, s in cycles}
+    payments = [k for k in by_version if k[1] == 2][0][0]
+    assert by_version[(payments, 1)] == "superseded"  # v2 was published on top of it
+    assert {s for k, s in by_version.items() if k != (payments, 1)} == {"pending_review"}

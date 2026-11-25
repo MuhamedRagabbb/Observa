@@ -1,0 +1,49 @@
+{# Where this version stands in the review loop. Every state is shown; none reads as approved by default. #}
+{% set n = this.version %}
+{% macro banner(state, tone, title) %}
+<div data-testid="cycle-banner" data-state="{{ state }}" role="status"
+     class="mb-6 rounded-xl border px-4 py-3 text-sm {{ {'sky': 'border-sky-500/30 bg-sky-500/[0.06] text-sky-100', 'amber': 'border-amber-500/30 bg-amber-500/[0.06] text-amber-100', 'rose': 'border-rose-500/30 bg-rose-500/[0.06] text-rose-100', 'emerald': 'border-emerald-500/30 bg-emerald-500/[0.06] text-emerald-100', 'slate': 'border-slate-700 bg-slate-900 text-slate-300'}[tone] }}">
+  <p class="font-medium">{{ title }}</p>
+  <div class="mt-1 text-xs opacity-90">{{ caller() }}</div>
+</div>
+{% endmacro %}
+{% if not is_current %}
+  {% call banner("superseded", "slate", "Superseded by v" ~ current_version) %}
+  This version was superseded by v{{ current_version }}. It is kept unchanged for comparison.
+  <a href="/ui/reports/{{ this.report_id }}/v/{{ current_version }}" class="ml-1 font-medium text-sky-300 hover:text-sky-200">Open v{{ current_version }} →</a>
+  {% endcall %}
+{% elif cycle and cycle.state != "pending_review" %}
+  {% set s = cycle.state %}
+  {% if s == "clarification_needed" %}
+    {% call banner(s, "amber", "Your feedback needs clarification") %}
+    The interpreter could not tell which finding, cause or recommendation should change, so nothing was re-investigated.
+    Approve v{{ n }} or request changes again, naming what should change.
+    {% endcall %}
+  {% elif s in ("changes_requested", "interpreting") %}
+    {% call banner(s, "sky", "Interpreting your feedback") %}
+    Your change request was recorded and is being turned into structured revision requests. v{{ n }} is not approved.
+    {% endcall %}
+  {% elif s == "reinvestigating" %}
+    {% call banner(s, "sky", "Re-investigation in progress") %}
+    A targeted follow-up investigation was requested. A revised version will come back here for review; it is never approved automatically.
+    {% endcall %}
+  {% elif s == "revision_failed" %}
+    {% call banner(s, "rose", "Re-investigation failed") %}
+    {% if reinvestigation and reinvestigation.last_error %}<span class="font-mono">{{ reinvestigation.last_error }}</span>. {% endif %}
+    v{{ n }} stays current and unapproved. You can approve it as it stands; no further changes can be requested on this round.
+    {% endcall %}
+  {% elif s == "limit_reached" %}
+    {% call banner(s, "rose", "Review limit reached") %}
+    Cycle {{ cycle.cycle_number }} of {{ review.max_review_cycles if review else "?" }}. Your change request was recorded but will not be re-investigated.
+    v{{ n }} stays unapproved; you can still approve it explicitly.
+    {% endcall %}
+  {% elif s == "approved" %}
+    {% call banner(s, "emerald", "Approved") %}
+    v{{ n }} was approved by a reviewer. Approval is a human judgement, not an objective verification of the root cause.
+    {% endcall %}
+  {% elif s == "superseded" %}
+    {% call banner(s, "slate", "Superseded") %}
+    A newer version replaced this one.
+    {% endcall %}
+  {% endif %}
+{% endif %}

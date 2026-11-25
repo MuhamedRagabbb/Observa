@@ -74,14 +74,14 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None,
     if f6:
         from observa_hitl.errors import F6Error
 
-        from .api import reviews
+        from .api import internal, reviews
 
         @app.exception_handler(F6Error)
         async def f6_error(_request: Request, exc: F6Error) -> JSONResponse:
             return JSONResponse(exc.envelope.model_dump(mode="json"), status_code=STATUS.get(exc.envelope.code, 500))
 
         app.include_router(reviews.router)
-        app.include_router(reviews.internal)
+        app.include_router(internal.router)
     from .ui import routes as ui_routes  # the UI reuses the API's view helpers
     app.include_router(ui_routes.router)
     return app
