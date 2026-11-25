@@ -135,13 +135,7 @@ class IncidentV1(BaseModel):
     def get(self, key: str, default: Any = None) -> Any:
         """Support dict-like get() access so investigate(IncidentV1(...)) never crashes."""
         val = getattr(self, key, None)
-        if val is not None:
-            return val
-        if key == "id":
-            return self.incident_id
-        if key == "first_observed_at":
-            return self.start_time
-        return default
+        return val if val is not None else default
 
     def __getitem__(self, key: str) -> Any:
         val = self.get(key)
