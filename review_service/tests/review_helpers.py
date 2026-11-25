@@ -15,3 +15,22 @@ def load(group, name):
 
 def bundle(name) -> ReportInputs:
     return ReportInputs.model_validate(load("bundles", name))
+
+
+def sha(token: str) -> str:
+    import hashlib
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+REVIEWERS = [
+    {"reviewer_id": "rev-alice", "display_name": "Alice (SRE)", "roles": ["reviewer", "viewer"],
+     "token_sha256": sha("alice-token")},
+    {"reviewer_id": "rev-bob", "display_name": "Bob (SRE)", "roles": ["reviewer"], "token_sha256": sha("bob-token")},
+    {"reviewer_id": "view-vic", "display_name": "Vic (viewer)", "roles": ["viewer"], "token_sha256": sha("vic-token")},
+]
+SERVICE_TOKEN = "service-token"
+
+
+def write_reviewers(path: Path) -> Path:
+    path.write_text(json.dumps({"reviewers": REVIEWERS}), encoding="utf-8")
+    return path

@@ -61,11 +61,11 @@ def test_action_bar_hidden_for_superseded_version(client, publish):
     assert 'data-testid="action-bar"' in current
 
 
-def test_review_actions_disabled_without_f6(client, publish):
-    html = page(client, publish("payments_v1"))
+def test_review_actions_disabled_without_f6(client_f7_only, publish):
+    html = page(client_f7_only, publish("payments_v1"))
     approve = re.search(r'<button[^>]*data-testid="approve-button"[^>]*>', html).group(0)
     change = re.search(r'<button[^>]*data-testid="request-changes-button"[^>]*>', html).group(0)
-    assert "disabled" in approve and "disabled" in change
+    assert 'aria-disabled="true"' in approve and 'aria-disabled="true"' in change
     assert "bg-emerald-600" in approve and "border-amber-500" in change
     assert "Review actions are enabled when F6 is installed" in html
 

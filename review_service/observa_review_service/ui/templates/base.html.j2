@@ -30,6 +30,12 @@
       <nav class="flex items-center gap-4 text-sm">
         <a href="/ui" class="text-slate-400 transition hover:text-slate-100">Reports</a>
         <a href="/docs" class="text-slate-400 transition hover:text-slate-100">API</a>
+        {% if viewer %}
+        <span data-testid="signed-in-as" class="hidden font-mono text-xs text-slate-500 sm:inline">{{ viewer.reviewer_id }}</span>
+        <form method="post" action="/ui/logout"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit" class="text-slate-400 transition hover:text-slate-100">Sign out</button></form>
+        {% elif sign_in_configured %}
+        <a href="/ui/login" class="text-sky-300 transition hover:text-sky-200">Sign in</a>
+        {% endif %}
       </nav>
     </div>
   </header>

@@ -10,6 +10,9 @@ requires-python = ">=3.12"
 dependencies = [
     "observa-investigation==0.1.0",
     "pydantic==2.14.4",
+    # Transitive: observa_investigation imports its LangGraph orchestrator on package import,
+    # but investigation/pyproject.toml declares no dependencies yet. Drop once F2 declares it.
+    "langgraph==1.2.24",
 ]
 
 [project.optional-dependencies]

@@ -17,6 +17,7 @@ dependencies = [
     "uvicorn==0.54.0",
     "Jinja2==3.1.6",
     "markdown-it-py==4.3.0",
+    "python-multipart==0.0.34",
 ]
 
 [project.optional-dependencies]

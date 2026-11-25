@@ -15,3 +15,6 @@ class Settings(BaseSettings):
     GROQ_BASE_URL: str = "https://api.groq.com/openai/v1"
     SERVICE_TOKEN_SHA256: str | None = None
     SESSION_SECRET: str | None = None
+    REVIEWERS_FILE: str = "reviewers.json"
+    OUTBOX_LEASE_SECONDS: int = Field(default=60, ge=1)
+    MEMORY_SINK_DIR: str = "./data/memory"

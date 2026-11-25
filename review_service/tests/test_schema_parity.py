@@ -5,6 +5,13 @@ from sqlalchemy import inspect
 from observa_reports.tables import metadata
 from observa_review_service.db import make_engine, upgrade
 
+TABLES = [(metadata, t) for t in sorted(metadata.tables)]
+try:  # F6 is an optional extra; its tables are checked whenever it is installed
+    from observa_hitl.tables import metadata as f6_metadata
+    TABLES += [(f6_metadata, t) for t in sorted(f6_metadata.tables)]
+except ImportError:
+    pass
+
 
 @pytest.fixture()
 def migrated(tmp_path):
@@ -15,9 +22,9 @@ def migrated(tmp_path):
     engine.dispose()
 
 
-@pytest.mark.parametrize("table", sorted(metadata.tables))
-def test_f7_table_matches_migration(migrated, table):
-    declared = metadata.tables[table]
+@pytest.mark.parametrize(("meta", "table"), TABLES, ids=[t for _, t in TABLES])
+def test_declared_table_matches_migration(migrated, meta, table):
+    declared = meta.tables[table]
     columns = {c["name"]: c for c in migrated.get_columns(table)}
     assert set(columns) == {c.name for c in declared.columns}
     for column in declared.columns:
@@ -25,6 +32,6 @@ def test_f7_table_matches_migration(migrated, table):
     assert set(migrated.get_pk_constraint(table)["constrained_columns"]) == \
         {c.name for c in declared.primary_key.columns}
     migrated_fks = {(tuple(fk["constrained_columns"]), fk["referred_table"]) for fk in migrated.get_foreign_keys(table)}
-    declared_fks = {(tuple(fk.parent.name for fk in c.elements), c.referred_table.name)
+    declared_fks = {(tuple(fk.parent.name for fk in c.elements), c.elements[0].target_fullname.split(".")[0])
                     for c in declared.foreign_key_constraints}
     assert declared_fks <= migrated_fks

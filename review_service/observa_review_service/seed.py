@@ -25,6 +25,15 @@ def _sqlite_parent(url: str) -> None:
         Path(url.removeprefix("sqlite:///")).parent.mkdir(parents=True, exist_ok=True)
 
 
+def _review_gate():
+    """F6's gate when the optional f6 extra is installed, else None (F7-only read side)."""
+    try:
+        from observa_hitl.gate import ReviewGate
+    except ImportError:
+        return None
+    return ReviewGate()
+
+
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--database-url", default=Settings().DATABASE_URL)
@@ -32,7 +41,7 @@ def main(argv: list[str] | None = None) -> None:
     args = ap.parse_args(argv)
     _sqlite_parent(args.database_url)
     upgrade(args.database_url)
-    engine, service = make_engine(args.database_url), ReportService()
+    engine, service, gate = make_engine(args.database_url), ReportService(), _review_gate()
     try:
         for name in args.bundles:
             inputs = ReportInputs.model_validate(json.loads((FIXTURES / f"{name}.json").read_text(encoding="utf-8")))
@@ -45,6 +54,8 @@ def main(argv: list[str] | None = None) -> None:
                         raise
                     record = service.publish(conn, inputs, revision_of=RevisionRef(
                         review_cycle_id=None, expected_previous=current))
+                if gate is not None:  # every published version waits for a human decision
+                    gate.open(conn, record.report_id, record.version)
             print(f"{name}: {record.report_id} v{record.version} ({record.incident_id})")
     finally:
         engine.dispose()

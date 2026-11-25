@@ -1,10 +1,16 @@
 """Shared fixtures for the composition root: a migrated database, published reports and an app."""
+from importlib.util import find_spec
+
 import pytest
 
 from observa_reports.service import ReportService, RevisionRef
 from observa_review_service.db import make_engine, unit_of_work, upgrade
 
 from review_helpers import CLOCK, bundle
+
+HAS_F6 = find_spec("observa_hitl") is not None
+# The F7-only install (no f6 extra) must still pass: F6-dependent modules are not collected there.
+collect_ignore = [] if HAS_F6 else ["api/test_auth_api.py", "api/test_decisions_api.py", "test_worker.py"]
 
 
 @pytest.fixture()
@@ -37,4 +43,13 @@ def client(engine):
     from fastapi.testclient import TestClient
     from observa_review_service.app import create_app
     with TestClient(create_app(engine=engine)) as test_client:
+        yield test_client
+
+
+@pytest.fixture()
+def client_f7_only(engine):
+    """The read side exactly as it runs without the optional F6 package."""
+    from fastapi.testclient import TestClient
+    from observa_review_service.app import create_app
+    with TestClient(create_app(engine=engine, f6=False)) as test_client:
         yield test_client

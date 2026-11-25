@@ -142,7 +142,7 @@
     </ul>
     {% endcall %}
 
-    {% if can_review %}{% include "_actions.html.j2" %}{% endif %}
+    <div id="review">{% if can_review %}{% include "_actions.html.j2" %}{% endif %}</div>
   </div>
 
   {# ---- Sidebar ------------------------------------------------------------ #}
@@ -162,12 +162,37 @@
       {% endfor %}
     </ol>
     {% endcall %}
-    {% call card("Review") %}
+    {% call card("Review", "review-card") %}
+    {% if cycle %}
+    <p class="mb-3 text-xs text-slate-500">Cycle {{ cycle.cycle_number }}{% if review %} of {{ review.max_review_cycles }}{% endif %} · <span data-testid="cycle-state" class="font-mono text-slate-300">{{ cycle.state | replace("_", " ") }}</span></p>
+    {% endif %}
+    {% if decisions %}
+    <ol data-testid="decision-history" class="space-y-3">
+      {% for d in decisions | reverse %}
+      <li class="rounded-lg border border-slate-800 px-3 py-2">
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-sm font-medium {{ 'text-emerald-300' if d.decision == 'approve' else 'text-amber-300' }}">{{ "Approved" if d.decision == "approve" else "Changes requested" }}</span>
+          <span class="whitespace-nowrap font-mono text-[10px] text-slate-500" title="{{ d.decided_at | ts }}">{{ d.decided_at | ts_short }}</span>
+        </div>
+        <p class="mt-1 text-xs text-slate-400">by <span class="font-mono text-slate-300">{{ d.reviewer_id }}</span> · v{{ d.version }}</p>
+        {% if d.feedback %}<p class="mt-2 whitespace-pre-line border-l-2 border-amber-500/40 pl-2 text-xs text-slate-300">{{ d.feedback }}</p>{% endif %}
+        {% if d.decision == "approve" %}
+        {% set sync = d.memory_sync_status %}
+        <div class="mt-2 flex items-center justify-between text-xs">
+          <span class="text-slate-500">Memory sync</span>
+          <span data-testid="memory-sync" data-status="{{ sync }}" class="rounded-full px-2 py-0.5 ring-1 ring-inset {{ {'stored': 'text-emerald-300 ring-emerald-500/40', 'pending': 'text-sky-300 ring-sky-500/40', 'failed': 'text-rose-300 ring-rose-500/40'}.get(sync, 'text-slate-300 ring-slate-600') }}">{{ sync | replace("_", " ") }}</span>
+        </div>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ol>
+    {% else %}
     <p class="text-sm text-slate-400">No review decisions yet.</p>
     <div class="mt-3 flex items-center justify-between text-xs">
       <span class="text-slate-500">Memory sync</span>
-      <span class="rounded-full px-2 py-0.5 text-slate-300 ring-1 ring-inset ring-slate-600">not requested</span>
+      <span data-testid="memory-sync" data-status="not_requested" class="rounded-full px-2 py-0.5 text-slate-300 ring-1 ring-inset ring-slate-600">not requested</span>
     </div>
+    {% endif %}
     {% endcall %}
     {% include "_timeline.html.j2" %}
     {% call card("Content") %}

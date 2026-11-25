@@ -29,9 +29,9 @@ def test_report_version_contract_fields_exact(client, publish):
     assert body["content_ref"] == f"sha256:{record.content_digest}"
 
 
-def test_review_status_defaults_to_pending_without_f6(client, publish):
+def test_review_status_defaults_to_pending_without_f6(client_f7_only, publish):
     record = publish("payments_v1")
-    assert client.get(f"/api/v1/reports/{record.report_id}").json()["report_version"]["review_status"] == \
+    assert client_f7_only.get(f"/api/v1/reports/{record.report_id}").json()["report_version"]["review_status"] == \
         "pending_review"
 
 

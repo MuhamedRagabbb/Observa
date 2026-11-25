@@ -1,0 +1,22 @@
+{% extends "base.html.j2" %}
+{% block title %}Sign in · OBSERVA review{% endblock %}
+{% block content %}
+<div class="mx-auto mt-16 max-w-md rounded-xl border border-slate-800 bg-slate-900 p-6 shadow-xl shadow-black/30">
+  <h1 class="text-lg font-semibold text-slate-100">Reviewer sign-in</h1>
+  <p class="mt-1 text-sm text-slate-400">Paste your reviewer token. It is checked against a stored hash and never saved in the browser.</p>
+  {% if not configured %}
+  <p data-testid="login-unconfigured" class="mt-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">Reviewer sign-in is not configured: install F6 and create <code class="font-mono">review_service/reviewers.json</code> from <code class="font-mono">reviewers.example.json</code>.</p>
+  {% else %}
+  {% if error %}
+  <p data-testid="login-error" class="mt-4 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{{ error }}</p>
+  {% endif %}
+  <form method="post" action="/ui/login" class="mt-5 flex flex-col gap-4">
+    <label for="token" class="text-xs font-medium text-slate-300">Reviewer token</label>
+    <input id="token" name="token" type="password" autocomplete="current-password" required
+           class="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-sm text-slate-100 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500">
+    <input type="hidden" name="next" value="{{ next or '/ui' }}">
+    <button type="submit" class="rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400">Sign in</button>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

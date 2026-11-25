@@ -11,10 +11,15 @@ dependencies = [
     "observa-reports==0.1.0",
     "observa-investigation==0.1.0",
     "pydantic==2.14.4",
+    "SQLAlchemy==2.1.9",
+    # Feedback interpretation via Groq's OpenAI-compatible API (instructor JSON mode, context= validation).
+    "instructor==1.17.0",
+    "openai==3.3.0",
+    "httpx==0.28.1",
 ]
 
 [project.optional-dependencies]
-test = ["pytest==9.2.0"]
+test = ["pytest==9.2.0", "observa-review-service==0.1.0"]
 
 [tool.setuptools.packages.find]
 where = ["."]

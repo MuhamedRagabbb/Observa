@@ -1,0 +1,10 @@
+{
+  "reviewers": [
+    {
+      "reviewer_id": "rev-demo",
+      "display_name": "Demo SRE reviewer",
+      "roles": ["reviewer", "viewer"],
+      "token_sha256": "replace-with: python -c \"import hashlib,sys; print(hashlib.sha256(sys.argv[1].encode()).hexdigest())\" <your-token>"
+    }
+  ]
+}
