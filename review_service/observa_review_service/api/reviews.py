@@ -47,7 +47,7 @@ def connection(request: Request) -> Iterator[Connection]:
 @router.post("/{report_id}/versions/{version}/decisions", status_code=201)
 def decide(report_id: str, version: int, body: DecisionBody, request: Request,
            idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
-           reviewer=Depends(session.require_viewer)):
+           reviewer=Depends(session.require_bearer)):
     if not idempotency_key or not idempotency_key.strip():
         raise F6Error("VALIDATION_ERROR", "The Idempotency-Key header is required.",
                       operation_id=f"decide:{report_id}:v{version}", details={"header": "Idempotency-Key"})

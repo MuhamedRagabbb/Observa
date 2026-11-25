@@ -11,7 +11,8 @@ from review_helpers import CLOCK, bundle
 HAS_F6 = find_spec("observa_hitl") is not None
 # The F7-only install (no f6 extra) must still pass: F6-dependent modules are not collected there.
 collect_ignore = [] if HAS_F6 else ["api/test_auth_api.py", "api/test_decisions_api.py", "api/test_internal_api.py",
-                                    "ui/test_review_states.py", "test_worker.py"]
+                                    "ui/test_review_states.py", "ui/test_review_fixes_http.py",
+                                    "test_worker.py", "e2e/test_review_loop.py"]
 
 
 @pytest.fixture()

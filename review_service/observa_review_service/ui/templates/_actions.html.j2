@@ -25,7 +25,8 @@
           Request changes
         </button>
         {% endif %}
-        <button data-testid="approve-button" type="submit" name="decision" value="approve"
+        {# formnovalidate: the hidden change-request textarea is `required`, which would otherwise block Approve. #}
+        <button data-testid="approve-button" type="submit" name="decision" value="approve" formnovalidate
                 onclick="return confirm('Approve version {{ n }} of this report? This records your decision for exactly this version.')"
                 class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-emerald-900/40 transition hover:bg-emerald-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
                 {% if not enabled %}disabled aria-disabled="true"{% endif %}>

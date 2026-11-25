@@ -11,6 +11,8 @@ claims are leased and acknowledgements are fenced.
 """
 import argparse
 import time
+from collections.abc import Callable
+from datetime import datetime, timezone
 
 from sqlalchemy import Engine, func, select
 
@@ -39,19 +41,24 @@ def build_interpreter(settings: Settings) -> FeedbackInterpreter:
     return FakeInterpreter()
 
 
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
 def build_handlers(settings: Settings, engine: Engine, *, memory_sink: MemorySink | None = None,
-                   interpreter: FeedbackInterpreter | None = None,
-                   reinvestigator: Reinvestigator | None = None) -> dict[str, Handler]:
+                   interpreter: FeedbackInterpreter | None = None, reinvestigator: Reinvestigator | None = None,
+                   clock: Callable[[], datetime] = _now) -> dict[str, Handler]:
     sink = memory_sink or FileMemorySink(settings.MEMORY_SINK_DIR)
-    f2 = reinvestigator or FixtureReinvestigator(engine, FIXTURES, max_review_cycles=settings.MAX_REVIEW_CYCLES)
+    f2 = reinvestigator or FixtureReinvestigator(engine, FIXTURES, max_review_cycles=settings.MAX_REVIEW_CYCLES,
+                                                 clock=clock)
     return {MEMORY_EVENT: memory_handler(sink),
-            INTERPRET_EVENT: interpret_handler(engine, interpreter or build_interpreter(settings)),
-            REINVESTIGATION_EVENT: reinvestigation_handler(engine, f2)}
+            INTERPRET_EVENT: interpret_handler(engine, interpreter or build_interpreter(settings), clock=clock),
+            REINVESTIGATION_EVENT: reinvestigation_handler(engine, f2, clock=clock)}
 
 
-def build_relay(settings: Settings, engine: Engine, **kw) -> Relay:
-    return Relay(engine, build_handlers(settings, engine, **kw), max_attempts=settings.OUTBOX_MAX_ATTEMPTS,
-                 lease_seconds=settings.OUTBOX_LEASE_SECONDS)
+def build_relay(settings: Settings, engine: Engine, *, clock: Callable[[], datetime] = _now, **kw) -> Relay:
+    return Relay(engine, build_handlers(settings, engine, clock=clock, **kw), max_attempts=settings.OUTBOX_MAX_ATTEMPTS,
+                 lease_seconds=settings.OUTBOX_LEASE_SECONDS, clock=clock)
 
 
 def _status_line(engine: Engine) -> str:

@@ -63,6 +63,12 @@ class GroqInterpreter:
                 context={"allowed_targets": allowed_targets}, temperature=0,
                 messages=prompt.build(feedback, report, allowed_targets))
         except InstructorRetryException as exc:
+            if isinstance(exc.__cause__, (openai.BadRequestError, openai.UnprocessableEntityError)):
+                # Groq rejected this request itself (e.g. json_validate_failed, context too long): retrying
+                # the same prompt cannot help, so ask the reviewer to clarify instead of retrying for minutes.
+                return InterpretationResult(output=inconclusive(allowed_targets), attempts=max(1, self._calls.n),
+                                            raw=f"provider rejected the request: {exc.__cause__}"[:2000],
+                                            interpreter=self.name)
             if isinstance(exc.__cause__, openai.APIError) or not exc.failed_attempts:
                 raise ProviderUnavailable(f"Groq request failed: {exc.__cause__ or exc}") from exc
             return InterpretationResult(output=inconclusive(allowed_targets), attempts=exc.n_attempts,

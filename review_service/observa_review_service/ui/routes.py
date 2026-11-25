@@ -128,7 +128,7 @@ def _report_page(request: Request, conn: Connection, report_id: str, version: in
     current = history[-1].version
     this = next(v for v in history if v.version == stored.record.version)
     review = _review(request, conn, report_id)
-    reinvestigation, intents = None, {}
+    reinvestigation, intents, delivery_failure = None, {}, None
     if review is not None:  # F6 owns the cycle state (see observa_hitl.contracts)
         cycle = next((c for c in review.cycles if c.report_version == this.version), None)
         state = cycle.state if cycle else "pending_review"
@@ -139,6 +139,8 @@ def _report_page(request: Request, conn: Connection, report_id: str, version: in
         if cycle is not None:
             reinvestigation = next((r for r in review.reinvestigations
                                     if r.review_cycle_id == cycle.review_cycle_id), None)
+            delivery_failure = next((f for f in review.failed_deliveries
+                                     if f.review_cycle_id == cycle.review_cycle_id), None)
     else:
         cycle, decisions = None, []
         open_for_decision = can_request = this.review_status == "pending_review"
@@ -147,7 +149,7 @@ def _report_page(request: Request, conn: Connection, report_id: str, version: in
         "is_current": this.version == current, "current_version": current,
         "can_review": this.version == current and open_for_decision,
         "can_request_changes": this.version == current and can_request,
-        "reinvestigation": reinvestigation, "intents": intents,
+        "reinvestigation": reinvestigation, "intents": intents, "delivery_failure": delivery_failure,
         "actions_available": request.app.state.review_actions_available,
         "viewer_can_review": bool(viewer is not None and viewer.can_review),
         "cycle": cycle, "decisions": decisions, "review": review,

@@ -1,0 +1,58 @@
+# OBSERVA review service (F7 reports + F6 human review) and its outbox worker.
+#
+#   cp review_service/.env.example review_service/.env                 # then fill in the secrets
+#   cp review_service/reviewers.example.json review_service/reviewers.json  # then put real token hashes in it
+#   docker compose -f review_service/compose.yaml up --build -d
+#   open http://127.0.0.1:8095/ui
+#
+# Own project name, own volume, loopback-only port 8095: it never touches the dummy-app stack
+# (8000-8003, 8090, 3000, 9090, 16686) or any other OBSERVA compose project.
+name: observa-review
+
+x-common: &common
+  build:
+    context: ..
+    dockerfile: review_service/docker/Dockerfile
+  image: observa-review-service:local
+  env_file:
+    - path: .env
+      required: true
+  environment:
+    # Container paths always win over .env, so a local .env written for `uvicorn` on the host still works here.
+    DATABASE_URL: sqlite:////data/review.sqlite3
+    MEMORY_SINK_DIR: /data/memory
+    REVIEWERS_FILE: /run/config/reviewers.json
+  volumes:
+    - type: volume
+      source: review-data
+      target: /data
+    - type: bind
+      source: ./reviewers.json
+      target: /run/config/reviewers.json
+      read_only: true
+      bind:
+        create_host_path: false
+  restart: unless-stopped
+
+services:
+  review:
+    <<: *common
+    command: ["sh", "-c", "python -m observa_review_service.migrate && exec uvicorn observa_review_service.app:create_app --factory --host 0.0.0.0 --port 8000"]
+    ports:
+      - "127.0.0.1:8095:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ui/login', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+
+  review-worker:
+    <<: *common
+    command: ["python", "-m", "observa_review_service.worker", "--loop", "--interval", "2"]
+    depends_on:
+      review:
+        condition: service_healthy
+
+volumes:
+  review-data: {}

@@ -1,0 +1,24 @@
+**
+!investigation/pyproject.toml
+!investigation/observa_investigation/**/*.py
+!f7_reports/pyproject.toml
+!f7_reports/observa_reports/**/*.py
+!f6_hitl/pyproject.toml
+!f6_hitl/observa_hitl/**/*.py
+!review_service/pyproject.toml
+!review_service/requirements.lock
+!review_service/alembic.ini
+!review_service/reviewers.example.json
+!review_service/observa_review_service/**/*.py
+!review_service/observa_review_service/migrations/script.py.mako
+!review_service/observa_review_service/ui/templates/*.j2
+!review_service/fixtures/**/*.json
+
+# Runtime configuration and local state are supplied by Compose, never baked into the image.
+**/.env
+**/.env.*
+**/reviewers.json
+**/data
+**/*.sqlite3
+**/__pycache__
+**/*.egg-info

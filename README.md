@@ -41,6 +41,7 @@ When F3 needs more evidence, the worker sends the question back to the relevant 
 | F1 · Detection and grouping | [Run the detector and inspect its incident bundles](alert-detection-grouping/README.md) |
 | F2 · Investigation | [Run F2 or an individual signal agent on a saved incident](investigation/README.md) |
 | F3 · Correlation | [Run the Docker worker or render a saved report](correlation_agent/README.md) |
+| F6 · Human review, F7 · Reports | [Review, approve or request changes on versioned incident reports](review_service/README.md) |
 
 ## Project status
 

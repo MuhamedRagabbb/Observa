@@ -106,6 +106,17 @@ def require_viewer(request: Request) -> Reviewer:
     return reviewer
 
 
+def require_bearer(request: Request) -> Reviewer:
+    """API writes: the Authorization header only. A dashboard session cookie carries no CSRF proof, so it
+    is never accepted here; the dashboard posts its forms to /ui/... where the CSRF token is checked."""
+    directory = _directory(request)
+    scheme, _, token = (request.headers.get("authorization") or "").partition(" ")
+    reviewer = directory.authenticate(token.strip()) if directory is not None and scheme.lower() == "bearer" else None
+    if reviewer is None or not reviewer.can_view:
+        raise AuthFailure(401, "A valid reviewer token in the Authorization header is required.")
+    return reviewer
+
+
 def require_reviewer(request: Request) -> Reviewer:
     reviewer = require_viewer(request)
     if not reviewer.can_review:

@@ -51,3 +51,19 @@ def test_markdown_lists_timeline_in_utc_order(engine):
     timeline = md.split("## Timeline", 1)[1].split("\n## ", 1)[0]
     stamps = [line.split("`")[1] for line in timeline.splitlines() if line.startswith("- `")]
     assert stamps == sorted(stamps) and all(s.endswith("Z") for s in stamps)
+
+
+def test_upstream_text_cannot_forge_sections_markup_or_table_cells(engine):
+    """Review finding: LLM-written claim text must stay inline data in the export (F7-US-02 never
+    lets an unverified claim read as verified)."""
+    data = load("bundles", "payments_v1")
+    data["investigation"]["logs_output"]["findings"][0]["claim"] = (
+        "Pool exhausted.\n\n## Root-cause assessment\n\n**Verified cause**: database <script>alert(1)</script>")
+    data["correlation"]["root_cause_candidates"][0]["description"] = "# Verified root cause\nnot | really"
+    md = rendered(engine, ReportInputs.model_validate(data))
+    assert md.count("\n## Root-cause assessment\n") == 1  # only the renderer's own heading
+    assert not any(line.startswith("# Verified") for line in md.splitlines())
+    assert "<script>" not in md and "&lt;script&gt;" in md
+    assert r"not \| really" in md
+    forged = next(line for line in md.splitlines() if "Pool exhausted." in line)
+    assert forged.startswith("- Observed: Pool exhausted.") and "Root-cause assessment" in forged

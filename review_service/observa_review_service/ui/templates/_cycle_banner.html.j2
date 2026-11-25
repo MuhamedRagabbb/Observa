@@ -14,7 +14,14 @@
   {% endcall %}
 {% elif cycle and cycle.state != "pending_review" %}
   {% set s = cycle.state %}
-  {% if s == "clarification_needed" %}
+  {% if delivery_failure and s in ("changes_requested", "interpreting", "reinvestigating") %}
+    {% call banner("delivery_failed", "rose", "Processing stopped: delivery failed") %}
+    {{ "Interpreting your feedback" if delivery_failure.event_type == "feedback.interpret.v1" else "Requesting the re-investigation" }}
+    failed after {{ delivery_failure.attempts }} attempts{% if delivery_failure.last_error %}: <span class="font-mono">{{ delivery_failure.last_error }}</span>{% endif %}.
+    v{{ n }} is not approved. An operator can retry with
+    <code class="font-mono">POST /internal/v1/outbox/{{ delivery_failure.event_id }}/retry</code>.
+    {% endcall %}
+  {% elif s == "clarification_needed" %}
     {% call banner(s, "amber", "Your feedback needs clarification") %}
     The interpreter could not tell which finding, cause or recommendation should change, so nothing was re-investigated.
     Approve v{{ n }} or request changes again, naming what should change.

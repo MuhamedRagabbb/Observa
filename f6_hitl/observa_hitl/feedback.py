@@ -192,6 +192,12 @@ def handle_revision_ready(conn: Connection, report_id: str, inputs: ReportInputs
                       details={"current_version": head})
     record = reports.publish(conn, inputs, revision_of=RevisionRef(
         review_cycle_id=review_cycle_id, expected_previous=cycle.report_version))
+    if record.version != cycle.report_version + 1:
+        # F7 treated the inputs as an idempotent republish of vN: nothing was revised. Leave the cycle
+        # waiting so F2 can send a real revision or report the re-investigation as failed.
+        raise F6Error("VALIDATION_ERROR", "The revision is identical to the version under review; "
+                      "send changed findings or report the re-investigation as failed.", operation_id=op,
+                      details={"current_version": cycle.report_version})
     now = iso(clock())
     moved = conn.execute(update(review_cycles).where(
         review_cycles.c.review_cycle_id == review_cycle_id, review_cycles.c.state == "reinvestigating",

@@ -14,19 +14,17 @@ from sqlalchemy import Connection, func, insert, select, update
 from sqlalchemy.exc import IntegrityError
 
 from observa_reports.service import ReportService
-from observa_reports.tables import report_heads
+from observa_reports.tables import report_heads, report_versions
 
 from .auth import Reviewer
 from .contracts import (APPROVE_ONLY_STATES, DECIDABLE_STATES, OPEN_STATES, DecisionCommand, DecisionOutcome,
-                        DecisionView, FeedbackIntentView, ReinvestigationView, ReviewCycle, ReviewDecision,
-                        ReviewSummary, cycle_id_for, decision_id_for, iso)
+                        DecisionView, FailedDelivery, FeedbackIntentView, ReinvestigationView, ReviewCycle,
+                        ReviewDecision, ReviewSummary, cycle_id_for, decision_id_for, iso, request_id_for)
 from .errors import F6Error
-from .outbox import Outbox
+from .outbox import INTERPRET_EVENT, REINVESTIGATION_EVENT, Outbox
 from .ports import MEMORY_EVENT, ApprovedReportHandoff
 from .projections import memory_sync_status
-from .tables import feedback_intents, reinvestigations, review_audit, review_cycles, review_decisions
-
-INTERPRET_EVENT = "feedback.interpret.v1"
+from .tables import feedback_intents, outbox_events, reinvestigations, review_audit, review_cycles, review_decisions
 UnitOfWork = Callable[[], AbstractContextManager[Connection]]
 
 
@@ -69,7 +67,8 @@ class ReviewGate:
             review_cycles.c.report_id == report_id, review_cycles.c.report_version < version,
             review_cycles.c.state.in_(OPEN_STATES),
         ).values(state="superseded", state_version=review_cycles.c.state_version + 1, closed_at=now))
-        number = self.cycles_used(conn, report_id) + 1
+        number = conn.execute(select(func.count()).select_from(review_cycles)
+                              .where(review_cycles.c.report_id == report_id)).scalar_one() + 1
         conn.execute(insert(review_cycles).values(
             review_cycle_id=cycle_id, report_id=report_id, report_version=version, cycle_number=number,
             state="pending_review", state_version=0, opened_at=now, closed_at=None))
@@ -77,9 +76,13 @@ class ReviewGate:
 
     @staticmethod
     def cycles_used(conn: Connection, report_id: str) -> int:
-        """Review rounds consumed so far, read from the database (never caller-supplied)."""
-        return conn.execute(select(func.count()).select_from(review_cycles)
-                            .where(review_cycles.c.report_id == report_id)).scalar_one()
+        """Human review rounds consumed so far, read from the database (never caller-supplied): the first
+        review plus every version F6 itself asked F2 to revise. Upstream updates (F1-F4 republishing new
+        findings) open a review cycle but do not use up the reviewers' budget."""
+        revisions = conn.execute(select(func.count()).select_from(report_versions).where(
+            report_versions.c.report_id == report_id, report_versions.c.revision_of_cycle_id.is_not(None)))\
+            .scalar_one()
+        return 1 + revisions
 
     # ---- deciding -----------------------------------------------------------------------------
     def decide(self, conn: Connection, reviewer: Reviewer | None, cmd: DecisionCommand) -> DecisionOutcome:
@@ -93,7 +96,14 @@ class ReviewGate:
         if cmd.decision == "request_changes" and feedback is None:
             raise F6Error("VALIDATION_ERROR", "Request changes needs written feedback that is not empty.",
                           operation_id=op, details={"field": "feedback"})
-        # 3. Idempotency: the same key and payload replays; the same key with another payload conflicts.
+        # 3. Lock the report head first. Under Postgres READ COMMITTED this serializes concurrent decisions
+        #    for the report, so a second request with the same key waits here and then sees the first one's
+        #    decision as a replay (instead of passing the lookup and failing later with a conflict).
+        head = conn.execute(select(report_heads.c.current_version, report_heads.c.incident_id)
+                            .where(report_heads.c.report_id == cmd.report_id).with_for_update()).first()
+        if head is None:
+            raise F6Error("NOT_FOUND", f"Report {cmd.report_id} does not exist.", operation_id=op)
+        # 4. Idempotency: the same key and payload replays; the same key with another payload conflicts.
         request_hash = cmd.request_hash(reviewer.reviewer_id)
         prior = conn.execute(select(review_decisions).where(
             review_decisions.c.idempotency_key == cmd.idempotency_key)).first()
@@ -103,11 +113,7 @@ class ReviewGate:
                               "decision.", operation_id=op, details={"decision_id": prior.decision_id})
             self._audit(conn, reviewer.reviewer_id, cmd, "replayed", None, prior.decision_id)
             return DecisionOutcome(decision=_decision(prior), replayed=True)
-        # 4. Only the current head version's open cycle accepts a decision (compare-and-swap).
-        head = conn.execute(select(report_heads.c.current_version, report_heads.c.incident_id)
-                            .where(report_heads.c.report_id == cmd.report_id).with_for_update()).first()
-        if head is None:
-            raise F6Error("NOT_FOUND", f"Report {cmd.report_id} does not exist.", operation_id=op)
+        # 5. Only the current head version's open cycle accepts a decision (compare-and-swap).
         if cmd.version != head.current_version:
             raise F6Error("VERSION_CONFLICT", f"Version {cmd.version} is not the current version.", operation_id=op,
                           details={"current_version": head.current_version})
@@ -138,7 +144,7 @@ class ReviewGate:
         if swapped.rowcount != 1:
             raise F6Error("VERSION_CONFLICT", "Another decision was recorded for this version first.",
                           operation_id=op, details={"current_version": head.current_version})
-        # 5. The immutable decision.
+        # 6. The immutable decision.
         decision = ReviewDecision(
             decision_id=decision_id_for(cmd.report_id, cmd.version, cmd.idempotency_key),
             idempotency_key=cmd.idempotency_key, incident_id=head.incident_id, report_id=cmd.report_id,
@@ -151,7 +157,7 @@ class ReviewGate:
         except IntegrityError as exc:  # a concurrent writer used the same key first (Postgres)
             raise F6Error("IDEMPOTENCY_CONFLICT", "This Idempotency-Key was just used by another request.",
                           operation_id=op) from exc
-        # 6. Its durable handoff intent, in the same transaction.
+        # 7. Its durable handoff intent, in the same transaction.
         if cmd.decision == "approve":
             record = self._reports.get(conn, cmd.report_id, cmd.version).record
             handoff = ApprovedReportHandoff(
@@ -212,5 +218,24 @@ class ReviewGate:
             reinvestigations.c.review_cycle_id.in_(cycle_ids)).order_by(reinvestigations.c.created_at))]
         return ReviewSummary(report_id=report_id, current_version=head, cycles=cycles, decisions=decisions,
                              feedback_intents=intents, reinvestigations=reinv,
-                             max_review_cycles=self.max_review_cycles, cycles_used=len(cycles),
+                             failed_deliveries=self._failed_deliveries(conn, decisions, intents),
+                             max_review_cycles=self.max_review_cycles,
+                             cycles_used=self.cycles_used(conn, report_id),
                              limit_reached=any(c.state == "limit_reached" for c in cycles))
+
+    @staticmethod
+    def _failed_deliveries(conn, decisions, intents) -> list[FailedDelivery]:
+        """Interpretation or re-investigation events the outbox gave up on, mapped to their cycle, so the
+        UI can say "delivery failed, an operator can retry" instead of showing work in progress forever."""
+        keys = {(INTERPRET_EVENT, d.decision_id): d.review_cycle_id for d in decisions
+                if d.decision == "request_changes"}
+        keys |= {(REINVESTIGATION_EVENT, request_id_for(i.review_cycle_id, i.feedback_id)): i.review_cycle_id
+                 for i in intents}
+        if not keys:
+            return []
+        rows = conn.execute(select(outbox_events).where(
+            outbox_events.c.status == "failed",
+            outbox_events.c.dedupe_key.in_({dedupe for _, dedupe in keys}))).all()
+        return [FailedDelivery(review_cycle_id=keys[(r.event_type, r.dedupe_key)], event_id=r.event_id,
+                               event_type=r.event_type, attempts=r.attempts, last_error=r.last_error)
+                for r in rows if (r.event_type, r.dedupe_key) in keys]

@@ -147,6 +147,20 @@ class ReviewSummary(BaseModel):
     decisions: list[DecisionView]
     feedback_intents: list[FeedbackIntentView]
     reinvestigations: list[ReinvestigationView]
+    failed_deliveries: list["FailedDelivery"]
     max_review_cycles: int
-    cycles_used: int  # counted from the database, so restarts never reset it
+    cycles_used: int  # human review rounds, counted from the database, so restarts never reset them
     limit_reached: bool
+
+
+class FailedDelivery(BaseModel):
+    """An interpretation or re-investigation event the outbox gave up on (operator retry needed)."""
+    model_config = ConfigDict(frozen=True)
+    review_cycle_id: str
+    event_id: str
+    event_type: str
+    attempts: int
+    last_error: str | None
+
+
+ReviewSummary.model_rebuild()

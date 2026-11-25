@@ -2,8 +2,11 @@
 
 Presentation only: it renders what the content says, labels observations,
 inferences, contradictions and unresolved references, and never strengthens a
-claim. Upstream text is passed through as data.
+claim. Upstream (often LLM-written) text is data: `_t()` keeps it on one line,
+escapes HTML and table pipes and neutralises a leading Markdown block marker, so
+it can never open a heading, a section or raw HTML of its own.
 """
+import re
 from datetime import datetime
 
 from .content import CauseItem, ReportContent
@@ -11,6 +14,16 @@ from .service import VersionRecord
 
 SIGNALS = ("logs", "metrics", "traces")
 REFERENCE_LABEL = {"valid": "Resolved", "invalid": "⚠ Invalid reference", "unresolved": "⚠ Unresolved reference"}
+
+
+_BLOCK_START = re.compile(r"^(\s*)([#>*+=-]|\d+[.)])")
+
+
+def _t(text: str | None) -> str:
+    """Upstream text as inline, inert Markdown."""
+    flat = " ".join((text or "").split())
+    flat = flat.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("|", "\\|")
+    return _BLOCK_START.sub(lambda m: m.group(1) + "\\" + m.group(2), flat)
 
 
 def _ts(value: datetime | None) -> str:
@@ -22,8 +35,8 @@ def _links(links) -> str:
 
 
 def _cause(cause: CauseItem, label: str) -> list[str]:
-    lines = [f"**{label}** · `{cause.candidate_id}`", "", cause.description, ""]
-    lines.append(f"- Uncertainty: {cause.uncertainty or 'none stated'}")
+    lines = [f"**{label}** · `{cause.candidate_id}`", "", _t(cause.description), ""]
+    lines.append(f"- Uncertainty: {_t(cause.uncertainty) or 'none stated'}")
     lines += [f"- Evidence `{l.evidence_id}`: {l.relation} / {l.support_status} (reference "
               f"{'resolved' if l.reference_valid is True else 'unresolved' if l.reference_valid == 'unknown' else 'invalid'})"
               for l in cause.evidence_links]
@@ -36,18 +49,18 @@ def render_markdown(content: ReportContent, record: VersionRecord) -> str:
            f"Version {record.version} · draft, pending human review · `{record.report_id}` · "
            f"content `{record.content_ref}`", "", f"> {content.draft_notice}", "",
            "## Overview", "",
-           f"- Title: {o.title}",
+           f"- Title: {_t(o.title)}",
            f"- Start: `{_ts(o.start_time)}` · End: `{_ts(o.end_time)}`",
-           f"- Affected services: {', '.join(o.affected_services) or 'none recorded'}",
+           f"- Affected services: {_t(', '.join(o.affected_services)) or 'none recorded'}",
            f"- Severity: {o.severity or 'not provided'}", "",
-           "## Executive summary", "", content.executive_summary, "",
+           "## Executive summary", "", _t(content.executive_summary), "",
            "## Grouped alerts", ""]
-    out += [f"- **{a.signal_type}** · {a.service} · {a.severity} · `{_ts(a.timestamp)}` · {a.description}"
+    out += [f"- **{a.signal_type}** · {_t(a.service)} · {a.severity} · `{_ts(a.timestamp)}` · {_t(a.description)}"
             for a in content.alerts.items] or ["- No alert records were supplied."]
     out += [f"- `{alert_id}`: alert record not supplied" for alert_id in content.alerts.missing_alert_ids]
     out += ["", "## Timeline", ""]
-    out += [f"- `{_ts(e.at)}` {e.description}" for e in content.timeline.events]
-    out += [f"- (time not recorded) {e.description} · `{e.ref}`" for e in content.timeline.untimed]
+    out += [f"- `{_ts(e.at)}` {_t(e.description)}" for e in content.timeline.events]
+    out += [f"- (time not recorded) {_t(e.description)} · `{e.ref}`" for e in content.timeline.untimed]
     out += ["", "## Findings by signal", ""]
     for signal in SIGNALS:
         section = getattr(content.findings, signal)
@@ -56,9 +69,9 @@ def render_markdown(content: ReportContent, record: VersionRecord) -> str:
             out += ["No findings were supplied." if section.status == "unavailable" else "No findings.", ""]
         for f in section.findings:
             kind = "Observed" if f.claim_kind == "observation" else "Inferred"
-            out.append(f"- {kind}: {f.claim} · {f.service} · `{f.finding_id}`")
+            out.append(f"- {kind}: {_t(f.claim)} · {_t(f.service)} · `{f.finding_id}`")
             if f.uncertainty:
-                out.append(f"  - Uncertainty: {f.uncertainty}")
+                out.append(f"  - Uncertainty: {_t(f.uncertainty)}")
             out.append(f"  - Evidence: {_links(f.evidence_links)}")
         out.append("")
     rc = content.root_cause
@@ -79,19 +92,19 @@ def render_markdown(content: ReportContent, record: VersionRecord) -> str:
         out += ["No validated remediation is proposed.", ""]
     for item in recs.ranked + recs.other_options:
         rank = f"{item.rank}." if item.rank else "-"
-        out.append(f"{rank} {item.action} · {item.action_type} · validation {item.validation}")
-        out.append(f"   - Rationale: {item.rationale}")
+        out.append(f"{rank} {_t(item.action)} · {item.action_type} · validation {item.validation}")
+        out.append(f"   - Rationale: {_t(item.rationale)}")
         if item.risk_or_caveat:
-            out.append(f"   - Caveat: {item.risk_or_caveat}")
+            out.append(f"   - Caveat: {_t(item.risk_or_caveat)}")
     out += ["", "## Evidence register", "", "| Evidence | Signal | Services | Reference | Assessments |",
             "| --- | --- | --- | --- | --- |"]
     for e in content.evidence_register:
         assessments = "; ".join(f"{a.claim_type} {a.relation}/{a.support_status}" for a in e.assessments)
-        out.append(f"| `{e.evidence_id}` | {e.signal_type or 'unknown'} | {', '.join(e.services) or '-'} | "
+        out.append(f"| `{e.evidence_id}` | {e.signal_type or 'unknown'} | {_t(', '.join(e.services)) or '-'} | "
                    f"{REFERENCE_LABEL[e.reference_status]} | {assessments} |")
     out += ["", "## Missing evidence", ""]
-    out += [f"- [{m.source}] {m.required} ({m.requested_from}, {m.status}): {m.reason}"
+    out += [f"- [{m.source}] {_t(m.required)} ({_t(m.requested_from)}, {m.status}): {_t(m.reason)}"
             for m in content.missing_evidence] or ["- None reported."]
     out += ["", "## Limitations", ""]
-    out += [f"- {line}" for line in content.limitations] or ["- None reported."]
+    out += [f"- {_t(line)}" for line in content.limitations] or ["- None reported."]
     return "\n".join(out) + "\n"
