@@ -1,5 +1,6 @@
 """Investigation Orchestrator (F2-US-04): plan -> dispatch -> (retry) -> aggregate,
 with LangGraph checkpointer persistence, FollowUpRequest (F3), and FeedbackIntent (F6)."""
+import os
 import threading
 import uuid
 from concurrent.futures import ThreadPoolExecutor, wait
@@ -34,12 +35,6 @@ def validate_incident(incident: Any) -> IncidentV1:
         return incident
     if isinstance(incident, dict):
         raw = dict(incident)
-        if "id" in raw and "incident_id" not in raw:
-            raw["incident_id"] = raw["id"]
-        if "first_observed_at" in raw and "start_time" not in raw:
-            raw["start_time"] = raw["first_observed_at"]
-        if "last_observed_at" in raw and "end_time" not in raw:
-            raw["end_time"] = raw["last_observed_at"]
         if isinstance(raw.get("alerts"), dict):
             raw["alerts"] = sorted(list(raw["alerts"].keys()))
         if not raw.get("incident_id"):
@@ -104,7 +99,11 @@ class Orchestrator:
             )
         self.agents = agents
         self.config = config or InvestigationConfig()
-        self.checkpointer = checkpointer if checkpointer is not None else SqliteSaver()
+        self.checkpointer = (
+            checkpointer
+            if checkpointer is not None
+            else SqliteSaver(os.environ.get("OBSERVA_CHECKPOINT_DB", "investigation_checkpoints.db"))
+        )
         self._lock = threading.Lock()
         self._run_attempts: Dict[Tuple[str, str], int] = {}
         self._last_partial: Dict[Tuple[str, str], Tuple[List[dict], List[dict]]] = {}
@@ -149,6 +148,16 @@ class Orchestrator:
             )
         actual_run_id = run_id or _new_id("RUN")
         cfg = {"configurable": {"thread_id": actual_run_id}}
+        existing = self.graph.get_state(cfg)
+        if existing and existing.values:
+            raise F2Error(
+                ErrorEnvelope(
+                    code="VALIDATION_ERROR",
+                    message=f"run_id {actual_run_id!r} already exists; use resume() to retrieve it",
+                    retryable=False,
+                    operation_id=actual_run_id,
+                )
+            )
         final = self.graph.invoke(
             {
                 "incident": valid_inc.model_dump(),
@@ -164,11 +173,8 @@ class Orchestrator:
     def follow_up(
         self,
         request: FollowUpRequest,
-        incident: dict,
+        incident: Any,
         prior_result: Optional[InvestigationResult] = None,
-        *,
-        reinvestigation_count: int = 0,
-        review_cycle_count: Optional[int] = None,
     ) -> InvestigationResult:
         iid = incident_id_of(incident)
         if not iid or iid != request.incident_id:
@@ -180,28 +186,6 @@ class Orchestrator:
                     operation_id=request.request_id,
                 )
             )
-
-        if request.origin == "human_feedback":
-            eff_review = review_cycle_count if review_cycle_count is not None else 0
-            if eff_review >= self.config.max_review_cycles:
-                raise F2Error(
-                    ErrorEnvelope(
-                        code="RETRY_LIMIT_REACHED",
-                        message=f"review cycle count ({eff_review}) reached limit ({self.config.max_review_cycles})",
-                        retryable=False,
-                        operation_id=request.request_id,
-                    )
-                )
-        else:
-            if reinvestigation_count >= self.config.max_reinvestigations:
-                raise F2Error(
-                    ErrorEnvelope(
-                        code="RETRY_LIMIT_REACHED",
-                        message=f"re-investigation count ({reinvestigation_count}) reached limit ({self.config.max_reinvestigations})",
-                        retryable=False,
-                        operation_id=request.request_id,
-                    )
-                )
 
         targets: Set[str] = set(request.target_agents) if request.target_agents else set(SIGNALS)
         invalid = targets - set(SIGNALS)
@@ -296,10 +280,8 @@ class Orchestrator:
     def handle_feedback(
         self,
         intent: FeedbackIntent,
-        incident: dict,
+        incident: Any,
         prior_result: Optional[InvestigationResult] = None,
-        *,
-        review_cycle_count: int = 0,
     ) -> InvestigationResult:
         iid = incident_id_of(incident)
         if not iid or iid != intent.incident_id:
@@ -307,16 +289,6 @@ class Orchestrator:
                 ErrorEnvelope(
                     code="VALIDATION_ERROR",
                     message=f"FeedbackIntent incident_id {intent.incident_id!r} does not match incident {iid!r}",
-                    retryable=False,
-                    operation_id=intent.feedback_id,
-                )
-            )
-
-        if review_cycle_count >= self.config.max_review_cycles:
-            raise F2Error(
-                ErrorEnvelope(
-                    code="RETRY_LIMIT_REACHED",
-                    message=f"review cycle count ({review_cycle_count}) reached limit ({self.config.max_review_cycles})",
                     retryable=False,
                     operation_id=intent.feedback_id,
                 )
@@ -359,12 +331,7 @@ class Orchestrator:
             source_run_id=source_run,
             review_cycle_id=intent.review_cycle_id,
         )
-        return self.follow_up(
-            req,
-            incident,
-            prior_result,
-            review_cycle_count=review_cycle_count,
-        )
+        return self.follow_up(req, incident, prior_result)
 
     # ---- graph --------------------------------------------------------
     def _build(self):

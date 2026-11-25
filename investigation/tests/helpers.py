@@ -3,8 +3,8 @@ import time
 from observa_investigation.agents.base import AgentResult
 from observa_investigation.contracts import EvidenceLink, SignalFinding
 
-INCIDENT = {"id": "INC-1", "snapshot_id": "r1-abc",
-            "affected_services": ["orders-service"], "first_observed_at": "2026-11-16T22:52:28Z"}
+INCIDENT = {"incident_id": "INC-1", "snapshot_id": "r1-abc",
+            "affected_services": ["orders-service"], "start_time": "2026-11-16T22:52:28Z"}
 
 
 def finding(signal, n=1, signal_type=None):

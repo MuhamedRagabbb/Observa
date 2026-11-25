@@ -1,8 +1,10 @@
 import unittest
 from observa_investigation import InvestigationConfig, Orchestrator
 from observa_investigation.agents.base import AgentResult, AgentTask
+from observa_investigation.service import InvestigationLedger, InvestigationService
 from observa_investigation.contracts import (
     EvidenceLink,
+    F2Error,
     FeedbackIntent,
     FollowUpRequest,
     InvestigationResult,
@@ -11,10 +13,10 @@ from observa_investigation.contracts import (
 )
 
 INCIDENT = {
-    "id": "INC-PASS-C",
+    "incident_id": "INC-PASS-C",
     "snapshot_id": "r1",
-    "first_observed_at": "2026-11-17T10:00:00Z",
-    "last_observed_at": "2026-11-17T10:05:00Z",
+    "start_time": "2026-11-17T10:00:00Z",
+    "end_time": "2026-11-17T10:05:00Z",
     "affected_services": ["orders-service", "payments-service"],
 }
 
@@ -103,9 +105,13 @@ class PassCTests(unittest.TestCase):
             objectives=["Re-check error logs"],
             source_run_id=initial.run_id,
         )
-        with self.assertRaises(ValueError) as ctx:
-            self.orch.follow_up(req, INCIDENT, prior_result=initial, reinvestigation_count=2)
-        self.assertIn("RETRY_LIMIT_REACHED", str(ctx.exception))
+        service = InvestigationService(self.orch, InvestigationLedger(":memory:"), self.config)
+        for i in range(2):  # max_reinvestigations=2 is used up through the service
+            ok_req = req.model_copy(update={"request_id": f"REQ-OK-{i}"})
+            service.submit_follow_up(ok_req, INCIDENT, prior_result=initial)
+        with self.assertRaises(F2Error) as ctx:
+            service.submit_follow_up(req, INCIDENT, prior_result=initial)
+        self.assertEqual(ctx.exception.envelope.code, "RETRY_LIMIT_REACHED")
         self.assertEqual(req.status, "pending")  # not mutated even when the follow-up is rejected (F2-7)
 
     def test_feedback_intent_with_inconclusive_does_not_reinvestigate(self):

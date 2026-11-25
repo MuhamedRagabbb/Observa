@@ -124,11 +124,11 @@ class IncidentV1(BaseModel):
     """F1 -> F2/F7 contract incident."""
     model_config = ConfigDict(extra="ignore")
     incident_id: str
-    title: Optional[str] = "Untitled incident"
+    title: str = "Untitled incident"
     alerts: List[str] = Field(default_factory=list)
-    start_time: Optional[str] = None
+    start_time: str                                    # R per shared contract
     end_time: Optional[str] = None
-    affected_services: List[str] = Field(default_factory=list)
+    affected_services: List[str]                       # R per shared contract
     severity: Optional[str] = None
     snapshot_id: Optional[str] = None
 

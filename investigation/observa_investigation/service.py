@@ -218,7 +218,6 @@ class InvestigationService:
                 request=request,
                 incident=valid_inc,
                 prior_result=prior_result,
-                review_cycle_count=current_cycles,
             )
             ledger_origin = "human_feedback"
         else:
@@ -239,7 +238,6 @@ class InvestigationService:
                 request=request,
                 incident=valid_inc,
                 prior_result=prior_result,
-                reinvestigation_count=current_count,
             )
             ledger_origin = "correlation"
 
@@ -306,7 +304,6 @@ class InvestigationService:
             intent=intent,
             incident=valid_inc,
             prior_result=prior_result,
-            review_cycle_count=current_cycles,
         )
 
         self.ledger.record_run(

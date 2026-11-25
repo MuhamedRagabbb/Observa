@@ -84,7 +84,7 @@ def rec(ts, service, event, level="ERROR", **kw):
 RECORDS = [r for i in range(3) for r in (
     rec(f"2026-11-16T22:55:1{i}.000Z", "orders-service", "order_failed", **{"error.type": "payment_unavailable"}, trace_id=f"t{i}"),
     rec(f"2026-11-16T22:55:1{i}.000Z", "api-gateway", "request_completed", **{"http.status_code": 503}, trace_id=f"t{i}"))]
-FULL_INCIDENT = {"id": "INC-X", "snapshot_id": "r1-x", "first_observed_at": "2026-11-16T22:52:28Z",
+FULL_INCIDENT = {"incident_id": "INC-X", "snapshot_id": "r1-x", "start_time": "2026-11-16T22:52:28Z",
                  "affected_services": ["orders-service", "api-gateway", "payments-service"]}
 
 

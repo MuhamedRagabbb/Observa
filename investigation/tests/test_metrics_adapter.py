@@ -131,9 +131,9 @@ OBS = [
     },
 ]
 FULL_INCIDENT = {
-    "id": "INC-M",
+    "incident_id": "INC-M",
     "snapshot_id": "r1-m",
-    "first_observed_at": "2026-11-04T10:00:00Z",
+    "start_time": "2026-11-04T10:00:00Z",
     "affected_services": ["orders-service", "api-gateway", "payments-service"],
 }
 

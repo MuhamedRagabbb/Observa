@@ -53,6 +53,7 @@ class TestAuditB1Fixes(unittest.TestCase):
             "incident_id": "INC-TEST-001",
             "snapshot_id": "r1-snap",
             "affected_services": ["orders-service"],
+            "start_time": "2026-11-01T00:00:00Z",
         }
 
     def tearDown(self):
@@ -72,24 +73,20 @@ class TestAuditB1Fixes(unittest.TestCase):
                 RequestedChange(target="metrics", action="reinvestigate", reason="disputed")
             ],
         )
-        # review_cycle_count = 2 should NOT be rejected by max_reinvestigations=2!
-        result = self.orch.handle_feedback(
-            intent,
-            self.incident,
-            review_cycle_count=2,
-        )
-        self.assertIsNotNone(result)
-        self.assertEqual(result.incident_id, "INC-TEST-001")
-        # Ensure the targeted agent actually completed cleanly with a real AgentResult
-        self.assertEqual(result.metrics_output.status, "completed")
+        service = InvestigationService(orchestrator=self.orch, ledger=InvestigationLedger(":memory:"), config=self.config)
+        initial = service.investigate(self.incident)
 
-        # But review_cycle_count = 3 should be rejected with RETRY_LIMIT_REACHED
+        # 3 review cycles are allowed (max_review_cycles=3) even though max_reinvestigations=2.
+        for i in range(1, 4):
+            cycle = intent.model_copy(update={"feedback_id": f"FB-{100 + i}", "review_cycle_id": f"CYCLE-{i}"})
+            result = service.submit_feedback(cycle, self.incident, prior_result=initial)
+            self.assertEqual(result.incident_id, "INC-TEST-001")
+            self.assertEqual(result.metrics_output.status, "completed")
+
+        # The 4th is rejected by the ledger, with no count supplied by the caller.
+        cycle4 = intent.model_copy(update={"feedback_id": "FB-104", "review_cycle_id": "CYCLE-4"})
         with self.assertRaises(F2Error) as ctx:
-            self.orch.handle_feedback(
-                intent,
-                self.incident,
-                review_cycle_count=3,
-            )
+            service.submit_feedback(cycle4, self.incident, prior_result=initial)
         self.assertEqual(ctx.exception.envelope.code, "RETRY_LIMIT_REACHED")
 
     def test_f2_3_ambiguous_feedback_no_prior_result(self):
@@ -124,10 +121,37 @@ class TestAuditB1Fixes(unittest.TestCase):
             title="Database Saturation",
             alerts=["ALT-1", "ALT-2"],
             affected_services=["orders-service"],
+            start_time="2026-11-01T00:00:00Z",
             snapshot_id="r1-snap",
         )
         res = self.orch.investigate(inc_obj)
         self.assertEqual(res.incident_id, "INC-TEST-OBJ")
+
+        # 3. Contract fields are required: an incident with only incident_id is rejected
+        with self.assertRaises(F2Error) as ctx3:
+            self.orch.investigate({"incident_id": "INC-ONLY-ID"})
+        self.assertEqual(ctx3.exception.envelope.code, "VALIDATION_ERROR")
+
+        # 4. Legacy field names are NOT silently translated
+        with self.assertRaises(F2Error) as ctx4:
+            self.orch.investigate({"id": "INC-OLD", "first_observed_at": "2026-11-01T00:00:00Z",
+                                   "affected_services": ["orders-service"]})
+        self.assertEqual(ctx4.exception.envelope.code, "VALIDATION_ERROR")
+
+    def test_f2_1_orchestrator_has_no_caller_supplied_counts(self):
+        """F2-1: the orchestrator exposes no count parameters, so a direct caller cannot bypass the limits."""
+        import inspect
+        for name in ("follow_up", "handle_feedback"):
+            params = inspect.signature(getattr(Orchestrator, name)).parameters
+            self.assertNotIn("review_cycle_count", params)
+            self.assertNotIn("reinvestigation_count", params)
+
+    def test_run_id_reuse_is_rejected(self):
+        """Reusing a run_id must not silently return the earlier checkpointed result."""
+        self.orch.investigate(self.incident, run_id="RUN-DUP")
+        with self.assertRaises(F2Error) as ctx:
+            self.orch.investigate(self.incident, run_id="RUN-DUP")
+        self.assertEqual(ctx.exception.envelope.code, "VALIDATION_ERROR")
 
     def test_f2_7_typed_errors_and_caller_immutability(self):
         """F2-7: Boundary errors raise typed F2Error with ErrorEnvelope; caller request is unchanged."""
