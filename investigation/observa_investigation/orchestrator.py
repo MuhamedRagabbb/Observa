@@ -94,7 +94,14 @@ class Orchestrator:
     ):
         absent = [s for s in SIGNALS if s not in agents]
         if absent:
-            raise ValueError(f"no agent registered for: {absent}")
+            raise F2Error(
+                ErrorEnvelope(
+                    code="VALIDATION_ERROR",
+                    message=f"no agent registered for: {absent}",
+                    retryable=False,
+                    operation_id="INIT",
+                )
+            )
         self.agents = agents
         self.config = config or InvestigationConfig()
         self.checkpointer = checkpointer if checkpointer is not None else SqliteSaver()
