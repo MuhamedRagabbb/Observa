@@ -1,0 +1,2445 @@
+[
+  {
+    "synthetic": true,
+    "report": {
+      "report_id": "RPT-201",
+      "incident_id": "INC-201",
+      "version": 1,
+      "previous_version": null,
+      "content_ref": "sha256:45a379705314cd3f44f51de69956ed34e08027b62fd59a67a7db5841869a951c",
+      "content_digest": "45a379705314cd3f44f51de69956ed34e08027b62fd59a67a7db5841869a951c",
+      "source_investigation_run_id": "F2-RUN-201-1",
+      "created_at": "2026-10-05T11:00:00Z",
+      "review_cycle_id": null,
+      "evidence_ids": [
+        "INC-201/SNAP-201-A/logs#1",
+        "INC-201/SNAP-201-A/metrics#1"
+      ],
+      "uncertainty_flags": [],
+      "content": {
+        "alerts": {
+          "items": [
+            {
+              "alert_id": "ALERT-201",
+              "description": "Orders p95 latency above threshold",
+              "evidence_ids": [
+                "INC-201/SNAP-201-A/metrics#1"
+              ],
+              "service": "orders-service",
+              "severity": "high",
+              "signal_type": "metrics",
+              "timestamp": "2026-10-05T10:00:00Z"
+            }
+          ],
+          "missing_alert_ids": []
+        },
+        "draft_notice": "Draft: pending human review. This report is not approved and has not been stored as approved incident knowledge.",
+        "evidence_register": [
+          {
+            "assessments": [
+              {
+                "claim_ref": "INC-201:logs:F1",
+                "claim_type": "finding",
+                "relation": "supports",
+                "relevance_status": "relevant",
+                "support_status": "supported"
+              },
+              {
+                "claim_ref": "CAND-201-1",
+                "claim_type": "root_cause_candidate",
+                "relation": "supports",
+                "relevance_status": "relevant",
+                "support_status": "supported"
+              },
+              {
+                "claim_ref": "REC-201-1",
+                "claim_type": "recommendation",
+                "relation": "supports",
+                "relevance_status": "relevant",
+                "support_status": "supported"
+              }
+            ],
+            "evidence_id": "INC-201/SNAP-201-A/logs#1",
+            "reference_status": "valid",
+            "services": [
+              "orders-service"
+            ],
+            "signal_type": "logs",
+            "snapshot_id": "SNAP-201-A"
+          },
+          {
+            "assessments": [
+              {
+                "claim_ref": "INC-201:metrics:F1",
+                "claim_type": "finding",
+                "relation": "supports",
+                "relevance_status": "relevant",
+                "support_status": "supported"
+              }
+            ],
+            "evidence_id": "INC-201/SNAP-201-A/metrics#1",
+            "reference_status": "valid",
+            "services": [
+              "orders-service"
+            ],
+            "signal_type": "metrics",
+            "snapshot_id": "SNAP-201-A"
+          }
+        ],
+        "executive_summary": "Orders requests failing with slow responses. The incident has ended and affects api-gateway, orders-service. Probable cause (not verified by a human): PostgreSQL server connection limit was reached. 1 ranked recommendation(s); top: Review PostgreSQL server connection limits..",
+        "findings": {
+          "logs": {
+            "findings": [
+              {
+                "claim": "orders-service logs show db_pool_timeout errors.",
+                "claim_kind": "observation",
+                "evidence_links": [
+                  {
+                    "evidence_id": "INC-201/SNAP-201-A/logs#1",
+                    "reference_valid": true,
+                    "relation": "supports",
+                    "relevance_status": "relevant",
+                    "support_status": "supported"
+                  }
+                ],
+                "execution_status": "completed",
+                "finding_id": "INC-201:logs:F1",
+                "indicator": "db_pool_timeout",
+                "service": "orders-service",
+                "uncertainty": null
+              }
+            ],
+            "status": "completed"
+          },
+          "metrics": {
+            "findings": [
+              {
+                "claim": "db.pool.acquire.duration rose and db.pool.timeouts increased.",
+                "claim_kind": "observation",
+                "evidence_links": [
+                  {
+                    "evidence_id": "INC-201/SNAP-201-A/metrics#1",
+                    "reference_valid": true,
+                    "relation": "supports",
+                    "relevance_status": "relevant",
+                    "support_status": "supported"
+                  }
+                ],
+                "execution_status": "completed",
+                "finding_id": "INC-201:metrics:F1",
+                "indicator": "pool_timeouts",
+                "service": "orders-service",
+                "uncertainty": null
+              }
+            ],
+            "status": "completed"
+          },
+          "traces": {
+            "findings": [],
+            "status": "completed"
+          }
+        },
+        "limitations": [],
+        "missing_evidence": [],
+        "overview": {
+          "affected_services": [
+            "api-gateway",
+            "orders-service"
+          ],
+          "end_time": "2026-10-05T10:20:00Z",
+          "incident_id": "INC-201",
+          "severity": "high",
+          "start_time": "2026-10-05T10:00:00Z",
+          "title": "Orders requests failing with slow responses"
+        },
+        "recommendations": {
+          "caveats": [
+            "Helps only if the server limit is the constraint."
+          ],
+          "other_options": [],
+          "ranked": [
+            {
+              "action": "Review PostgreSQL server connection limits.",
+              "action_type": "investigation",
+              "evidence_links": [
+                {
+                  "evidence_id": "INC-201/SNAP-201-A/logs#1",
+                  "reference_valid": true,
+                  "relation": "supports",
+                  "relevance_status": "relevant",
+                  "support_status": "supported"
+                }
+              ],
+              "rank": 1,
+              "rationale": "Compare server limits with current use.",
+              "recommendation_id": "REC-201-1",
+              "risk_or_caveat": "Helps only if the server limit is the constraint.",
+              "validation": "conditional"
+            }
+          ],
+          "recommendation_status": "completed",
+          "status": "ranked"
+        },
+        "root_cause": {
+          "alternatives": [],
+          "correlation_run_id": "F3-RUN-201-1",
+          "correlation_status": "completed",
+          "leading": {
+            "candidate_id": "CAND-201-1",
+            "description": "PostgreSQL server connection limit was reached.",
+            "evidence_links": [
+              {
+                "evidence_id": "INC-201/SNAP-201-A/logs#1",
+                "reference_valid": true,
+                "relation": "supports",
+                "relevance_status": "relevant",
+                "support_status": "supported"
+              }
+            ],
+            "uncertainty": "Server-side connection limits were not checked."
+          },
+          "status": "leading"
+        },
+        "schema_version": "1.0",
+        "timeline": {
+          "events": [
+            {
+              "at": "2026-10-05T10:00:00Z",
+              "description": "Incident first observed by F1",
+              "kind": "incident_started",
+              "ref": "INC-201"
+            },
+            {
+              "at": "2026-10-05T10:00:00Z",
+              "description": "orders-service: Orders p95 latency above threshold",
+              "kind": "alert_raised",
+              "ref": "ALERT-201"
+            },
+            {
+              "at": "2026-10-05T10:20:00Z",
+              "description": "Incident end recorded by F1",
+              "kind": "incident_ended",
+              "ref": "INC-201"
+            }
+          ],
+          "untimed": []
+        }
+      }
+    },
+    "decision": {
+      "decision_id": "DEC-201-v1",
+      "idempotency_key": "approval-201-v1",
+      "incident_id": "INC-201",
+      "report_id": "RPT-201",
+      "version": 1,
+      "reviewer_id": "SIMULATED-REVIEWER",
+      "decision": "approve",
+      "feedback": null,
+      "decided_at": "2026-10-05T12:00:00Z"
+    }
+  },
+  {
+    "synthetic": true,
+    "report": {
+      "report_id": "RPT-201",
+      "incident_id": "INC-201",
+      "version": 2,
+      "previous_version": 1,
+      "content_ref": "sha256:f630e4b87ed0e785271cce8e4f2aaeb4aa4bc4e9cd2d3be2166a6594122aaf11",
+      "content_digest": "f630e4b87ed0e785271cce8e4f2aaeb4aa4bc4e9cd2d3be2166a6594122aaf11",
+      "source_investigation_run_id": "F2-RUN-201-2",
+      "created_at": "2026-10-05T12:10:00Z",
+      "review_cycle_id": null,
+      "evidence_ids": [
+        "INC-201/SNAP-201-A/logs#1",
+        "INC-201/SNAP-201-A/metrics#1",
+        "INC-201/SNAP-201-A/traces#1"
+      ],
+      "uncertainty_flags": [
+        "contradicting_evidence"
+      ],
+      "content": {
+        "alerts": {
+          "items": [
+            {
+              "alert_id": "ALERT-201",
+              "description": "Orders p95 latency above threshold",
+              "evidence_ids": [
+                "INC-201/SNAP-201-A/metrics#1"
+              ],
+              "service": "orders-service",
+              "severity": "high",
+              "signal_type": "metrics",
+              "timestamp": "2026-10-05T10:00:00Z"
+            }
+          ],
+          "missing_alert_ids": []
+        },
+        "draft_notice": "Draft: pending human review. This report is not approved and has not been stored as approved incident knowledge.",
+        "evidence_register": [
+          {
+            "assessments": [
+              {
+                "claim_ref": "INC-201:logs:F1",
+                "claim_type": "finding",
+                "relation": "supports",
+                "relevance_status": "relevant",
+                "support_status": "supported"
+              },
+              {
+                "claim_ref": "CAND-201-2",
+                "claim_type": "root_cause_candidate",
+                "relation": "supports",
+                "relevance_status": "relevant",
+                "support_status": "supported"
+              }
+            ],
+            "evidence_id": "INC-201/SNAP-201-A/logs#1",
+            "reference_status": "valid",
+            "services": [
+              "orders-service"
+            ],
+            "signal_type": "logs",
+            "snapshot_id": "SNAP-201-A"
+          },
+          {
+            "assessments": [
+              {
+                "claim_ref": "INC-201:metrics:F1",
+                "claim_type": "finding",
+                "relation": "supports",
+                "relevance_status": "relevant",
+                "support_status": "supported"
+              },
+              {
+                "claim_ref": "CAND-201-2",
+                "claim_type": "root_cause_candidate",
+                "relation": "supports",
+                "relevance_status": "relevant",
+                "support_status": "supported"
+              },
+              {
+                "claim_ref": "REC-201-2",
+                "claim_type": "recommendation",
+                "relation": "supports",
+                "relevance_status": "relevant",
+                "support_status": "supported"
+              }
+            ],
+            "evidence_id": "INC-201/SNAP-201-A/metrics#1",
+            "reference_status": "valid",
+            "services": [
+              "orders-service"
+            ],
+            "signal_type": "metrics",
+            "snapshot_id": "SNAP-201-A"
+          },
+          {
+            "assessments": [
+              {
+                "claim_ref": "INC-201:traces:F1",
+                "claim_type": "finding",
+                "relation": "supports",
+                "relevance_status": "relevant",
+                "support_status": "supported"
+              },
+              {
+                "claim_ref": "CAND-201-2",
+                "claim_type": "root_cause_candidate",
+                "relation": "supports",
+                "relevance_status": "relevant",
+                "support_status": "supported"
+              },
+              {
+                "claim_ref": "CAND-201-1",
+                "claim_type": "root_cause_candidate",
+                "relation": "contradicts",
+                "relevance_status": "relevant",
+                "support_status": "contradicted"
+              }
+            ],
+            "evidence_id": "INC-201/SNAP-201-A/traces#1",
+            "reference_status": "valid",
+            "services": [
+              "orders-service"
+            ],
+            "signal_type": "traces",
+            "snapshot_id": "SNAP-201-A"
+          }
+        ],
+        "executive_summary": "Orders requests failing with slow responses. The incident has ended and affects api-gateway, orders-service. Probable cause (not verified by a human): Orders DB connection-pool exhaustion: leased connections were held until the bounded pool ran out. 1 ranked recommendation(s); top: Release held connections and review the Orders pool size..",
+        "findings": {
+          "logs": {
+            "findings": [
+              {
+                "claim": "orders-service logs show db_pool_timeout errors.",
+                "claim_kind": "observation",
+                "evidence_links": [
+                  {
+                    "evidence_id": "INC-201/SNAP-201-A/logs#1",
+                    "reference_valid": true,
+                    "relation": "supports",
+                    "relevance_status": "relevant",
+                    "support_status": "supported"
+                  }
+                ],
+                "execution_status": "completed",
+                "finding_id": "INC-201:logs:F1",
+                "indicator": "db_pool_timeout",
+                "service": "orders-service",
+                "uncertainty": null
+              }
+            ],
+            "status": "completed"
+          },
+          "metrics": {
+            "findings": [
+              {
+                "claim": "db.pool.acquire.duration rose and db.pool.timeouts increased.",
+                "claim_kind": "observation",
+                "evidence_links": [
+                  {
+                    "evidence_id": "INC-201/SNAP-201-A/metrics#1",
+                    "reference_valid": true,
+                    "relation": "supports",
+                    "relevance_status": "relevant",
+                    "support_status": "supported"
+                  }
+                ],
+                "execution_status": "completed",
+                "finding_id": "INC-201:metrics:F1",
+                "indicator": "pool_timeouts",
+                "service": "orders-service",
+                "uncertainty": null
+              }
+            ],
+            "status": "completed"
+          },
+          "traces": {
+            "findings": [
+              {
+                "claim": "db.acquire spans were long while server-side limits were unchanged.",
+                "claim_kind": "observation",
+                "evidence_links": [
+                  {
+                    "evidence_id": "INC-201/SNAP-201-A/traces#1",
+                    "reference_valid": true,
+                    "relation": "supports",
+                    "relevance_status": "relevant",
+                    "support_status": "supported"
+                  }
+                ],
+                "execution_status": "completed",
+                "finding_id": "INC-201:traces:F1",
+                "indicator": "db.acquire",
+                "service": "orders-service",
+                "uncertainty": null
+              }
+            ],
+            "status": "completed"
+          }
+        },
+        "limitations": [],
+        "missing_evidence": [],
+        "overview": {
+          "affected_services": [
+            "api-gateway",
+            "orders-service"
+          ],
+          "end_time": "2026-10-05T10:20:00Z",
+          "incident_id": "INC-201",
+          "severity": "high",
+          "start_time": "2026-10-05T10:00:00Z",
+          "title": "Orders requests failing with slow responses"
+        },
+        "recommendations": {
+          "caveats": [
+            "Pool acquire wait should return to baseline; not yet confirmed."
+          ],
+          "other_options": [],
+          "ranked": [
+            {
+              "action": "Release held connections and review the Orders pool size.",
+              "action_type": "remediation",
+              "evidence_links": [
+                {
+                  "evidence_id": "INC-201/SNAP-201-A/metrics#1",
+                  "reference_valid": true,
+                  "relation": "supports",
+                  "relevance_status": "relevant",
+                  "support_status": "supported"
+                }
+              ],
+              "rank": 1,
+              "rationale": "Find code paths that hold connections for too long.",
+              "recommendation_id": "REC-201-2",
+              "risk_or_caveat": "Pool acquire wait should return to baseline; not yet confirmed.",
+              "validation": "supported"
+            }
+          ],
+          "recommendation_status": "completed",
+          "status": "ranked"
+        },
+        "root_cause": {
+          "alternatives": [
+            {
+              "candidate_id": "CAND-201-1",
+              "description": "PostgreSQL server connection limit was reached.",
+              "evidence_links": [
+                {
+                  "evidence_id": "INC-201/SNAP-201-A/traces#1",
+                  "reference_valid": true,
+                  "relation": "contradicts",
+                  "relevance_status": "relevant",
+                  "support_status": "contradicted"
+                }
+              ],
+              "uncertainty": "Contradicted: server-side limits were unchanged."
+            }
+          ],
+          "correlation_run_id": "F3-RUN-201-2",
+          "correlation_status": "completed",
+          "leading": {
+            "candidate_id": "CAND-201-2",
+            "description": "Orders DB connection-pool exhaustion: leased connections were held until the bounded pool ran out.",
+            "evidence_links": [
+              {
+                "evidence_id": "INC-201/SNAP-201-A/logs#1",
+                "reference_valid": true,
+                "relation": "supports",
+                "relevance_status": "relevant",
+                "support_status": "supported"
+              },
+              {
+                "evidence_id": "INC-201/SNAP-201-A/metrics#1",
+                "reference_valid": true,
+                "relation": "supports",
+                "relevance_status": "relevant",
+                "support_status": "supported"
+              },
+              {
+                "evidence_id": "INC-201/SNAP-201-A/traces#1",
+                "reference_valid": true,
+                "relation": "supports",
+                "relevance_status": "relevant",
+                "support_status": "supported"
+              }
+            ],
+            "uncertainty": null
+          },
+          "status": "leading"
+        },
+        "schema_version": "1.0",
+        "timeline": {
+          "events": [
+            {
+              "at": "2026-10-05T10:00:00Z",
+              "description": "Incident first observed by F1",
+              "kind": "incident_started",
+              "ref": "INC-201"
+            },
+            {
+              "at": "2026-10-05T10:00:00Z",
+              "description": "orders-service: Orders p95 latency above threshold",
+              "kind": "alert_raised",
+              "ref": "ALERT-201"
+            },
+            {
+              "at": "2026-10-05T10:20:00Z",
+              "description": "Incident end recorded by F1",
+              "kind": "incident_ended",
+              "ref": "INC-201"
+            }
+          ],
+          "untimed": []
+        }
+      }
+    },
+    "decision": {
+      "decision_id": "DEC-201-v2",
+      "idempotency_key": "approval-201-v2",
+      "incident_id": "INC-201",
+      "report_id": "RPT-201",
+      "version": 2,
+      "reviewer_id": "SIMULATED-REVIEWER",
+      "decision": "approve",
+      "feedback": null,
+      "decided_at": "2026-10-05T12:30:00Z"
+    }
+  },
+  {
+    "synthetic": true,
+    "report": {
+      "report_id": "RPT-202",
+      "incident_id": "INC-202",
+      "version": 1,
+      "previous_version": null,
+      "content_ref": "sha256:0d3ee6d5beefe8c295cc753f3a66bc29f2b161fd02cb2152887bc6841f3a4235",
+      "content_digest": "0d3ee6d5beefe8c295cc753f3a66bc29f2b161fd02cb2152887bc6841f3a4235",
+      "source_investigation_run_id": "F2-RUN-202-1",
+      "created_at": "2026-10-08T11:00:00Z",
+      "review_cycle_id": null,
+      "evidence_ids": [
+        "INC-202/SNAP-202-A/logs#1",
+        "INC-202/SNAP-202-A/metrics#1",
+        "INC-202/SNAP-202-A/metrics#2",
+        "INC-202/SNAP-202-A/traces#1"
+      ],
+      "uncertainty_flags": [],
+      "content": {
+        "alerts": {
+          "items": [
+            {
+              "alert_id": "ALERT-202",
+              "description": "Payment failure ratio above threshold",
+              "evidence_ids": [
+                "INC-202/SNAP-202-A/metrics#1"
+              ],
+              "service": "payments-service",
+              "severity": "critical",
+              "signal_type": "metrics",
+              "timestamp": "2026-10-08T10:00:00Z"
+            }
+          ],
+          "missing_alert_ids": []
+        },
+        "draft_notice": "Draft: pending human review. This report is not approved and has not been stored as approved incident knowledge.",
+        "evidence_register": [
+          {
+            "assessments": [
+              {
+                "claim_ref": "INC-202:logs:F1",
+                "claim_type": "finding",
+                "relation": "supports",
+                "relevance_status": "relevant",
+                "support_status": "supported"
+              },
+              {
+                "claim_ref": "CAND-202-1",
+                "claim_type": "root_cause_candidate",
+                "relation": "supports",
+                "relevance_status": "relevant",
+                "support_status": "supported"
+              },
+              {
+                "claim_ref": "REC-202-1",
+                "claim_type": "recommendation",
+                "relation": "supports",
+                "relevance_status": "relevant",
+                "support_status": "supported"
+              }
+            ],
+            "evidence_id": "INC-202/SNAP-202-A/logs#1",
+            "reference_status": "valid",
+            "services": [
+              "payments-service"
+            ],
+            "signal_type": "logs",
+            "snapshot_id": "SNAP-202-A"
+          },
+          {
+            "assessments": [
+              {
+                "claim_ref": "INC-202:metrics:F1",
+                "claim_type": "finding",
+                "relation": "supports",
+                "relevance_status": "relevant",
+                "support_status": "supported"
+              }
+            ],
+            "evidence_id": "INC-202/SNAP-202-A/metrics#1",
+            "reference_status": "valid",
+            "services": [
+              "payments-service"
+            ],
+            "signal_type": "metrics",
+            "snapshot_id": "SNAP-202-A"
+          },
+          {
+            "assessments": [
+              {
+                "claim_ref": "INC-202:metrics:F2",
+                "claim_type": "finding",
+                "relation": "context_only",
+                "relevance_status": "relevant",
+                "support_status": "unverified"
+              }
+            ],
+            "evidence_id": "INC-202/SNAP-202-A/metrics#2",
+            "reference_status": "valid",
+            "services": [
+              "orders-service"
+            ],
+            "signal_type": "metrics",
+            "snapshot_id": "SNAP-202-A"
+          },
+          {
+            "assessments": [
+              {
+                "claim_ref": "INC-202:traces:F1",
+                "claim_type": "finding",
+                "relation": "supports",
+                "relevance_status": "relevant",
+                "support_status": "supported"
+              },
+              {
+                "claim_ref": "CAND-202-1",
+                "claim_type": "root_cause_candidate",
+                "relation": "supports",
+                "relevance_status": "relevant",
+                "support_status": "supported"
+              }
+            ],
+            "evidence_id": "INC-202/SNAP-202-A/traces#1",
+            "reference_status": "valid",
+            "services": [
+              "payments-service"
+            ],
+            "signal_type": "traces",
+            "snapshot_id": "SNAP-202-A"
+          }
+        ],
+        "executive_summary": "Payment attempts failing during checkout. The incident has ended and affects api-gateway, orders-service, payments-service, inventory-service. Probable cause (not verified by a human): Payments service returned 503 for most payment attempts. 1 ranked recommendation(s); top: Fix the payment integration and retry affected payments safely..",
+        "findings": {
+          "logs": {
+            "findings": [
+              {
+                "claim": "payments-service logs show payment_failed and payment_unavailable with status 503.",
+                "claim_kind": "observation",
+                "evidence_links": [
+                  {
+                    "evidence_id": "INC-202/SNAP-202-A/logs#1",
+                    "reference_valid": true,
+                    "relation": "supports",
+                    "relevance_status": "relevant",
+                    "support_status": "supported"
+                  }
+                ],
+                "execution_status": "completed",
+                "finding_id": "INC-202:logs:F1",
+                "indicator": "payment_unavailable",
+                "service": "payments-service",
+                "uncertainty": null
+              }
+            ],
+            "status": "completed"
+          },
+          "metrics": {
+            "findings": [
+              {
+                "claim": "payments.failed rose while request latency stayed near baseline.",
+                "claim_kind": "observation",
+                "evidence_links": [
+                  {
+                    "evidence_id": "INC-202/SNAP-202-A/metrics#1",
+                    "reference_valid": true,
+                    "relation": "supports",
+                    "relevance_status": "relevant",
+                    "support_status": "supported"
+                  }
+                ],
+                "execution_status": "completed",
+                "finding_id": "INC-202:metrics:F1",
+                "indicator": "payment_failures",
+                "service": "payments-service",
+                "uncertainty": null
+              },
+              {
+                "claim": "Orders database pool stayed healthy.",
+                "claim_kind": "observation",
+                "evidence_links": [
+                  {
+                    "evidence_id": "INC-202/SNAP-202-A/metrics#2",
+                    "reference_valid": true,
+                    "relation": "context_only",
+                    "relevance_status": "relevant",
+                    "support_status": "unverified"
+                  }
+                ],
+                "execution_status": "completed",
+                "finding_id": "INC-202:metrics:F2",
+                "indicator": "pool_pressure",
+                "service": "orders-service",
+                "uncertainty": null
+              }
+            ],
+            "status": "completed"
+          },
+          "traces": {
+            "findings": [
+              {
+                "claim": "payments.charge spans returned 503.",
+                "claim_kind": "observation",
+                "evidence_links": [
+                  {
+                    "evidence_id": "INC-202/SNAP-202-A/traces#1",
+                    "reference_valid": true,
+                    "relation": "supports",
+                    "relevance_status": "relevant",
+                    "support_status": "supported"
+                  }
+                ],
+                "execution_status": "completed",
+                "finding_id": "INC-202:traces:F1",
+                "indicator": "payments.charge",
+                "service": "payments-service",
+                "uncertainty": null
+              }
+            ],
+            "status": "completed"
+          }
+        },
+        "limitations": [],
+        "missing_evidence": [],
+        "overview": {
+          "affected_services": [
+            "api-gateway",
+            "orders-service",
+            "payments-service",
+            "inventory-service"
+          ],
+          "end_time": "2026-10-08T10:12:00Z",
+          "incident_id": "INC-202",
+          "severity": "critical",
+          "start_time": "2026-10-08T10:00:00Z",
+          "title": "Payment attempts failing during checkout"
+        },
+        "recommendations": {
+          "caveats": [
+            "payments.failed should return to baseline."
+          ],
+          "other_options": [],
+          "ranked": [
+            {
+              "action": "Fix the payment integration and retry affected payments safely.",
+              "action_type": "remediation",
+              "evidence_links": [
+                {
+                  "evidence_id": "INC-202/SNAP-202-A/logs#1",
+                  "reference_valid": true,
+                  "relation": "supports",
+                  "relevance_status": "relevant",
+                  "support_status": "supported"
+                }
+              ],
+              "rank": 1,
+              "rationale": "Use the existing idempotency keys for retries.",
+              "recommendation_id": "REC-202-1",
+              "risk_or_caveat": "payments.failed should return to baseline.",
+              "validation": "supported"
+            }
+          ],
+          "recommendation_status": "completed",
+          "status": "ranked"
+        },
+        "root_cause": {
+          "alternatives": [],
+          "correlation_run_id": "F3-RUN-202-1",
+          "correlation_status": "completed",
+          "leading": {
+            "candidate_id": "CAND-202-1",
+            "description": "Payments service returned 503 for most payment attempts.",
+            "evidence_links": [
+              {
+                "evidence_id": "INC-202/SNAP-202-A/logs#1",
+                "reference_valid": true,
+                "relation": "supports",
+                "relevance_status": "relevant",
+                "support_status": "supported"
+              },
+              {
+                "evidence_id": "INC-202/SNAP-202-A/traces#1",
+                "reference_valid": true,
+                "relation": "supports",
+                "relevance_status": "relevant",
+                "support_status": "supported"
+              }
+            ],
+            "uncertainty": null
+          },
+          "status": "leading"
+        },
+        "schema_version": "1.0",
+        "timeline": {
+          "events": [
+            {
+              "at": "2026-10-08T10:00:00Z",
+              "description": "Incident first observed by F1",
+              "kind": "incident_started",
+              "ref": "INC-202"
+            },
+            {
+              "at": "2026-10-08T10:00:00Z",
+              "description": "payments-service: Payment failure ratio above threshold",
+              "kind": "alert_raised",
+              "ref": "ALERT-202"
+            },
+            {
+              "at": "2026-10-08T10:12:00Z",
+              "description": "Incident end recorded by F1",
+              "kind": "incident_ended",
+              "ref": "INC-202"
+            }
+          ],
+          "untimed": []
+        }
+      }
+    },
+    "decision": {
+      "decision_id": "DEC-202-v1",
+      "idempotency_key": "approval-202-v1",
+      "incident_id": "INC-202",
+      "report_id": "RPT-202",
+      "version": 1,
+      "reviewer_id": "SIMULATED-REVIEWER",
+      "decision": "approve",
+      "feedback": null,
+      "decided_at": "2026-10-08T12:00:00Z"
+    }
+  },
+  {
+    "synthetic": true,
+    "report": {
+      "report_id": "RPT-203",
+      "incident_id": "INC-203",
+      "version": 1,
+      "previous_version": null,
+      "content_ref": "sha256:91c2a38e52a6f0fd848a9094496fae2b8f8c00aa5bf597a3cb159295a8265863",
+      "content_digest": "91c2a38e52a6f0fd848a9094496fae2b8f8c00aa5bf597a3cb159295a8265863",
+      "source_investigation_run_id": "F2-RUN-203-1",
+      "created_at": "2026-10-12T11:00:00Z",
+      "review_cycle_id": null,
+      "evidence_ids": [
+        "INC-203/SNAP-203-A/logs#1",
+        "INC-203/SNAP-203-A/logs#2",
+        "INC-203/SNAP-203-A/metrics#1",
+        "INC-203/SNAP-203-A/traces#1"
+      ],
+      "uncertainty_flags": [],
+      "content": {
+        "alerts": {
+          "items": [
+            {
+              "alert_id": "ALERT-203",
+              "description": "Orders p95 latency above threshold",
+              "evidence_ids": [
+                "INC-203/SNAP-203-A/metrics#1"
+              ],
+              "service": "orders-service",
+              "severity": "high",
+              "signal_type": "metrics",
+              "timestamp": "2026-10-12T10:00:00Z"
+            }
+          ],
+          "missing_alert_ids": []
+        },
+        "draft_notice": "Draft: pending human review. This report is not approved and has not been stored as approved incident knowledge.",
+        "evidence_register": [
+          {
+            "assessments": [
+              {
+                "claim_ref": "INC-203:logs:F1",
+                "claim_type": "finding",
+                "relation": "supports",
+                "relevance_status": "relevant",
+                "support_status": "supported"
+              },
+              {
+                "claim_ref": "CAND-203-1",
+                "claim_type": "root_cause_candidate",
+                "relation": "supports",
+                "relevance_status": "relevant",
+                "support_status": "supported"
+              },
+              {
+                "claim_ref": "REC-203-1",
+                "claim_type": "recommendation",
+                "relation": "supports",
+                "relevance_status": "relevant",
+                "support_status": "supported"
+              }
+            ],
+            "evidence_id": "INC-203/SNAP-203-A/logs#1",
+            "reference_status": "valid",
+            "services": [
+              "orders-service"
+            ],
+            "signal_type": "logs",
+            "snapshot_id": "SNAP-203-A"
+          },
+          {
+            "assessments": [
+              {
+                "claim_ref": "INC-203:logs:F2",
+                "claim_type": "finding",
+                "relation": "supports",
+                "relevance_status": "relevant",
+                "support_status": "supported"
+              },
+              {
+                "claim_ref": "CAND-203-1",
+                "claim_type": "root_cause_candidate",
+                "relation": "supports",
+                "relevance_status": "relevant",
+                "support_status": "supported"
+              }
+            ],
+            "evidence_id": "INC-203/SNAP-203-A/logs#2",
+            "reference_status": "valid",
+            "services": [
+              "orders-service"
+            ],
+            "signal_type": "logs",
+            "snapshot_id": "SNAP-203-A"
+          },
+          {
+            "assessments": [
+              {
+                "claim_ref": "INC-203:metrics:F1",
+                "claim_type": "finding",
+                "relation": "supports",
+                "relevance_status": "relevant",
+                "support_status": "supported"
+              }
+            ],
+            "evidence_id": "INC-203/SNAP-203-A/metrics#1",
+            "reference_status": "valid",
+            "services": [
+              "orders-service"
+            ],
+            "signal_type": "metrics",
+            "snapshot_id": "SNAP-203-A"
+          },
+          {
+            "assessments": [
+              {
+                "claim_ref": "INC-203:traces:F1",
+                "claim_type": "finding",
+                "relation": "supports",
+                "relevance_status": "relevant",
+                "support_status": "supported"
+              },
+              {
+                "claim_ref": "CAND-203-1",
+                "claim_type": "root_cause_candidate",
+                "relation": "supports",
+                "relevance_status": "relevant",
+                "support_status": "supported"
+              }
+            ],
+            "evidence_id": "INC-203/SNAP-203-A/traces#1",
+            "reference_status": "valid",
+            "services": [
+              "orders-service"
+            ],
+            "signal_type": "traces",
+            "snapshot_id": "SNAP-203-A"
+          }
+        ],
+        "executive_summary": "Orders requests failing with slow responses. The incident has ended and affects api-gateway, orders-service. Probable cause (not verified by a human): Orders release v2-buggy slowed order persistence and rejected even quantities. 1 ranked recommendation(s); top: Roll Orders back to release v1..",
+        "findings": {
+          "logs": {
+            "findings": [
+              {
+                "claim": "release_changed event moved Orders from v1 to v2-buggy just before the errors.",
+                "claim_kind": "observation",
+                "evidence_links": [
+                  {
+                    "evidence_id": "INC-203/SNAP-203-A/logs#1",
+                    "reference_valid": true,
+                    "relation": "supports",
+                    "relevance_status": "relevant",
+                    "support_status": "supported"
+                  }
+                ],
+                "execution_status": "completed",
+                "finding_id": "INC-203:logs:F1",
+                "indicator": "release_changed",
+                "service": "orders-service",
+                "uncertainty": null
+              },
+              {
+                "claim": "OrderPersistenceCompatibilityError appeared for even quantities.",
+                "claim_kind": "observation",
+                "evidence_links": [
+                  {
+                    "evidence_id": "INC-203/SNAP-203-A/logs#2",
+                    "reference_valid": true,
+                    "relation": "supports",
+                    "relevance_status": "relevant",
+                    "support_status": "supported"
+                  }
+                ],
+                "execution_status": "completed",
+                "finding_id": "INC-203:logs:F2",
+                "indicator": "OrderPersistenceCompatibilityError",
+                "service": "orders-service",
+                "uncertainty": null
+              }
+            ],
+            "status": "completed"
+          },
+          "metrics": {
+            "findings": [
+              {
+                "claim": "Orders p95 latency rose above 2 seconds.",
+                "claim_kind": "observation",
+                "evidence_links": [
+                  {
+                    "evidence_id": "INC-203/SNAP-203-A/metrics#1",
+                    "reference_valid": true,
+                    "relation": "supports",
+                    "relevance_status": "relevant",
+                    "support_status": "supported"
+                  }
+                ],
+                "execution_status": "completed",
+                "finding_id": "INC-203:metrics:F1",
+                "indicator": "latency",
+                "service": "orders-service",
+                "uncertainty": null
+              }
+            ],
+            "status": "completed"
+          },
+          "traces": {
+            "findings": [
+              {
+                "claim": "order.persistence spans took about 1.5s.",
+                "claim_kind": "observation",
+                "evidence_links": [
+                  {
+                    "evidence_id": "INC-203/SNAP-203-A/traces#1",
+                    "reference_valid": true,
+                    "relation": "supports",
+                    "relevance_status": "relevant",
+                    "support_status": "supported"
+                  }
+                ],
+                "execution_status": "completed",
+                "finding_id": "INC-203:traces:F1",
+                "indicator": "order.persistence",
+                "service": "orders-service",
+                "uncertainty": null
+              }
+            ],
+            "status": "completed"
+          }
+        },
+        "limitations": [],
+        "missing_evidence": [],
+        "overview": {
+          "affected_services": [
+            "api-gateway",
+            "orders-service"
+          ],
+          "end_time": "2026-10-12T10:18:00Z",
+          "incident_id": "INC-203",
+          "severity": "high",
+          "start_time": "2026-10-12T10:00:00Z",
+          "title": "Orders requests failing with slow responses"
+        },
+        "recommendations": {
+          "caveats": [
+            "Latency and persistence errors should return to baseline."
+          ],
+          "other_options": [],
+          "ranked": [
+            {
+              "action": "Roll Orders back to release v1.",
+              "action_type": "remediation",
+              "evidence_links": [
+                {
+                  "evidence_id": "INC-203/SNAP-203-A/logs#1",
+                  "reference_valid": true,
+                  "relation": "supports",
+                  "relevance_status": "relevant",
+                  "support_status": "supported"
+                }
+              ],
+              "rank": 1,
+              "rationale": "Restores the earlier persistence path.",
+              "recommendation_id": "REC-203-1",
+              "risk_or_caveat": "Latency and persistence errors should return to baseline.",
+              "validation": "supported"
+            }
+          ],
+          "recommendation_status": "completed",
+          "status": "ranked"
+        },
+        "root_cause": {
+          "alternatives": [],
+          "correlation_run_id": "F3-RUN-203-1",
+          "correlation_status": "completed",
+          "leading": {
+            "candidate_id": "CAND-203-1",
+            "description": "Orders release v2-buggy slowed order persistence and rejected even quantities.",
+            "evidence_links": [
+              {
+                "evidence_id": "INC-203/SNAP-203-A/logs#1",
+                "reference_valid": true,
+                "relation": "supports",
+                "relevance_status": "relevant",
+                "support_status": "supported"
+              },
+              {
+                "evidence_id": "INC-203/SNAP-203-A/logs#2",
+                "reference_valid": true,
+                "relation": "supports",
+                "relevance_status": "relevant",
+                "support_status": "supported"
+              },
+              {
+                "evidence_id": "INC-203/SNAP-203-A/traces#1",
+                "reference_valid": true,
+                "relation": "supports",
+                "relevance_status": "relevant",
+                "support_status": "supported"
+              }
+            ],
+            "uncertainty": null
+          },
+          "status": "leading"
+        },
+        "schema_version": "1.0",
+        "timeline": {
+          "events": [
+            {
+              "at": "2026-10-12T10:00:00Z",
+              "description": "Incident first observed by F1",
+              "kind": "incident_started",
+              "ref": "INC-203"
+            },
+            {
+              "at": "2026-10-12T10:00:00Z",
+              "description": "orders-service: Orders p95 latency above threshold",
+              "kind": "alert_raised",
+              "ref": "ALERT-203"
+            },
+            {
+              "at": "2026-10-12T10:18:00Z",
+              "description": "Incident end recorded by F1",
+              "kind": "incident_ended",
+              "ref": "INC-203"
+            }
+          ],
+          "untimed": []
+        }
+      }
+    },
+    "decision": {
+      "decision_id": "DEC-203-v1",
+      "idempotency_key": "approval-203-v1",
+      "incident_id": "INC-203",
+      "report_id": "RPT-203",
+      "version": 1,
+      "reviewer_id": "SIMULATED-REVIEWER",
+      "decision": "approve",
+      "feedback": null,
+      "decided_at": "2026-10-12T12:00:00Z"
+    }
+  },
+  {
+    "synthetic": true,
+    "report": {
+      "report_id": "RPT-203",
+      "incident_id": "INC-203",
+      "version": 2,
+      "previous_version": 1,
+      "content_ref": "sha256:c33e02f0a473d71e64b23c9edac0985d5fa403e7d9d96fee61fab536135a2dd2",
+      "content_digest": "c33e02f0a473d71e64b23c9edac0985d5fa403e7d9d96fee61fab536135a2dd2",
+      "source_investigation_run_id": "F2-RUN-203-2",
+      "created_at": "2026-10-12T12:30:00Z",
+      "review_cycle_id": null,
+      "evidence_ids": [
+        "INC-203/SNAP-203-A/logs#3"
+      ],
+      "uncertainty_flags": [
+        "no_validated_remediation"
+      ],
+      "content": {
+        "alerts": {
+          "items": [
+            {
+              "alert_id": "ALERT-203",
+              "description": "Orders p95 latency above threshold",
+              "evidence_ids": [
+                "INC-203/SNAP-203-A/metrics#1"
+              ],
+              "service": "orders-service",
+              "severity": "high",
+              "signal_type": "metrics",
+              "timestamp": "2026-10-12T10:00:00Z"
+            }
+          ],
+          "missing_alert_ids": []
+        },
+        "draft_notice": "Draft: pending human review. This report is not approved and has not been stored as approved incident knowledge.",
+        "evidence_register": [
+          {
+            "assessments": [
+              {
+                "claim_ref": "INC-203:logs:F1",
+                "claim_type": "finding",
+                "relation": "supports",
+                "relevance_status": "relevant",
+                "support_status": "supported"
+              },
+              {
+                "claim_ref": "CAND-203-2",
+                "claim_type": "root_cause_candidate",
+                "relation": "supports",
+                "relevance_status": "relevant",
+                "support_status": "supported"
+              }
+            ],
+            "evidence_id": "INC-203/SNAP-203-A/logs#3",
+            "reference_status": "valid",
+            "services": [
+              "orders-service"
+            ],
+            "signal_type": "logs",
+            "snapshot_id": "SNAP-203-A"
+          }
+        ],
+        "executive_summary": "Orders requests failing with slow responses. The incident has ended and affects api-gateway, orders-service. Probable cause (not verified by a human): Orders DB connection pool ran out. No validated remediation is proposed.",
+        "findings": {
+          "logs": {
+            "findings": [
+              {
+                "claim": "Draft revision says db_pool_timeout was the main problem.",
+                "claim_kind": "inference",
+                "evidence_links": [
+                  {
+                    "evidence_id": "INC-203/SNAP-203-A/logs#3",
+                    "reference_valid": true,
+                    "relation": "supports",
+                    "relevance_status": "relevant",
+                    "support_status": "supported"
+                  }
+                ],
+                "execution_status": "completed",
+                "finding_id": "INC-203:logs:F1",
+                "indicator": "db_pool_timeout",
+                "service": "orders-service",
+                "uncertainty": null
+              }
+            ],
+            "status": "completed"
+          },
+          "metrics": {
+            "findings": [],
+            "status": "completed"
+          },
+          "traces": {
+            "findings": [],
+            "status": "completed"
+          }
+        },
+        "limitations": [],
+        "missing_evidence": [],
+        "overview": {
+          "affected_services": [
+            "api-gateway",
+            "orders-service"
+          ],
+          "end_time": "2026-10-12T10:18:00Z",
+          "incident_id": "INC-203",
+          "severity": "high",
+          "start_time": "2026-10-12T10:00:00Z",
+          "title": "Orders requests failing with slow responses"
+        },
+        "recommendations": {
+          "caveats": [],
+          "other_options": [
+            {
+              "action": "Increase the Orders pool size.",
+              "action_type": "remediation",
+              "evidence_links": [],
+              "rank": null,
+              "rationale": "Follows from the draft cause.",
+              "recommendation_id": "REC-203-2",
+              "risk_or_caveat": null,
+              "validation": "unsupported"
+            }
+          ],
+          "ranked": [],
+          "recommendation_status": "completed",
+          "status": "no_validated_remediation"
+        },
+        "root_cause": {
+          "alternatives": [],
+          "correlation_run_id": "F3-RUN-203-2",
+          "correlation_status": "completed",
+          "leading": {
+            "candidate_id": "CAND-203-2",
+            "description": "Orders DB connection pool ran out.",
+            "evidence_links": [
+              {
+                "evidence_id": "INC-203/SNAP-203-A/logs#3",
+                "reference_valid": true,
+                "relation": "supports",
+                "relevance_status": "relevant",
+                "support_status": "supported"
+              }
+            ],
+            "uncertainty": "No pool metrics support this."
+          },
+          "status": "leading"
+        },
+        "schema_version": "1.0",
+        "timeline": {
+          "events": [
+            {
+              "at": "2026-10-12T10:00:00Z",
+              "description": "Incident first observed by F1",
+              "kind": "incident_started",
+              "ref": "INC-203"
+            },
+            {
+              "at": "2026-10-12T10:00:00Z",
+              "description": "orders-service: Orders p95 latency above threshold",
+              "kind": "alert_raised",
+              "ref": "ALERT-203"
+            },
+            {
+              "at": "2026-10-12T10:18:00Z",
+              "description": "Incident end recorded by F1",
+              "kind": "incident_ended",
+              "ref": "INC-203"
+            }
+          ],
+          "untimed": []
+        }
+      }
+    },
+    "decision": {
+      "decision_id": "DEC-203-v2",
+      "idempotency_key": "approval-203-v2",
+      "incident_id": "INC-203",
+      "report_id": "RPT-203",
+      "version": 2,
+      "reviewer_id": "SIMULATED-REVIEWER",
+      "decision": "request_changes",
+      "feedback": "No pool evidence supports this revision.",
+      "decided_at": "2026-10-12T13:00:00Z"
+    }
+  },
+  {
+    "synthetic": true,
+    "report": {
+      "report_id": "RPT-204",
+      "incident_id": "INC-204",
+      "version": 1,
+      "previous_version": null,
+      "content_ref": "sha256:f42a0161f94bc6c1e2342853ab04511a3fc2d57e0f070cc170fe00aaa1279d38",
+      "content_digest": "f42a0161f94bc6c1e2342853ab04511a3fc2d57e0f070cc170fe00aaa1279d38",
+      "source_investigation_run_id": "F2-RUN-204-1",
+      "created_at": "2026-09-02T11:00:00Z",
+      "review_cycle_id": null,
+      "evidence_ids": [
+        "INC-204/SNAP-204-A/logs#1",
+        "INC-204/SNAP-204-A/traces#1"
+      ],
+      "uncertainty_flags": [
+        "incomplete_signals",
+        "missing_alert_records",
+        "missing_evidence",
+        "unresolved_evidence"
+      ],
+      "content": {
+        "alerts": {
+          "items": [],
+          "missing_alert_ids": [
+            "ALERT-204"
+          ]
+        },
+        "draft_notice": "Draft: pending human review. This report is not approved and has not been stored as approved incident knowledge.",
+        "evidence_register": [
+          {
+            "assessments": [
+              {
+                "claim_ref": "INC-204:logs:F1",
+                "claim_type": "finding",
+                "relation": "supports",
+                "relevance_status": "unknown",
+                "support_status": "unverified"
+              },
+              {
+                "claim_ref": "CAND-204-1",
+                "claim_type": "root_cause_candidate",
+                "relation": "supports",
+                "relevance_status": "unknown",
+                "support_status": "unverified"
+              }
+            ],
+            "evidence_id": "INC-204/SNAP-204-A/logs#1",
+            "reference_status": "unresolved",
+            "services": [
+              "orders-service"
+            ],
+            "signal_type": "logs",
+            "snapshot_id": "SNAP-204-A"
+          },
+          {
+            "assessments": [
+              {
+                "claim_ref": "INC-204:logs:F1",
+                "claim_type": "finding",
+                "relation": "context_only",
+                "relevance_status": "unknown",
+                "support_status": "unverified"
+              }
+            ],
+            "evidence_id": "INC-204/SNAP-204-A/traces#1",
+            "reference_status": "unresolved",
+            "services": [
+              "orders-service"
+            ],
+            "signal_type": "traces",
+            "snapshot_id": "SNAP-204-A"
+          }
+        ],
+        "executive_summary": "Orders database wait times rising. The incident is ongoing and affects orders-service. Probable cause (not verified by a human): Orders DB connection pool pressure, not confirmed. 1 ranked recommendation(s); top: Check Orders pool use the next time wait times rise..",
+        "findings": {
+          "logs": {
+            "findings": [
+              {
+                "claim": "Earlier db_pool_timeout logs were reported by the review; the original telemetry has expired.",
+                "claim_kind": "observation",
+                "evidence_links": [
+                  {
+                    "evidence_id": "INC-204/SNAP-204-A/logs#1",
+                    "reference_valid": "unknown",
+                    "relation": "supports",
+                    "relevance_status": "unknown",
+                    "support_status": "unverified"
+                  },
+                  {
+                    "evidence_id": "INC-204/SNAP-204-A/traces#1",
+                    "reference_valid": "unknown",
+                    "relation": "context_only",
+                    "relevance_status": "unknown",
+                    "support_status": "unverified"
+                  }
+                ],
+                "execution_status": "partial",
+                "finding_id": "INC-204:logs:F1",
+                "indicator": "db_pool_timeout",
+                "service": "orders-service",
+                "uncertainty": "The original records could not be read again."
+              }
+            ],
+            "status": "partial"
+          },
+          "metrics": {
+            "findings": [],
+            "status": "partial"
+          },
+          "traces": {
+            "findings": [],
+            "status": "partial"
+          }
+        },
+        "limitations": [
+          "F2 investigation status is partial; some signal results are incomplete.",
+          "1 grouped alert(s) have no alert record: ALERT-204."
+        ],
+        "missing_evidence": [
+          {
+            "reason": "Retention expired",
+            "requested_from": "logs",
+            "required": "Original logs for the incident window",
+            "source": "F2",
+            "status": "unavailable"
+          },
+          {
+            "reason": "Retention expired",
+            "requested_from": "traces",
+            "required": "Original traces for the incident window",
+            "source": "F2",
+            "status": "unavailable"
+          }
+        ],
+        "overview": {
+          "affected_services": [
+            "orders-service"
+          ],
+          "end_time": null,
+          "incident_id": "INC-204",
+          "severity": "medium",
+          "start_time": "2026-09-02T10:00:00Z",
+          "title": "Orders database wait times rising"
+        },
+        "recommendations": {
+          "caveats": [],
+          "other_options": [],
+          "ranked": [
+            {
+              "action": "Check Orders pool use the next time wait times rise.",
+              "action_type": "verification",
+              "evidence_links": [],
+              "rank": 1,
+              "rationale": "The cause was not confirmed.",
+              "recommendation_id": "REC-204-1",
+              "risk_or_caveat": null,
+              "validation": "conditional"
+            }
+          ],
+          "recommendation_status": "completed",
+          "status": "ranked"
+        },
+        "root_cause": {
+          "alternatives": [],
+          "correlation_run_id": "F3-RUN-204-1",
+          "correlation_status": "partial",
+          "leading": {
+            "candidate_id": "CAND-204-1",
+            "description": "Orders DB connection pool pressure, not confirmed.",
+            "evidence_links": [
+              {
+                "evidence_id": "INC-204/SNAP-204-A/logs#1",
+                "reference_valid": "unknown",
+                "relation": "supports",
+                "relevance_status": "unknown",
+                "support_status": "unverified"
+              }
+            ],
+            "uncertainty": "The evidence has expired."
+          },
+          "status": "leading"
+        },
+        "schema_version": "1.0",
+        "timeline": {
+          "events": [
+            {
+              "at": "2026-09-02T10:00:00Z",
+              "description": "Incident first observed by F1",
+              "kind": "incident_started",
+              "ref": "INC-204"
+            }
+          ],
+          "untimed": [
+            {
+              "at": null,
+              "description": "Alert grouped by F1; no alert record or time was supplied",
+              "kind": "alert_unrecorded",
+              "ref": "ALERT-204"
+            }
+          ]
+        }
+      }
+    },
+    "decision": {
+      "decision_id": "DEC-204-v1",
+      "idempotency_key": "approval-204-v1",
+      "incident_id": "INC-204",
+      "report_id": "RPT-204",
+      "version": 1,
+      "reviewer_id": "SIMULATED-REVIEWER",
+      "decision": "approve",
+      "feedback": null,
+      "decided_at": "2026-09-02T12:00:00Z"
+    }
+  },
+  {
+    "synthetic": true,
+    "report": {
+      "report_id": "RPT-205",
+      "incident_id": "INC-205",
+      "version": 1,
+      "previous_version": null,
+      "content_ref": "sha256:8956de0b8e5e3998368e945b2e24082ec24e27802ace64dd0c6c3fa2b47c96ac",
+      "content_digest": "8956de0b8e5e3998368e945b2e24082ec24e27802ace64dd0c6c3fa2b47c96ac",
+      "source_investigation_run_id": "F2-RUN-205-1",
+      "created_at": "2026-10-15T11:00:00Z",
+      "review_cycle_id": null,
+      "evidence_ids": [
+        "INC-205/SNAP-205-A/logs#1",
+        "INC-205/SNAP-205-A/metrics#1"
+      ],
+      "uncertainty_flags": [
+        "missing_evidence"
+      ],
+      "content": {
+        "alerts": {
+          "items": [
+            {
+              "alert_id": "ALERT-205",
+              "description": "Payment failure ratio above threshold",
+              "evidence_ids": [],
+              "service": "payments-service",
+              "severity": "medium",
+              "signal_type": "metrics",
+              "timestamp": "2026-10-15T10:00:00Z"
+            }
+          ],
+          "missing_alert_ids": []
+        },
+        "draft_notice": "Draft: pending human review. This report is not approved and has not been stored as approved incident knowledge.",
+        "evidence_register": [
+          {
+            "assessments": [
+              {
+                "claim_ref": "INC-205:logs:F1",
+                "claim_type": "finding",
+                "relation": "supports",
+                "relevance_status": "relevant",
+                "support_status": "supported"
+              },
+              {
+                "claim_ref": "CAND-205-1",
+                "claim_type": "root_cause_candidate",
+                "relation": "supports",
+                "relevance_status": "relevant",
+                "support_status": "supported"
+              },
+              {
+                "claim_ref": "REC-205-1",
+                "claim_type": "recommendation",
+                "relation": "supports",
+                "relevance_status": "relevant",
+                "support_status": "supported"
+              }
+            ],
+            "evidence_id": "INC-205/SNAP-205-A/logs#1",
+            "reference_status": "valid",
+            "services": [
+              "payments-service"
+            ],
+            "signal_type": "logs",
+            "snapshot_id": "SNAP-205-A"
+          },
+          {
+            "assessments": [
+              {
+                "claim_ref": "INC-205:metrics:F1",
+                "claim_type": "finding",
+                "relation": "context_only",
+                "relevance_status": "relevant",
+                "support_status": "unverified"
+              }
+            ],
+            "evidence_id": "INC-205/SNAP-205-A/metrics#1",
+            "reference_status": "valid",
+            "services": [
+              "payments-service"
+            ],
+            "signal_type": "metrics",
+            "snapshot_id": "SNAP-205-A"
+          }
+        ],
+        "executive_summary": "Payments declining customer charges. The incident has ended and affects orders-service, payments-service. Probable cause (not verified by a human): Payments service declined most attempts with status 402. 1 ranked recommendation(s); top: Review the payment decline policy..",
+        "findings": {
+          "logs": {
+            "findings": [
+              {
+                "claim": "payment_declined responses with status 402 rose for many customers.",
+                "claim_kind": "observation",
+                "evidence_links": [
+                  {
+                    "evidence_id": "INC-205/SNAP-205-A/logs#1",
+                    "reference_valid": true,
+                    "relation": "supports",
+                    "relevance_status": "relevant",
+                    "support_status": "supported"
+                  }
+                ],
+                "execution_status": "completed",
+                "finding_id": "INC-205:logs:F1",
+                "indicator": "payment_declined",
+                "service": "payments-service",
+                "uncertainty": null
+              }
+            ],
+            "status": "completed"
+          },
+          "metrics": {
+            "findings": [
+              {
+                "claim": "No 503 responses were seen.",
+                "claim_kind": "observation",
+                "evidence_links": [
+                  {
+                    "evidence_id": "INC-205/SNAP-205-A/metrics#1",
+                    "reference_valid": true,
+                    "relation": "context_only",
+                    "relevance_status": "relevant",
+                    "support_status": "unverified"
+                  }
+                ],
+                "execution_status": "completed",
+                "finding_id": "INC-205:metrics:F1",
+                "indicator": "http_errors",
+                "service": "payments-service",
+                "uncertainty": null
+              }
+            ],
+            "status": "completed"
+          },
+          "traces": {
+            "findings": [],
+            "status": "completed"
+          }
+        },
+        "limitations": [],
+        "missing_evidence": [
+          {
+            "reason": "Not present in the service logs",
+            "requested_from": "logs",
+            "required": "Reason for the decline policy",
+            "source": "F2",
+            "status": "unavailable"
+          }
+        ],
+        "overview": {
+          "affected_services": [
+            "orders-service",
+            "payments-service"
+          ],
+          "end_time": "2026-10-15T10:10:00Z",
+          "incident_id": "INC-205",
+          "severity": "medium",
+          "start_time": "2026-10-15T10:00:00Z",
+          "title": "Payments declining customer charges"
+        },
+        "recommendations": {
+          "caveats": [
+            "Decline rate should return to baseline."
+          ],
+          "other_options": [],
+          "ranked": [
+            {
+              "action": "Review the payment decline policy.",
+              "action_type": "investigation",
+              "evidence_links": [
+                {
+                  "evidence_id": "INC-205/SNAP-205-A/logs#1",
+                  "reference_valid": true,
+                  "relation": "supports",
+                  "relevance_status": "relevant",
+                  "support_status": "supported"
+                }
+              ],
+              "rank": 1,
+              "rationale": "The policy reason is unknown.",
+              "recommendation_id": "REC-205-1",
+              "risk_or_caveat": "Decline rate should return to baseline.",
+              "validation": "conditional"
+            }
+          ],
+          "recommendation_status": "completed",
+          "status": "ranked"
+        },
+        "root_cause": {
+          "alternatives": [],
+          "correlation_run_id": "F3-RUN-205-1",
+          "correlation_status": "completed",
+          "leading": {
+            "candidate_id": "CAND-205-1",
+            "description": "Payments service declined most attempts with status 402.",
+            "evidence_links": [
+              {
+                "evidence_id": "INC-205/SNAP-205-A/logs#1",
+                "reference_valid": true,
+                "relation": "supports",
+                "relevance_status": "relevant",
+                "support_status": "supported"
+              }
+            ],
+            "uncertainty": "The reason for the decline policy is unknown."
+          },
+          "status": "leading"
+        },
+        "schema_version": "1.0",
+        "timeline": {
+          "events": [
+            {
+              "at": "2026-10-15T10:00:00Z",
+              "description": "Incident first observed by F1",
+              "kind": "incident_started",
+              "ref": "INC-205"
+            },
+            {
+              "at": "2026-10-15T10:00:00Z",
+              "description": "payments-service: Payment failure ratio above threshold",
+              "kind": "alert_raised",
+              "ref": "ALERT-205"
+            },
+            {
+              "at": "2026-10-15T10:10:00Z",
+              "description": "Incident end recorded by F1",
+              "kind": "incident_ended",
+              "ref": "INC-205"
+            }
+          ],
+          "untimed": []
+        }
+      }
+    },
+    "decision": {
+      "decision_id": "DEC-205-v1",
+      "idempotency_key": "approval-205-v1",
+      "incident_id": "INC-205",
+      "report_id": "RPT-205",
+      "version": 1,
+      "reviewer_id": "SIMULATED-REVIEWER",
+      "decision": "approve",
+      "feedback": null,
+      "decided_at": "2026-10-15T12:00:00Z"
+    }
+  },
+  {
+    "synthetic": true,
+    "report": {
+      "report_id": "RPT-206",
+      "incident_id": "INC-206",
+      "version": 1,
+      "previous_version": null,
+      "content_ref": "sha256:3dda5873f9a4b1d1d5b97aacdebca24de2fa788a60972690de6abc57cf609bfb",
+      "content_digest": "3dda5873f9a4b1d1d5b97aacdebca24de2fa788a60972690de6abc57cf609bfb",
+      "source_investigation_run_id": "F2-RUN-206-1",
+      "created_at": "2026-10-18T11:00:00Z",
+      "review_cycle_id": null,
+      "evidence_ids": [
+        "INC-206/SNAP-206-A/logs#1"
+      ],
+      "uncertainty_flags": [
+        "missing_alert_records",
+        "no_validated_remediation"
+      ],
+      "content": {
+        "alerts": {
+          "items": [],
+          "missing_alert_ids": [
+            "ALERT-206"
+          ]
+        },
+        "draft_notice": "Draft: pending human review. This report is not approved and has not been stored as approved incident knowledge.",
+        "evidence_register": [
+          {
+            "assessments": [
+              {
+                "claim_ref": "INC-206:logs:F1",
+                "claim_type": "finding",
+                "relation": "supports",
+                "relevance_status": "relevant",
+                "support_status": "supported"
+              }
+            ],
+            "evidence_id": "INC-206/SNAP-206-A/logs#1",
+            "reference_status": "valid",
+            "services": [
+              "orders-service"
+            ],
+            "signal_type": "logs",
+            "snapshot_id": "SNAP-206-A"
+          }
+        ],
+        "executive_summary": "Unsupported database diagnosis. The incident has ended and affects orders-service. Probable cause (not verified by a human): PostgreSQL outage. No validated remediation is proposed.",
+        "findings": {
+          "logs": {
+            "findings": [
+              {
+                "claim": "A draft report claims a database outage without evidence.",
+                "claim_kind": "inference",
+                "evidence_links": [
+                  {
+                    "evidence_id": "INC-206/SNAP-206-A/logs#1",
+                    "reference_valid": true,
+                    "relation": "supports",
+                    "relevance_status": "relevant",
+                    "support_status": "supported"
+                  }
+                ],
+                "execution_status": "completed",
+                "finding_id": "INC-206:logs:F1",
+                "indicator": null,
+                "service": "orders-service",
+                "uncertainty": null
+              }
+            ],
+            "status": "completed"
+          },
+          "metrics": {
+            "findings": [],
+            "status": "completed"
+          },
+          "traces": {
+            "findings": [],
+            "status": "completed"
+          }
+        },
+        "limitations": [
+          "1 grouped alert(s) have no alert record: ALERT-206."
+        ],
+        "missing_evidence": [],
+        "overview": {
+          "affected_services": [
+            "orders-service"
+          ],
+          "end_time": "2026-10-18T10:05:00Z",
+          "incident_id": "INC-206",
+          "severity": "low",
+          "start_time": "2026-10-18T10:00:00Z",
+          "title": "Unsupported database diagnosis"
+        },
+        "recommendations": {
+          "caveats": [],
+          "other_options": [
+            {
+              "action": "Restart PostgreSQL.",
+              "action_type": "remediation",
+              "evidence_links": [],
+              "rank": null,
+              "rationale": "Unsupported.",
+              "recommendation_id": "REC-206-1",
+              "risk_or_caveat": null,
+              "validation": "unsupported"
+            }
+          ],
+          "ranked": [],
+          "recommendation_status": "completed",
+          "status": "no_validated_remediation"
+        },
+        "root_cause": {
+          "alternatives": [],
+          "correlation_run_id": "F3-RUN-206-1",
+          "correlation_status": "completed",
+          "leading": {
+            "candidate_id": "CAND-206-1",
+            "description": "PostgreSQL outage.",
+            "evidence_links": [],
+            "uncertainty": "No evidence."
+          },
+          "status": "leading"
+        },
+        "schema_version": "1.0",
+        "timeline": {
+          "events": [
+            {
+              "at": "2026-10-18T10:00:00Z",
+              "description": "Incident first observed by F1",
+              "kind": "incident_started",
+              "ref": "INC-206"
+            },
+            {
+              "at": "2026-10-18T10:05:00Z",
+              "description": "Incident end recorded by F1",
+              "kind": "incident_ended",
+              "ref": "INC-206"
+            }
+          ],
+          "untimed": [
+            {
+              "at": null,
+              "description": "Alert grouped by F1; no alert record or time was supplied",
+              "kind": "alert_unrecorded",
+              "ref": "ALERT-206"
+            }
+          ]
+        }
+      }
+    },
+    "decision": {
+      "decision_id": "DEC-206-v1",
+      "idempotency_key": "approval-206-v1",
+      "incident_id": "INC-206",
+      "report_id": "RPT-206",
+      "version": 1,
+      "reviewer_id": "SIMULATED-REVIEWER",
+      "decision": "request_changes",
+      "feedback": "Need supporting evidence.",
+      "decided_at": "2026-10-18T12:00:00Z"
+    }
+  },
+  {
+    "synthetic": true,
+    "report": {
+      "report_id": "RPT-207",
+      "incident_id": "INC-207",
+      "version": 1,
+      "previous_version": null,
+      "content_ref": "sha256:cc108b00215465ca1a9008cd52f7d751619853874a0a39fc25a6d7e70f9b7f44",
+      "content_digest": "cc108b00215465ca1a9008cd52f7d751619853874a0a39fc25a6d7e70f9b7f44",
+      "source_investigation_run_id": "F2-RUN-207-1",
+      "created_at": "2026-10-22T11:00:00Z",
+      "review_cycle_id": null,
+      "evidence_ids": [
+        "INC-207/SNAP-207-A/logs#1",
+        "INC-207/SNAP-207-A/traces#1"
+      ],
+      "uncertainty_flags": [
+        "incomplete_signals",
+        "missing_evidence",
+        "unresolved_evidence"
+      ],
+      "content": {
+        "alerts": {
+          "items": [
+            {
+              "alert_id": "ALERT-207",
+              "description": "Orders p95 latency above threshold",
+              "evidence_ids": [],
+              "service": "orders-service",
+              "severity": "medium",
+              "signal_type": "metrics",
+              "timestamp": "2026-10-22T10:00:00Z"
+            }
+          ],
+          "missing_alert_ids": []
+        },
+        "draft_notice": "Draft: pending human review. This report is not approved and has not been stored as approved incident knowledge.",
+        "evidence_register": [
+          {
+            "assessments": [
+              {
+                "claim_ref": "INC-207:logs:F1",
+                "claim_type": "finding",
+                "relation": "supports",
+                "relevance_status": "relevant",
+                "support_status": "supported"
+              },
+              {
+                "claim_ref": "CAND-207-1",
+                "claim_type": "root_cause_candidate",
+                "relation": "supports",
+                "relevance_status": "relevant",
+                "support_status": "supported"
+              },
+              {
+                "claim_ref": "REC-207-1",
+                "claim_type": "recommendation",
+                "relation": "supports",
+                "relevance_status": "relevant",
+                "support_status": "supported"
+              }
+            ],
+            "evidence_id": "INC-207/SNAP-207-A/logs#1",
+            "reference_status": "valid",
+            "services": [
+              "orders-service"
+            ],
+            "signal_type": "logs",
+            "snapshot_id": "SNAP-207-A"
+          },
+          {
+            "assessments": [
+              {
+                "claim_ref": "INC-207:logs:F1",
+                "claim_type": "finding",
+                "relation": "context_only",
+                "relevance_status": "unknown",
+                "support_status": "unverified"
+              }
+            ],
+            "evidence_id": "INC-207/SNAP-207-A/traces#1",
+            "reference_status": "unresolved",
+            "services": [
+              "orders-service"
+            ],
+            "signal_type": "traces",
+            "snapshot_id": "SNAP-207-A"
+          }
+        ],
+        "executive_summary": "Orders latency after a new release. The incident has ended and affects orders-service. Probable cause (not verified by a human): New Orders release slowed order persistence. 1 ranked recommendation(s); top: Compare the release with v1 before rolling forward..",
+        "findings": {
+          "logs": {
+            "findings": [
+              {
+                "claim": "release_changed preceded slower order.persistence spans.",
+                "claim_kind": "observation",
+                "evidence_links": [
+                  {
+                    "evidence_id": "INC-207/SNAP-207-A/logs#1",
+                    "reference_valid": true,
+                    "relation": "supports",
+                    "relevance_status": "relevant",
+                    "support_status": "supported"
+                  },
+                  {
+                    "evidence_id": "INC-207/SNAP-207-A/traces#1",
+                    "reference_valid": "unknown",
+                    "relation": "context_only",
+                    "relevance_status": "unknown",
+                    "support_status": "unverified"
+                  }
+                ],
+                "execution_status": "completed",
+                "finding_id": "INC-207:logs:F1",
+                "indicator": "release_changed",
+                "service": "orders-service",
+                "uncertainty": null
+              }
+            ],
+            "status": "completed"
+          },
+          "metrics": {
+            "findings": [],
+            "status": "completed"
+          },
+          "traces": {
+            "findings": [],
+            "status": "failed"
+          }
+        },
+        "limitations": [
+          "F2 investigation status is partial; some signal results are incomplete."
+        ],
+        "missing_evidence": [
+          {
+            "reason": "The trace store returned no data",
+            "requested_from": "traces",
+            "required": "Trace data for the incident window",
+            "source": "F2",
+            "status": "unavailable"
+          }
+        ],
+        "overview": {
+          "affected_services": [
+            "orders-service"
+          ],
+          "end_time": "2026-10-22T10:09:00Z",
+          "incident_id": "INC-207",
+          "severity": "medium",
+          "start_time": "2026-10-22T10:00:00Z",
+          "title": "Orders latency after a new release"
+        },
+        "recommendations": {
+          "caveats": [],
+          "other_options": [],
+          "ranked": [
+            {
+              "action": "Compare the release with v1 before rolling forward.",
+              "action_type": "verification",
+              "evidence_links": [
+                {
+                  "evidence_id": "INC-207/SNAP-207-A/logs#1",
+                  "reference_valid": true,
+                  "relation": "supports",
+                  "relevance_status": "relevant",
+                  "support_status": "supported"
+                }
+              ],
+              "rank": 1,
+              "rationale": "Release timing is the best explanation.",
+              "recommendation_id": "REC-207-1",
+              "risk_or_caveat": null,
+              "validation": "conditional"
+            }
+          ],
+          "recommendation_status": "completed",
+          "status": "ranked"
+        },
+        "root_cause": {
+          "alternatives": [],
+          "correlation_run_id": "F3-RUN-207-1",
+          "correlation_status": "partial",
+          "leading": {
+            "candidate_id": "CAND-207-1",
+            "description": "New Orders release slowed order persistence.",
+            "evidence_links": [
+              {
+                "evidence_id": "INC-207/SNAP-207-A/logs#1",
+                "reference_valid": true,
+                "relation": "supports",
+                "relevance_status": "relevant",
+                "support_status": "supported"
+              }
+            ],
+            "uncertainty": "Traces could not be checked."
+          },
+          "status": "leading"
+        },
+        "schema_version": "1.0",
+        "timeline": {
+          "events": [
+            {
+              "at": "2026-10-22T10:00:00Z",
+              "description": "Incident first observed by F1",
+              "kind": "incident_started",
+              "ref": "INC-207"
+            },
+            {
+              "at": "2026-10-22T10:00:00Z",
+              "description": "orders-service: Orders p95 latency above threshold",
+              "kind": "alert_raised",
+              "ref": "ALERT-207"
+            },
+            {
+              "at": "2026-10-22T10:09:00Z",
+              "description": "Incident end recorded by F1",
+              "kind": "incident_ended",
+              "ref": "INC-207"
+            }
+          ],
+          "untimed": []
+        }
+      }
+    },
+    "decision": {
+      "decision_id": "DEC-207-v1",
+      "idempotency_key": "approval-207-v1",
+      "incident_id": "INC-207",
+      "report_id": "RPT-207",
+      "version": 1,
+      "reviewer_id": "SIMULATED-REVIEWER",
+      "decision": "approve",
+      "feedback": null,
+      "decided_at": "2026-10-22T12:00:00Z"
+    }
+  },
+  {
+    "synthetic": true,
+    "report": {
+      "report_id": "RPT-208",
+      "incident_id": "INC-208",
+      "version": 1,
+      "previous_version": null,
+      "content_ref": "sha256:f44b371409ae81477d44f7423c05a559b1a5683c486bc1e03e7df41276b1e199",
+      "content_digest": "f44b371409ae81477d44f7423c05a559b1a5683c486bc1e03e7df41276b1e199",
+      "source_investigation_run_id": "F2-RUN-208-1",
+      "created_at": "2026-10-25T11:00:00Z",
+      "review_cycle_id": null,
+      "evidence_ids": [
+        "INC-208/SNAP-208-A/logs#1"
+      ],
+      "uncertainty_flags": [
+        "no_validated_remediation",
+        "root_cause_inconclusive"
+      ],
+      "content": {
+        "alerts": {
+          "items": [
+            {
+              "alert_id": "ALERT-208",
+              "description": "Reservation releases above usual",
+              "evidence_ids": [],
+              "service": "inventory-service",
+              "severity": "low",
+              "signal_type": "logs",
+              "timestamp": "2026-10-25T10:00:00Z"
+            }
+          ],
+          "missing_alert_ids": []
+        },
+        "draft_notice": "Draft: pending human review. This report is not approved and has not been stored as approved incident knowledge.",
+        "evidence_register": [
+          {
+            "assessments": [
+              {
+                "claim_ref": "INC-208:logs:F1",
+                "claim_type": "finding",
+                "relation": "supports",
+                "relevance_status": "relevant",
+                "support_status": "supported"
+              }
+            ],
+            "evidence_id": "INC-208/SNAP-208-A/logs#1",
+            "reference_status": "valid",
+            "services": [
+              "inventory-service"
+            ],
+            "signal_type": "logs",
+            "snapshot_id": "SNAP-208-A"
+          }
+        ],
+        "executive_summary": "Inventory reservations released more often. The incident has ended and affects inventory-service. Correlation found no leading cause; the evidence is inconclusive. No validated remediation is proposed.",
+        "findings": {
+          "logs": {
+            "findings": [
+              {
+                "claim": "inventory-service released more stock reservations than usual.",
+                "claim_kind": "observation",
+                "evidence_links": [
+                  {
+                    "evidence_id": "INC-208/SNAP-208-A/logs#1",
+                    "reference_valid": true,
+                    "relation": "supports",
+                    "relevance_status": "relevant",
+                    "support_status": "supported"
+                  }
+                ],
+                "execution_status": "completed",
+                "finding_id": "INC-208:logs:F1",
+                "indicator": "reservation_released",
+                "service": "inventory-service",
+                "uncertainty": null
+              }
+            ],
+            "status": "completed"
+          },
+          "metrics": {
+            "findings": [],
+            "status": "completed"
+          },
+          "traces": {
+            "findings": [],
+            "status": "completed"
+          }
+        },
+        "limitations": [],
+        "missing_evidence": [],
+        "overview": {
+          "affected_services": [
+            "inventory-service"
+          ],
+          "end_time": "2026-10-25T10:07:00Z",
+          "incident_id": "INC-208",
+          "severity": "low",
+          "start_time": "2026-10-25T10:00:00Z",
+          "title": "Inventory reservations released more often"
+        },
+        "recommendations": {
+          "caveats": [],
+          "other_options": [],
+          "ranked": [],
+          "recommendation_status": "completed",
+          "status": "no_validated_remediation"
+        },
+        "root_cause": {
+          "alternatives": [],
+          "correlation_run_id": "F3-RUN-208-1",
+          "correlation_status": "inconclusive",
+          "leading": null,
+          "status": "inconclusive"
+        },
+        "schema_version": "1.0",
+        "timeline": {
+          "events": [
+            {
+              "at": "2026-10-25T10:00:00Z",
+              "description": "Incident first observed by F1",
+              "kind": "incident_started",
+              "ref": "INC-208"
+            },
+            {
+              "at": "2026-10-25T10:00:00Z",
+              "description": "inventory-service: Reservation releases above usual",
+              "kind": "alert_raised",
+              "ref": "ALERT-208"
+            },
+            {
+              "at": "2026-10-25T10:07:00Z",
+              "description": "Incident end recorded by F1",
+              "kind": "incident_ended",
+              "ref": "INC-208"
+            }
+          ],
+          "untimed": []
+        }
+      }
+    },
+    "decision": {
+      "decision_id": "DEC-208-v1",
+      "idempotency_key": "approval-208-v1",
+      "incident_id": "INC-208",
+      "report_id": "RPT-208",
+      "version": 1,
+      "reviewer_id": "SIMULATED-REVIEWER",
+      "decision": "approve",
+      "feedback": null,
+      "decided_at": "2026-10-25T12:00:00Z"
+    }
+  }
+]

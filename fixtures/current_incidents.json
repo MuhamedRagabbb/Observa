@@ -1,0 +1,69 @@
+{
+  "pool": {
+    "incident_id": "INC-CURRENT-POOL",
+    "title": "Orders requests failing with slow responses",
+    "alerts": [
+      "ALERT-C1"
+    ],
+    "start_time": "2026-11-04T09:00:00Z",
+    "end_time": null,
+    "affected_services": [
+      "api-gateway",
+      "orders-service"
+    ],
+    "findings": [
+      "db_pool_timeout errors in orders-service logs",
+      "db.pool.acquire.duration is rising"
+    ]
+  },
+  "payments": {
+    "incident_id": "INC-CURRENT-PAYMENTS",
+    "title": "Payment attempts failing during checkout",
+    "alerts": [
+      "ALERT-C2"
+    ],
+    "start_time": "2026-11-04T09:00:00Z",
+    "end_time": null,
+    "affected_services": [
+      "api-gateway",
+      "orders-service",
+      "payments-service"
+    ],
+    "findings": [
+      "payment_unavailable responses with status 503",
+      "payments.failed is rising"
+    ]
+  },
+  "release": {
+    "incident_id": "INC-CURRENT-RELEASE",
+    "title": "Orders requests failing with slow responses",
+    "alerts": [
+      "ALERT-C3"
+    ],
+    "start_time": "2026-11-04T09:00:00Z",
+    "end_time": null,
+    "affected_services": [
+      "api-gateway",
+      "orders-service"
+    ],
+    "findings": [
+      "release_changed event seen",
+      "OrderPersistenceCompatibilityError in order.persistence spans"
+    ]
+  },
+  "unrelated": {
+    "incident_id": "INC-CURRENT-OTHER",
+    "title": "Storefront images missing",
+    "alerts": [
+      "ALERT-C4"
+    ],
+    "start_time": "2026-11-04T09:00:00Z",
+    "end_time": null,
+    "affected_services": [
+      "api-gateway"
+    ],
+    "findings": [
+      "Static image files return 404"
+    ]
+  }
+}

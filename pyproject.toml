@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "observa-incident-memory"
+version = "0.1.0"
+description = "OBSERVA Feature 5: local approved incident knowledge memory prototype"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.scripts]
+observa-memory = "observa.f5_memory.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["observa*"]
