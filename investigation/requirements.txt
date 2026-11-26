@@ -1,0 +1,3 @@
+-e ./investigation
+langgraph
+pydantic>=2

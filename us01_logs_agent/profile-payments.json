@@ -1,0 +1,54 @@
+﻿{
+  "sample": {
+    "records": 8,
+    "from": "2026-11-04T10:00:20Z",
+    "to": "2026-11-04T10:00:50Z",
+    "covers_incident_start": false
+  },
+  "categories": {
+    "service_failure": 8
+  },
+  "patterns": [
+    {
+      "category": "service_failure",
+      "service": "orders-service",
+      "event": "dependency_request_failed",
+      "error_type": null,
+      "status": 503,
+      "route": null,
+      "count": 4,
+      "first_seen_in_sample": "2026-11-04T10:00:20Z",
+      "last_seen_in_sample": "2026-11-04T10:00:50Z",
+      "p95_duration_ms": null
+    },
+    {
+      "category": "service_failure",
+      "service": "api-gateway",
+      "event": "dependency_request_failed",
+      "error_type": null,
+      "status": 503,
+      "route": null,
+      "count": 4,
+      "first_seen_in_sample": "2026-11-04T10:00:20Z",
+      "last_seen_in_sample": "2026-11-04T10:00:50Z",
+      "p95_duration_ms": null
+    }
+  ],
+  "services_seen": [
+    "api-gateway",
+    "orders-service"
+  ],
+  "services_missing": [
+    "payments-service"
+  ],
+  "release_changes": {},
+  "cross_service_traces": 1,
+  "limits": [
+    "sample of 8 retained sanitized records, not all source logs",
+    "sample starts at 2026-11-04T10:00:20Z, after incident start 2026-11-04T10:00:00Z; first_seen values are first-in-sample, not onset",
+    "no log records from payments-service"
+  ],
+  "read_gaps": [],
+  "incident_id": "INC-6190321efdb26c307fe7",
+  "snapshot_id": "r4-695ea705dc19c1c72d7c4a53ef2a5c47126d535741b337ec22e4917611a4afa7"
+}

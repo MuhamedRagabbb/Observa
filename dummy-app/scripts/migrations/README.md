@@ -5,9 +5,30 @@ Additive, versioned SQL per service database (`<service>/NNN_description.sql`), 
 - under an advisory lock, so two runners cannot race;
 - checksummed in `schema_migrations`, so editing an applied file is refused.
 
-They are **not** applied at service startup. Applying them to the live Compose databases needs explicit approval.
+## Automatic Compose setup
 
-## Hard rules
+`docker compose up --build -d` runs `db-migrate` automatically after PostgreSQL
+is healthy and before Inventory, Payments and Orders start. `scripts/migrate_all.py` uses each
+service's own database role, applies Inventory → Payments → Orders, checks existing migration
+checksums, and skips already applied versions. Lock waits are limited to 5 seconds. On failure,
+the setup job exits nonzero and dependent business services do not start.
+
+The ordinary first-run workflow needs no manual migration commands. PostgreSQL still uses
+`init-db.sh`/`init-db.sql` for its initial base schema; the setup job adds the checkout schema.
+`Exited (0)` for `db-migrate` is expected. `docker compose start` or restarting Docker is not a
+schema-upgrade command: after changing code/migrations, use `docker compose up --build -d`.
+
+Automatic setup does not erase data, restore backups or enable the reconciler. Before upgrading
+an existing database with pending migrations, retain and verify a backup using the procedure below.
+The maintenance/rollback sections are for deliberate database administration; they are not extra
+steps required for a new user's normal Compose startup. A rollback of these migrations will be
+reapplied by the next normal Compose setup, so coordinate rollback with the deployed application version.
+
+The manual procedure below predates automatic setup. To inspect/back up an older unprepared
+volume before adopting this version, start only `postgres` until the backup is verified; starting
+business services also runs `db-migrate`.
+
+## Protecting existing data
 
 - **Never delete or overwrite a backup.** Each run writes to a new timestamped folder.
 - **Never run `docker compose down -v` or `scripts/reset.*` against the live project (`observa-dummy`).** Both delete the database volumes.
@@ -22,7 +43,7 @@ Apply in this order. Orders goes last: once its tables exist the new checkout wo
 | # | Service | Version | Change | Live impact | Code compatibility |
 |---|---|---|---|---|---|
 | 1 | inventory | `001_cart_reservations` | New `cart_reservations` and `cart_reservation_lines` (foreign key to `products`) | Brief lock on `products` (5 rows) | Inventory checks for the table on every call, so it works before and after |
-| 2 | payments | `001_payment_void_fence` | Allows `voided` tombstones; customer and amount are nullable **only** for voided rows | **Exclusive lock while the new CHECK scans the whole `payments` table** (about 115k rows; well under a second). Charges wait meanwhile. | Voids return 503 until applied; charges are unaffected |
+| 2 | payments | `001_payment_void_fence` | Allows `voided` tombstones; customer and amount are nullable **only** for voided rows | An exclusive lock is held while PostgreSQL checks existing payment rows. Its duration depends on table size and load. Charges wait meanwhile. | Voids return 503 until applied; charges are unaffected |
 | 3 | orders | `001_checkout_attempts` | New `checkout_attempts`, `order_items` and `order_number_seq` | New objects only | Legacy flow unaffected |
 | 4 | orders | `002_checkout_pricing` | Nullable price, total and failure-detail columns | Catalogue-only change on new tables | Checkout needs it |
 | 5 | orders | `003_reconciler` | Scheduling columns (`check_count` default 0, no table rewrite), `trace_parent`, partial index | New table is empty at this point | Checkout (`begin` writes `trace_parent`) and the reconciler need it |
@@ -47,22 +68,19 @@ Legacy traffic, the traffic generator and the non-fault live tests (`tests/integ
    ```
 2. Optional full dress rehearsal on a throwaway Compose project, including the fault suite. See [Fault testing on a throwaway project](#fault-testing-on-a-throwaway-project).
 
-## Live procedure (only after approval)
+## First upgrade of an existing database
 
-Run from `dummy-app/` in PowerShell. Stop at the first unexpected result.
+Use this procedure for a legacy volume that has the original tables and has never received the checkout migrations. A fresh installation runs migrations automatically. Run commands from `dummy-app/` in PowerShell during a maintenance window. Pause external checkout traffic before taking the backup.
 
 ### 1. Pre-checks
 
 ```powershell
-git status -sb                      # clean, on the reviewed commit
-docker compose ps                   # all services healthy
-curl.exe -s http://127.0.0.1:8090/faults/status   # must be {"active":null,"auto_running":false}
-docker compose exec -T orders ls scripts/migrations/orders   # the image contains 001-003
+docker compose ps
+docker compose build db-migrate
+docker compose up -d --wait postgres
 ```
 
-The Orders image must be built from the reviewed commit (`docker compose up --build -d --wait` beforehand if not).
-
-Confirm nothing is applied yet. Each command must print an empty line:
+Keep traffic and business services stopped during the backup and migration. Use the first query below to verify that the migration table is absent from each database. The second query should return the original payments constraint:
 
 ```powershell
 foreach ($db in 'orders_db','inventory_db','payments_db') {
@@ -76,7 +94,8 @@ docker compose exec -T postgres psql -U postgres -d payments_db -Atc "SELECT con
 
 ```powershell
 docker compose stop traffic-generator
-Start-Sleep 15   # let in-flight orders finish; a stop mid-request is what strands legacy rows
+# Once in-flight requests finish, stop the remaining checkout writers.
+docker compose stop gateway orders inventory payments
 ```
 
 ### 3. Snapshot counts and stuck orders
@@ -146,17 +165,14 @@ Go on only if every database restored with identical counts.
 
 `?lock_timeout=5s` on the DSN is passed to PostgreSQL as a session setting. If a step cannot get its lock within 5 s (for example behind a long transaction), it fails, rolls back that file and records nothing, instead of queueing live requests behind it.
 
-The command deliberately has no inner double quotes, because Windows PowerShell 5.1 mangles them in native arguments. `set -f` stops `sh` treating the `?` as a wildcard, and the DSN contains no spaces.
+Run the same migration job used during startup. It connects with each service's database role and applies the services in dependency order.
 
 ```powershell
-foreach ($svc in 'inventory','payments','orders') {   # this order
-  docker compose exec -T $svc sh -c "set -f; python -m services.shared.migrations --dsn `${DATABASE_URL}?lock_timeout=5s --dir scripts/migrations/$svc"
-  if ($LASTEXITCODE -ne 0) { throw "migration failed for ${svc}: stop here (that file was rolled back)" }
-}
-# expected: applied 001_cart_reservations / 001_payment_void_fence / 001_checkout_attempts, 002_checkout_pricing, 003_reconciler
+docker compose run --rm --no-deps db-migrate
+if ($LASTEXITCODE -ne 0) { throw "Migration failed. Check the job output before continuing." }
 ```
 
-If one fails with `LockNotAvailableError`, find the blocker and retry later. Don't terminate sessions without approval:
+If the job fails with `LockNotAvailableError`, find the blocker and retry later. Don't terminate sessions without approval:
 
 ```powershell
 docker compose exec -T postgres psql -U postgres -At -c "SELECT pid, datname, state, now()-xact_start AS open_for, left(query, 60) FROM pg_stat_activity WHERE xact_start IS NOT NULL ORDER BY xact_start"
@@ -180,8 +196,9 @@ docker compose exec -T postgres psql -U postgres -d payments_db -At -c "SELECT c
 ### 8. Resume and watch
 
 ```powershell
-docker compose start traffic-generator
-$env:RUN_LIVE_TESTS='1'; $env:POSTGRES_PORT='5433'   # POSTGRES_PORT from .env (5433 on this machine)
+docker compose up --build -d
+$env:RUN_LIVE_TESTS='1'
+$env:POSTGRES_PORT=(docker compose port postgres 5432).Split(':')[-1]
 .venv\Scripts\python.exe -m pytest -q tests/integration/test_live.py   # non-fault live checks only
 ```
 
@@ -241,11 +258,11 @@ $env:COMPOSE_PROJECT_NAME='observa-faulttest'
 $env:GROUND_TRUTH_DIR="$env:TEMP\observa-faulttest-ground-truth"   # keep the live incident journal untouched
 New-Item -ItemType Directory -Force $env:GROUND_TRUTH_DIR | Out-Null
 docker compose up --build -d --wait                   # new volumes observa-faulttest_*
-# optional dress rehearsal: run step 6 here, against the throwaway databases
-$env:RUN_LIVE_TESTS='1'; $env:RUN_FAULT_TESTS='1'; $env:TEST_COLLECTOR_OUTAGE='1'; $env:POSTGRES_PORT='5433'
+# db-migrate has already applied the schema to these test volumes
+$env:RUN_LIVE_TESTS='1'; $env:RUN_FAULT_TESTS='1'; $env:TEST_COLLECTOR_OUTAGE='1'; $env:POSTGRES_PORT=(docker compose port postgres 5432).Split(':')[-1]
 .venv\Scripts\python.exe -m pytest -q
 docker compose down                                   # throwaway containers and networks only
-Remove-Item Env:COMPOSE_PROJECT_NAME, Env:RUN_FAULT_TESTS, Env:GROUND_TRUTH_DIR
+Remove-Item Env:COMPOSE_PROJECT_NAME, Env:RUN_FAULT_TESTS, Env:RUN_LIVE_TESTS, Env:TEST_COLLECTOR_OUTAGE, Env:GROUND_TRUTH_DIR
 docker compose start                                  # live project again
 docker volume ls --format '{{.Name}}' | Select-String 'observa-'   # observa-dummy_* must still be listed
 ```
@@ -260,7 +277,7 @@ $env:POSTGRES_PORT='15433'; $env:PROMETHEUS_PORT='19090'; $env:JAEGER_PORT='2668
 $env:OTLP_GRPC_PORT='14317'; $env:OTLP_HTTP_PORT='14318'; $env:COLLECTOR_METRICS_PORT='18889'; $env:GRAFANA_PORT='13000'
 $env:TRAFFIC_FLOW='checkout'   # optional: background traffic on the new checkout
 docker compose up --build -d --wait postgres gateway orders inventory payments fault-injector collector prometheus jaeger loki telemetry-health
-# apply step 6 here (throwaway databases), then: docker compose up -d --no-deps traffic-generator
+# Optional background traffic: docker compose up -d --no-deps traffic-generator
 $env:TEST_GATEWAY_URL='http://localhost:18000'; $env:TEST_ORDERS_URL='http://localhost:18001'; $env:TEST_INVENTORY_URL='http://localhost:18002'
 $env:TEST_PAYMENTS_URL='http://localhost:18003'; $env:TEST_CONTROLLER_URL='http://localhost:18090'
 $env:TEST_PROMETHEUS_URL='http://localhost:19090'; $env:TEST_JAEGER_URL='http://localhost:26686'; $env:TEST_LOKI_URL='http://localhost:13100'
@@ -274,6 +291,6 @@ Both projects build the shared image tag `observa-dummy:local`; running live con
 Notes:
 - The variant above that reuses the default ports needs the live project stopped while it runs.
 - `GROUND_TRUTH_DIR` sends the throwaway controller's incident journal to a scratch folder, so fault runs never append to the live `ground-truth/incidents.jsonl`.
-- The guard trusts the environment: setting both variables while the live project runs on the same ports would still reach it. Always stop the live project first.
+- The guard trusts the environment: setting both variables while the live project runs on the same ports would still reach it. When reusing host ports, stop the main project first. When running alongside it, verify that all test URLs point to the alternate ports.
 - Both projects share the image tag `observa-dummy:local`. Build the throwaway from the same commit that is live.
 - Remove the throwaway volumes only by their exact names (`docker volume rm observa-faulttest_postgres-data observa-faulttest_prometheus-data observa-faulttest_loki-data`), after checking the listing. Never with `down -v` while `COMPOSE_PROJECT_NAME` might be unset.

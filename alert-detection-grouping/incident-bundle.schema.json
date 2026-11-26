@@ -1,0 +1,335 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OBSERVA compact incident handoff v2",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "id",
+    "revision",
+    "origin",
+    "environment",
+    "status",
+    "severity",
+    "first_observed_at",
+    "created_at",
+    "updated_at",
+    "last_observed_at",
+    "affected_services",
+    "alerts",
+    "relationships",
+    "source_health",
+    "data_gaps",
+    "root_cause",
+    "handoff",
+    "snapshot_id",
+    "manifest",
+    "manifest_sha256",
+    "evidence_refs"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "2.0"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^INC-[0-9a-f]{20}$"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "origin": {
+      "enum": [
+        "live",
+        "synthetic_demo"
+      ]
+    },
+    "environment": {
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "open",
+        "resolved"
+      ]
+    },
+    "severity": {
+      "enum": [
+        "warning",
+        "critical"
+      ]
+    },
+    "first_observed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "last_observed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "resolved_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "affected_services": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "alerts": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "id",
+          "incident_id",
+          "rule",
+          "service",
+          "status",
+          "data_quality",
+          "detail_ref",
+          "trigger_value"
+        ],
+        "properties": {
+          "incident_id": {
+            "type": "string",
+            "pattern": "^INC-[0-9a-f]{20}$"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "firing",
+              "resolved"
+            ]
+          },
+          "data_quality": {
+            "enum": [
+              "good",
+              "bad",
+              "unknown"
+            ]
+          },
+          "detail_ref": {
+            "const": "details"
+          }
+        },
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "evidence"
+              ]
+            },
+            {
+              "required": [
+                "trigger_evidence"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "relationships": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "alert_id",
+          "kind",
+          "confidence",
+          "explanation",
+          "related_alert_id",
+          "evidence_ref"
+        ],
+        "properties": {
+          "evidence_ref": {
+            "const": "relationships"
+          }
+        },
+        "not": {
+          "required": [
+            "witnesses"
+          ]
+        }
+      }
+    },
+    "source_health": {
+      "type": "object"
+    },
+    "data_gaps": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "root_cause": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "const": "not_determined"
+        }
+      },
+      "required": [
+        "status"
+      ]
+    },
+    "handoff": {
+      "type": "object",
+      "required": [
+        "ready_for_investigation",
+        "query_window",
+        "sources",
+        "next_steps",
+        "hypotheses",
+        "evidence_limits"
+      ]
+    },
+    "snapshot_id": {
+      "type": "string",
+      "pattern": "^r[1-9][0-9]*-[0-9a-f]{64}$"
+    },
+    "manifest": {
+      "type": "string",
+      "pattern": "^snapshots/r[1-9][0-9]*-[0-9a-f]{64}/manifest\\.json$"
+    },
+    "manifest_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "evidence_refs": {
+      "type": "object",
+      "required": [
+        "logs",
+        "metrics",
+        "traces",
+        "relationships",
+        "timeline",
+        "details"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "logs": {
+          "type": "object",
+          "required": [
+            "ref_id",
+            "record_count"
+          ],
+          "properties": {
+            "ref_id": {
+              "const": "logs"
+            },
+            "record_count": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "metrics": {
+          "type": "object",
+          "required": [
+            "ref_id",
+            "record_count"
+          ],
+          "properties": {
+            "ref_id": {
+              "const": "metrics"
+            },
+            "record_count": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "traces": {
+          "type": "object",
+          "required": [
+            "ref_id",
+            "record_count"
+          ],
+          "properties": {
+            "ref_id": {
+              "const": "traces"
+            },
+            "record_count": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "relationships": {
+          "type": "object",
+          "required": [
+            "ref_id",
+            "record_count"
+          ],
+          "properties": {
+            "ref_id": {
+              "const": "relationships"
+            },
+            "record_count": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "timeline": {
+          "type": "object",
+          "required": [
+            "ref_id",
+            "record_count"
+          ],
+          "properties": {
+            "ref_id": {
+              "const": "timeline"
+            },
+            "record_count": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "details": {
+          "type": "object",
+          "required": [
+            "ref_id",
+            "record_count"
+          ],
+          "properties": {
+            "ref_id": {
+              "const": "details"
+            },
+            "record_count": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    }
+  },
+  "not": {
+    "anyOf": [
+      {
+        "required": [
+          "evidence"
+        ]
+      },
+      {
+        "required": [
+          "timeline"
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,76 @@
+{
+  "schema_version": "2.0",
+  "incident_id": "INC-6190321efdb26c307fe7",
+  "snapshot_id": "r4-695ea705dc19c1c72d7c4a53ef2a5c47126d535741b337ec22e4917611a4afa7",
+  "query_window": {
+    "start": "2026-11-04T09:58:00Z",
+    "end": "2026-11-04T10:00:50Z"
+  },
+  "origin": "synthetic_demo",
+  "refs": {
+    "logs": {
+      "kind": "logs",
+      "path": "evidence/.objects/logs-5a34a1e349fad27bc1be7d75aff817d2cb3070b6bddf6e9bbeb374de5b46ac70.jsonl",
+      "sha256": "5a34a1e349fad27bc1be7d75aff817d2cb3070b6bddf6e9bbeb374de5b46ac70",
+      "format": "jsonl",
+      "record_count": 8,
+      "metadata": {
+        "coverage": "retained sanitized samples, not all source logs"
+      }
+    },
+    "metrics": {
+      "kind": "metrics",
+      "path": "evidence/.objects/metrics-a2733a02e54b3a91d54a99458a1785041e352c48f7284f1843229af6791d697f.jsonl",
+      "sha256": "a2733a02e54b3a91d54a99458a1785041e352c48f7284f1843229af6791d697f",
+      "format": "jsonl",
+      "record_count": 8,
+      "metadata": {
+        "coverage": "observed alert values and original queries, not complete time series"
+      }
+    },
+    "trace-c22b98a0bb99e549778008f0": {
+      "kind": "traces",
+      "path": "evidence/.objects/traces-b5078ccebc6a2d115c5e09e214bc0519b6ce7e4a53f68ee70d8521fbf57749e2.jsonl",
+      "sha256": "b5078ccebc6a2d115c5e09e214bc0519b6ce7e4a53f68ee70d8521fbf57749e2",
+      "format": "jsonl",
+      "record_count": 3,
+      "metadata": {
+        "trace_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    "traces": {
+      "kind": "trace-catalog",
+      "path": "evidence/.objects/trace-catalog-9f762fe34a575982bdbe2f88e6f314a007ef8512ea6c1bd4572e0a71f5db075f.jsonl",
+      "sha256": "9f762fe34a575982bdbe2f88e6f314a007ef8512ea6c1bd4572e0a71f5db075f",
+      "format": "jsonl",
+      "record_count": 1,
+      "metadata": {
+        "coverage": "retained traces only; read a trace ref to page through its spans"
+      }
+    },
+    "relationships": {
+      "kind": "relationships",
+      "path": "evidence/.objects/relationships-b4a7d700162b250d4e261f86a334b711dfd214c31758127458f99b513dbdc080.jsonl",
+      "sha256": "b4a7d700162b250d4e261f86a334b711dfd214c31758127458f99b513dbdc080",
+      "format": "jsonl",
+      "record_count": 3,
+      "metadata": {}
+    },
+    "timeline": {
+      "kind": "timeline",
+      "path": "evidence/.objects/timeline-3499198aeff7c8e26f1bb7e7c60eff415ff754d209967290660700aeb4b4e2c3.jsonl",
+      "sha256": "3499198aeff7c8e26f1bb7e7c60eff415ff754d209967290660700aeb4b4e2c3",
+      "format": "jsonl",
+      "record_count": 5,
+      "metadata": {}
+    },
+    "details": {
+      "kind": "details",
+      "path": "evidence/.objects/details-4f41db865009fb65b545d17b1c7ad7000d952cc33fb0244df5aa3d202b980b58.jsonl",
+      "sha256": "4f41db865009fb65b545d17b1c7ad7000d952cc33fb0244df5aa3d202b980b58",
+      "format": "jsonl",
+      "record_count": 5,
+      "metadata": {}
+    }
+  }
+}

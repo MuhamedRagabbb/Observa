@@ -1,0 +1,25 @@
+[
+  {
+    "id": "INC-6190321efdb26c307fe7",
+    "status": "open",
+    "revision": 4,
+    "origin": "synthetic_demo",
+    "severity": "critical",
+    "created_at": "2026-11-04T10:00:20Z",
+    "updated_at": "2026-11-04T10:00:50Z",
+    "affected_services": [
+      "payments-service",
+      "orders-service",
+      "api-gateway"
+    ],
+    "alert_count": 4,
+    "alert_ids": [
+      "145cbaa27f2d469d3c89",
+      "45bc9975ca15de626cfc",
+      "74a55410973bf5a95b33",
+      "983c3dbbb004b61eae17"
+    ],
+    "json_file": "INC-6190321efdb26c307fe7.json",
+    "report_file": "INC-6190321efdb26c307fe7.md"
+  }
+]

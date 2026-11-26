@@ -1,0 +1,41 @@
+﻿{
+  "sample": {
+    "records": 4,
+    "from": "2026-11-04T10:00:20Z",
+    "to": "2026-11-04T10:00:50Z",
+    "covers_incident_start": false
+  },
+  "categories": {
+    "service_failure": 4
+  },
+  "patterns": [
+    {
+      "category": "service_failure",
+      "service": "api-gateway",
+      "event": "dependency_request_failed",
+      "error_type": null,
+      "status": 503,
+      "route": null,
+      "count": 4,
+      "first_seen_in_sample": "2026-11-04T10:00:20Z",
+      "last_seen_in_sample": "2026-11-04T10:00:50Z",
+      "p95_duration_ms": null
+    }
+  ],
+  "services_seen": [
+    "api-gateway"
+  ],
+  "services_missing": [
+    "orders-service"
+  ],
+  "release_changes": {},
+  "cross_service_traces": 0,
+  "limits": [
+    "sample of 4 retained sanitized records, not all source logs",
+    "sample starts at 2026-11-04T10:00:20Z, after incident start 2026-11-04T10:00:00Z; first_seen values are first-in-sample, not onset",
+    "no log records from orders-service"
+  ],
+  "read_gaps": [],
+  "incident_id": "INC-c02e782e399918e7b491",
+  "snapshot_id": "r4-95bf64e96f6fdddd2b22f95848c13fd4a663b2f24620ae311dd051812de885ba"
+}

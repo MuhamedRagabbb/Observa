@@ -1,0 +1,77 @@
+{
+  "schema_version": "1.0",
+  "incident_id": "SIM-REPORT",
+  "source_run_id": "SIM-RUN-1",
+  "status": "probable_cause",
+  "summary": "Probable origin in toy-storage: toy-storage ran out of disk space, causing write W1 to be rejected with ENOSPC. toy-orders attempted to write W1 to toy-storage; the ENOSPC error propagated, causing order O1 to fail. The trace for order O1 shows its span failing immediately after the child span for the storage write returned ENOSPC, reflecting the same propagation.",
+  "steps": [
+    {
+      "step": 1,
+      "kind": "probable_origin",
+      "follows_step": null,
+      "service": "toy-storage",
+      "explanation": "toy-storage ran out of disk space, causing write W1 to be rejected with ENOSPC.",
+      "evidence": [
+        {
+          "finding_id": "SIM-logs-1",
+          "signal": "logs",
+          "service": "toy-storage",
+          "claim": "toy-storage rejected write W1 with ENOSPC (disk full).",
+          "evidence_ids": [
+            "SIM-REPORT/snapshot-1/logs#1"
+          ],
+          "snapshot_id": "snapshot-1"
+        },
+        {
+          "finding_id": "SIM-metrics-1",
+          "signal": "metrics",
+          "service": "toy-storage",
+          "claim": "Disk space used reached 100% during write W1.",
+          "evidence_ids": [
+            "SIM-REPORT/snapshot-1/metrics#1"
+          ],
+          "snapshot_id": "snapshot-1"
+        }
+      ]
+    },
+    {
+      "step": 2,
+      "kind": "inferred_effect",
+      "follows_step": 1,
+      "service": "toy-orders",
+      "explanation": "toy-orders attempted to write W1 to toy-storage; the ENOSPC error propagated, causing order O1 to fail.",
+      "evidence": [
+        {
+          "finding_id": "SIM-logs-2",
+          "signal": "logs",
+          "service": "toy-orders",
+          "claim": "toy-orders failed order O1 because its write W1 to toy-storage returned ENOSPC.",
+          "evidence_ids": [
+            "SIM-REPORT/snapshot-1/logs#2"
+          ],
+          "snapshot_id": "snapshot-1"
+        }
+      ]
+    },
+    {
+      "step": 3,
+      "kind": "inferred_effect",
+      "follows_step": 1,
+      "service": "toy-orders",
+      "explanation": "The trace for order O1 shows its span failing immediately after the child span for the storage write returned ENOSPC, reflecting the same propagation.",
+      "evidence": [
+        {
+          "finding_id": "SIM-traces-1",
+          "signal": "traces",
+          "service": "toy-orders",
+          "claim": "Order O1 span failed immediately after its child span for toy-storage write W1 returned ENOSPC.",
+          "evidence_ids": [
+            "SIM-REPORT/snapshot-1/traces#1"
+          ],
+          "snapshot_id": "snapshot-1"
+        }
+      ]
+    }
+  ],
+  "missing_evidence": []
+}

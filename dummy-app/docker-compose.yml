@@ -46,10 +46,22 @@ services:
       - ./scripts/init-db.sql:/opt/init-db.sql:ro
     networks: [business]
     healthcheck:
-      test: [CMD-SHELL, "pg_isready -U postgres -d postgres"]
+      test: [CMD-SHELL, "pg_isready -h 127.0.0.1 -U postgres -d postgres"]
       interval: 5s
       timeout: 3s
       retries: 20
+  db-migrate:
+    <<: *app
+    restart: "no"
+    command: [python, -m, scripts.migrate_all]
+    healthcheck:
+      disable: true
+    environment:
+      INVENTORY_DATABASE_URL: postgresql://inventory_app:${INVENTORY_DB_PASSWORD:-local-inventory-only}@postgres:5432/inventory_db
+      PAYMENTS_DATABASE_URL: postgresql://payments_app:${PAYMENTS_DB_PASSWORD:-local-payments-only}@postgres:5432/payments_db
+      ORDERS_DATABASE_URL: postgresql://orders_app:${ORDERS_DB_PASSWORD:-local-orders-only}@postgres:5432/orders_db
+    depends_on:
+      postgres: {condition: service_healthy}
   gateway:
     <<: *app
     environment:
@@ -78,6 +90,7 @@ services:
     networks: [business, control]
     depends_on:
       postgres: {condition: service_healthy}
+      db-migrate: {condition: service_completed_successfully}
       inventory: {condition: service_healthy}
       payments: {condition: service_healthy}
   inventory:
@@ -90,6 +103,7 @@ services:
     ports: ["127.0.0.1:${INVENTORY_PORT:-8002}:8002"]
     depends_on:
       postgres: {condition: service_healthy}
+      db-migrate: {condition: service_completed_successfully}
   payments:
     <<: *app
     environment:
@@ -102,6 +116,7 @@ services:
     networks: [business, control]
     depends_on:
       postgres: {condition: service_healthy}
+      db-migrate: {condition: service_completed_successfully}
   traffic-generator:
     <<: *app
     command: [python, -m, controllers.traffic_generator.main]
@@ -201,7 +216,6 @@ services:
     depends_on: [collector, prometheus, jaeger, loki]
   grafana:
     image: grafana/grafana:11.5.0
-    profiles: [ui]
     restart: unless-stopped
     mem_limit: 256m
     environment:

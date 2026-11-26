@@ -1,0 +1,23 @@
+﻿{
+  "sample": {
+    "records": 0,
+    "from": null,
+    "to": null,
+    "covers_incident_start": null
+  },
+  "categories": {},
+  "patterns": [],
+  "services_seen": [],
+  "services_missing": [
+    "payments-service"
+  ],
+  "release_changes": {},
+  "cross_service_traces": 0,
+  "limits": [
+    "no log evidence in this snapshot",
+    "no log records from payments-service"
+  ],
+  "read_gaps": [],
+  "incident_id": "INC-6190321efdb26c307fe7",
+  "snapshot_id": "r4-39fbd9c1adf07a79ceff17a272a2b015543db88e1046ce1f18bd724d46e947c6"
+}
