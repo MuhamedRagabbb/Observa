@@ -3,6 +3,7 @@ services:
   investigate:
     networks: [default, telemetry]
     environment:
+      OBSERVA_MEMORY_DB: /memory/incident-memory-v3.sqlite3
       LOKI_URL: http://loki:3100
       PROMETHEUS_URL: http://prometheus:9090
     restart: unless-stopped
@@ -36,6 +37,7 @@ services:
         read_only: true
         bind:
           create_host_path: false
+      - ../data:/memory:ro
       - ./runs:/runs
 networks:
   telemetry:
