@@ -2,12 +2,15 @@
 .venv/
 .cache/
 __pycache__/
-*.pyc
+*.py[cod]
+*.egg-info/
 .pytest_cache/
 .ruff_cache/
 test-results/
 node_modules/
+build/
 dist/
+.DS_Store
 # Playwright screenshots, traces and the visual review page; the preview project's journal
 e2e-output/
 .playwright-mcp/
@@ -17,6 +20,15 @@ e2e-output/
 .env
 .env.*
 !.env.example
+
+# Feature 5 local demo data, including custom locations and SQLite sidecars
+/data/
+*.sqlite
+*.sqlite3
+*.db
+*.sqlite-*
+*.sqlite3-*
+*.db-*
 
 # Evaluation ground truth is local-only
 **/ground-truth/*.jsonl

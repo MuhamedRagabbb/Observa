@@ -1,0 +1,103 @@
+{
+  "synthetic": true,
+  "note": "Hand-written fake data in the shape of Feature 1's incident.json (schema_version 2.0, F1 branch, checked 2026-11-13). Not captured from any system. Only the fields Feature 5 reads are complete.",
+  "incidents": {
+    "open": {
+      "schema_version": "2.0",
+      "id": "INC-F1-SAMPLE-OPEN",
+      "revision": 3,
+      "origin": "synthetic_demo",
+      "environment": "local",
+      "summary": "Observed database symptoms in orders-service",
+      "status": "open",
+      "severity": "critical",
+      "first_observed_at": "2026-11-04T09:00:00.250000Z",
+      "created_at": "2026-11-04T09:00:20Z",
+      "updated_at": "2026-11-04T09:01:00Z",
+      "last_observed_at": "2026-11-04T09:01:00Z",
+      "affected_services": ["orders-service", "api-gateway"],
+      "alerts": {
+        "f1alert-b2": {
+          "id": "f1alert-b2",
+          "incident_id": "INC-F1-SAMPLE-OPEN",
+          "rule": "http_errors",
+          "title": "HTTP 5xx ratio",
+          "service": "api-gateway",
+          "family": "generic",
+          "severity": "critical",
+          "status": "firing",
+          "value": 0.4,
+          "threshold": 0.15,
+          "unit": "ratio"
+        },
+        "f1alert-a1": {
+          "id": "f1alert-a1",
+          "incident_id": "INC-F1-SAMPLE-OPEN",
+          "rule": "db_pool_wait",
+          "title": "Database pool wait time",
+          "service": "orders-service",
+          "family": "database",
+          "severity": "critical",
+          "status": "firing",
+          "value": 2.5,
+          "threshold": 1,
+          "unit": "seconds"
+        }
+      },
+      "relationships": [],
+      "source_health": {"prometheus": "ok", "loki": "ok", "jaeger": "ok"},
+      "data_gaps": [],
+      "root_cause": {"status": "not_determined"},
+      "handoff": {
+        "ready_for_investigation": true,
+        "hypotheses": [
+          {"service": "orders-service", "statement": "Candidate focus for investigation.", "confidence": "unconfirmed"}
+        ]
+      },
+      "snapshot_id": "r3-synthetic",
+      "evidence_refs": {
+        "logs": {"ref_id": "logs", "record_count": 4},
+        "metrics": {"ref_id": "metrics", "record_count": 4},
+        "traces": {"ref_id": "traces", "record_count": 1}
+      }
+    },
+    "resolved": {
+      "schema_version": "2.0",
+      "id": "INC-F1-SAMPLE-RESOLVED",
+      "revision": 9,
+      "origin": "synthetic_demo",
+      "environment": "local",
+      "summary": "Observed payment symptoms in payments-service",
+      "status": "resolved",
+      "severity": "warning",
+      "first_observed_at": "2026-11-04T10:00:00Z",
+      "created_at": "2026-11-04T10:00:20Z",
+      "updated_at": "2026-11-04T10:05:00Z",
+      "last_observed_at": "2026-11-04T10:03:00Z",
+      "resolved_at": "2026-11-04T10:05:00Z",
+      "affected_services": ["payments-service"],
+      "alerts": {
+        "f1alert-c3": {
+          "id": "f1alert-c3",
+          "incident_id": "INC-F1-SAMPLE-RESOLVED",
+          "rule": "payment_failures",
+          "title": "Payment failure ratio including declines",
+          "service": "payments-service",
+          "family": "payment",
+          "severity": "warning",
+          "status": "resolved",
+          "value": 0.02,
+          "threshold": 0.25,
+          "unit": "ratio"
+        }
+      },
+      "relationships": [],
+      "source_health": {"prometheus": "ok", "loki": "ok", "jaeger": "ok"},
+      "data_gaps": [],
+      "root_cause": {"status": "not_determined"},
+      "handoff": {"ready_for_investigation": true, "hypotheses": []},
+      "snapshot_id": "r9-synthetic",
+      "evidence_refs": {}
+    }
+  }
+}

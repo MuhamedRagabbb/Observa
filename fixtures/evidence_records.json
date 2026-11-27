@@ -1,0 +1,155 @@
+{
+  "INC-201/SNAP-201-A/logs#1": {
+    "message": "SYNTHETIC sample record for local F5 tests",
+    "services": [
+      "orders-service"
+    ],
+    "signal_type": "logs",
+    "snapshot_id": "SNAP-201-A",
+    "synthetic": true
+  },
+  "INC-201/SNAP-201-A/metrics#1": {
+    "message": "SYNTHETIC sample record for local F5 tests",
+    "services": [
+      "orders-service"
+    ],
+    "signal_type": "metrics",
+    "snapshot_id": "SNAP-201-A",
+    "synthetic": true
+  },
+  "INC-201/SNAP-201-A/traces#1": {
+    "message": "SYNTHETIC sample record for local F5 tests",
+    "services": [
+      "orders-service"
+    ],
+    "signal_type": "traces",
+    "snapshot_id": "SNAP-201-A",
+    "synthetic": true
+  },
+  "INC-202/SNAP-202-A/logs#1": {
+    "message": "SYNTHETIC sample record for local F5 tests",
+    "services": [
+      "payments-service"
+    ],
+    "signal_type": "logs",
+    "snapshot_id": "SNAP-202-A",
+    "synthetic": true
+  },
+  "INC-202/SNAP-202-A/metrics#1": {
+    "message": "SYNTHETIC sample record for local F5 tests",
+    "services": [
+      "payments-service"
+    ],
+    "signal_type": "metrics",
+    "snapshot_id": "SNAP-202-A",
+    "synthetic": true
+  },
+  "INC-202/SNAP-202-A/metrics#2": {
+    "message": "SYNTHETIC sample record for local F5 tests",
+    "services": [
+      "orders-service"
+    ],
+    "signal_type": "metrics",
+    "snapshot_id": "SNAP-202-A",
+    "synthetic": true
+  },
+  "INC-202/SNAP-202-A/traces#1": {
+    "message": "SYNTHETIC sample record for local F5 tests",
+    "services": [
+      "payments-service"
+    ],
+    "signal_type": "traces",
+    "snapshot_id": "SNAP-202-A",
+    "synthetic": true
+  },
+  "INC-203/SNAP-203-A/logs#1": {
+    "message": "SYNTHETIC sample record for local F5 tests",
+    "services": [
+      "orders-service"
+    ],
+    "signal_type": "logs",
+    "snapshot_id": "SNAP-203-A",
+    "synthetic": true
+  },
+  "INC-203/SNAP-203-A/logs#2": {
+    "message": "SYNTHETIC sample record for local F5 tests",
+    "services": [
+      "orders-service"
+    ],
+    "signal_type": "logs",
+    "snapshot_id": "SNAP-203-A",
+    "synthetic": true
+  },
+  "INC-203/SNAP-203-A/logs#3": {
+    "message": "SYNTHETIC sample record for local F5 tests",
+    "services": [
+      "orders-service"
+    ],
+    "signal_type": "logs",
+    "snapshot_id": "SNAP-203-A",
+    "synthetic": true
+  },
+  "INC-203/SNAP-203-A/metrics#1": {
+    "message": "SYNTHETIC sample record for local F5 tests",
+    "services": [
+      "orders-service"
+    ],
+    "signal_type": "metrics",
+    "snapshot_id": "SNAP-203-A",
+    "synthetic": true
+  },
+  "INC-203/SNAP-203-A/traces#1": {
+    "message": "SYNTHETIC sample record for local F5 tests",
+    "services": [
+      "orders-service"
+    ],
+    "signal_type": "traces",
+    "snapshot_id": "SNAP-203-A",
+    "synthetic": true
+  },
+  "INC-205/SNAP-205-A/logs#1": {
+    "message": "SYNTHETIC sample record for local F5 tests",
+    "services": [
+      "payments-service"
+    ],
+    "signal_type": "logs",
+    "snapshot_id": "SNAP-205-A",
+    "synthetic": true
+  },
+  "INC-205/SNAP-205-A/metrics#1": {
+    "message": "SYNTHETIC sample record for local F5 tests",
+    "services": [
+      "payments-service"
+    ],
+    "signal_type": "metrics",
+    "snapshot_id": "SNAP-205-A",
+    "synthetic": true
+  },
+  "INC-206/SNAP-206-A/logs#1": {
+    "message": "SYNTHETIC sample record for local F5 tests",
+    "services": [
+      "orders-service"
+    ],
+    "signal_type": "logs",
+    "snapshot_id": "SNAP-206-A",
+    "synthetic": true
+  },
+  "INC-207/SNAP-207-A/logs#1": {
+    "message": "SYNTHETIC sample record for local F5 tests",
+    "services": [
+      "orders-service"
+    ],
+    "signal_type": "logs",
+    "snapshot_id": "SNAP-207-A",
+    "synthetic": true
+  },
+  "INC-208/SNAP-208-A/logs#1": {
+    "message": "SYNTHETIC sample record for local F5 tests",
+    "services": [
+      "inventory-service"
+    ],
+    "signal_type": "logs",
+    "snapshot_id": "SNAP-208-A",
+    "synthetic": true
+  }
+}
