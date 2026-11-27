@@ -5,6 +5,7 @@ import sqlite3
 import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
 from pathlib import Path
 
 from observa.f5_memory import IncidentMemory, MemoryOperationError
@@ -160,11 +161,11 @@ class SaveTests(MemoryTestCase):
         self.assert_error("VERSION_CONFLICT", lambda: self.save("DEC-202-v1", memory=other))
 
     def test_failed_save_can_be_retried_without_false_success(self):
-        with sqlite3.connect(self.path) as db:
+        with closing(sqlite3.connect(self.path)) as db, db:
             db.execute("CREATE TRIGGER fail_write BEFORE INSERT ON knowledge BEGIN SELECT RAISE(ABORT, 'test failure'); END")
         self.assert_error("STORAGE_FAILURE", self.save)
         self.assertEqual(self.memory.list_approved_versions("INC-201"), [])
-        with sqlite3.connect(self.path) as db:
+        with closing(sqlite3.connect(self.path)) as db, db:
             db.execute("DROP TRIGGER fail_write")
         self.assertTrue(self.save()["created"])
         self.assertFalse(self.save()["created"])
@@ -213,20 +214,20 @@ class SaveTests(MemoryTestCase):
 
     def test_old_format_database_gives_clear_error(self):
         old = Path(self.directory.name) / "old.sqlite3"
-        with sqlite3.connect(old) as db:
+        with closing(sqlite3.connect(old)) as db, db:
             db.execute("CREATE TABLE knowledge (knowledge_id TEXT PRIMARY KEY)")
         self.assert_error("SCHEMA_MISMATCH", lambda: IncidentMemory(old))
-        with sqlite3.connect(old) as db:
+        with closing(sqlite3.connect(old)) as db, db:
             self.assertEqual(db.execute("SELECT COUNT(*) FROM knowledge").fetchone()[0], 0)
 
     def test_format_2_database_is_left_untouched(self):
         old = Path(self.directory.name) / "v2.sqlite3"
-        with sqlite3.connect(old) as db:
+        with closing(sqlite3.connect(old)) as db, db:
             db.execute("CREATE TABLE knowledge (knowledge_id TEXT PRIMARY KEY, snapshot TEXT)")
             db.execute("INSERT INTO knowledge VALUES ('IKM-old', '{}')")
             db.execute("PRAGMA user_version = 2")
         self.assert_error("SCHEMA_MISMATCH", lambda: IncidentMemory(old))
-        with sqlite3.connect(old) as db:
+        with closing(sqlite3.connect(old)) as db, db:
             self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 2)
             self.assertEqual(db.execute("SELECT knowledge_id FROM knowledge").fetchall(), [("IKM-old",)])
 
@@ -379,7 +380,7 @@ class SearchTests(MemoryTestCase):
 
     def test_corrupt_stored_record_fails_without_returning_history(self):
         saved = self.save()["item"]
-        with sqlite3.connect(self.path) as db:
+        with closing(sqlite3.connect(self.path)) as db, db:
             db.execute("UPDATE knowledge SET snapshot=?", ("{invalid",))
         result = self.memory.search_approved_incidents("pool")
         self.assertEqual(result["status"], "failed")
