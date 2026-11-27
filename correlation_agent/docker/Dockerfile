@@ -11,5 +11,6 @@ COPY alert-detection-grouping/observa_alerts/ alert-detection-grouping/observa_a
 COPY us01_logs_agent/logs_agent/ us01_logs_agent/logs_agent/
 COPY us02_metrics_agent/metrics_agent/ us02_metrics_agent/metrics_agent/
 COPY us03_traces_agent/traces_agent/ us03_traces_agent/traces_agent/
+COPY observa/ observa/
 COPY correlation_agent/ correlation_agent/
 ENTRYPOINT ["python", "-m", "correlation_agent.docker.run"]

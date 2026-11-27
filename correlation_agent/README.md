@@ -2,6 +2,12 @@
 
 F3 uses findings from the logs, metrics and traces investigations to identify the probable origin of an incident and explain how it affected other services. Each step in the report cites its evidence. If the evidence is insufficient, the report identifies what is missing. [Example report](examples/example_report.md)
 
+## Incident memory
+
+The Docker worker searches F5 on each new correlation round, including follow-ups, using the incident and current F2 findings. Compose mounts the repository's `data/` directory read-only at `/memory`. Configure the approval writer to use `data/incident-memory-v3.sqlite3` in that directory. For a worker started outside Docker, set `OBSERVA_MEMORY_DB` to the database path.
+
+The worker logs `matched`, `no_match`, or `unavailable`. The Markdown report lists matching approved incidents, their shared terms or services, and historical evidence IDs. A missing database leaves the investigation running on current evidence. Completed decisions keep the memory result from their original round when replayed from cache.
+
 ## Run with Docker
 
 Start the checkout app and F1 using the [project quickstart](../README.md). F2 and F3 share a worker. Set `GROQ_API_KEY` in `investigation/.env` for F2 and in `correlation_agent/.env` for F3. From the repository root:

@@ -88,18 +88,24 @@ def _comparison(record, findings, services):
 
 class IncidentMemory:
     def __init__(self, database=DEFAULT_DATABASE, approval_source: TrustedApprovalSource | None = None, scorer=None,
-                 require_ended_incident=False):
+                 require_ended_incident=False, *, read_only=False):
         """``require_ended_incident``: store only reports whose incident has an end time.
 
         Off by default, which keeps "approval alone is enough". Whether closure is also
         required is an open team decision; F6 itself lets a reviewer approve an open incident.
         """
+        self.read_only = read_only
         self.database = Path(database).resolve()
         self.approval_source = approval_source
         self.scorer = scorer or KeywordScorer()
         require(isinstance(require_ended_incident, bool), "require_ended_incident must be true or false")
         self.require_ended_incident = require_ended_incident
         try:
+            if read_only:
+                with self._connection() as db:
+                    require(db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION,
+                            "Unsupported incident memory schema", "SCHEMA_MISMATCH")
+                return
             self.database.parent.mkdir(parents=True, exist_ok=True)
             with self._connection(create=True) as db:
                 if db.execute("PRAGMA user_version").fetchone()[0] != SCHEMA_VERSION:
@@ -132,7 +138,8 @@ class IncidentMemory:
     def _connection(self, create=False):
         db = None
         try:
-            uri = self.database.as_uri() + ("?mode=rwc" if create else "?mode=rw")
+            mode = "ro" if self.read_only else ("rwc" if create else "rw")
+            uri = f"{self.database.as_uri()}?mode={mode}"
             db = sqlite3.connect(uri, uri=True, timeout=5)
             db.row_factory = sqlite3.Row
             with db:

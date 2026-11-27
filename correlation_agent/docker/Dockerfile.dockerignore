@@ -6,6 +6,8 @@
 !us01_logs_agent/logs_agent/*.py
 !us02_metrics_agent/metrics_agent/*.py
 !us03_traces_agent/traces_agent/*.py
+!observa/__init__.py
+!observa/f5_memory/*.py
 !correlation_agent/requirements.txt
 !correlation_agent/*.py
 !correlation_agent/agent/*.py

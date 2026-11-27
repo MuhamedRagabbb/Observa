@@ -1,5 +1,6 @@
 """Exercise the Docker worker with real F1 bundles and scripted provider replies."""
 import json
+import os
 import sqlite3
 from pathlib import Path
 import tempfile
@@ -23,6 +24,8 @@ from correlation_agent.agent.contract import failed_contract_result, to_contract
 from correlation_agent.agent.state import IncidentHistory, Observation, OpeningAlert, InvestigationResult as F3InvestigationResult
 from correlation_agent.agent.tools import (EvidenceRequest, Hypothesis, RequestEvidence, SubmitCause, _candidate,
     collect_supported_observations, collect_unresolved_evidence, get_structured_file, resolve, trigger_gap)
+from observa.f5_memory.service import IncidentMemory
+from observa.f5_memory.sources import FakeApprovalSource
 from correlation_agent.docker import run
 from correlation_agent.docker.watch import discover, process_next, resume_legacy_requests
 
@@ -91,6 +94,20 @@ class InvestigationFlowTests(unittest.TestCase):
         self.assertIsNone(result.final_root_cause)
         self.assertEqual(result.follow_up_request.target_agents, ["logs"])
 
+    def test_empty_and_unavailable_memory_are_distinct(self):
+        fixture = Path(__file__).resolve().parents[2] / "fixtures" / "f1_incident_sample.json"
+        incident = json.loads(fixture.read_bytes())["incidents"]["open"]
+        with tempfile.TemporaryDirectory() as tmp:
+            database = Path(tmp) / "memory.sqlite3"
+            lookup = run.WorkerMemoryLookup(incident, [])
+            with patch.dict(os.environ, OBSERVA_MEMORY_DB=str(database)):
+                self.assertEqual(lookup(incident["id"], []), [])
+                self.assertEqual(lookup.summary.status, "unavailable")
+                self.assertFalse(database.exists())
+                IncidentMemory(database)
+                self.assertEqual(lookup(incident["id"], []), [])
+                self.assertEqual(lookup.summary.status, "no_match")
+
     def test_provider_retry_resumes_after_targeted_follow_up(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -117,8 +134,12 @@ class InvestigationFlowTests(unittest.TestCase):
                 agents["logs"].use_llm = True
                 agents["logs"].llm = SelectEvidence()
                 return Orchestrator.follow_up(orch, *args, **kwargs)
+            database = root / "memory.sqlite3"
+            fixture = Path(__file__).resolve().parents[2] / "fixtures" / "approval_snapshots.json"
+            memory = IncidentMemory(database, FakeApprovalSource.from_file(fixture))
+            memory.save_approved_incident("DEC-202-v1")
             args = (root / "reports", doc["id"], folder, doc["snapshot_id"])
-            with patch.object(run, "make_orchestrator", return_value=orch), patch(
+            with patch.dict(os.environ, OBSERVA_MEMORY_DB=str(database)), patch.object(run, "make_orchestrator", return_value=orch), patch(
                     "correlation_agent.agent.graph.groq_model", return_value=model), patch.object(
                     orch, "investigate", wraps=orch.investigate) as initial, patch.object(
                     orch, "follow_up", side_effect=follow) as targeted:
@@ -141,6 +162,12 @@ class InvestigationFlowTests(unittest.TestCase):
             self.assertIn("HTTP 402", (folder / "f3" / "output.initial.md").read_text(encoding="utf-8"))
             correlation = json.loads((folder / "f3" / ".state" / "correlation.initial.json").read_bytes())
             rows = [Observation.model_validate(row) for row in correlation["correlated_findings"]]
+            audit = correlation["report"]["memory_search"]
+            self.assertEqual(audit["status"], "matched")
+            self.assertEqual(audit["matches"][0]["source_incident_id"], "INC-202")
+            self.assertTrue(audit["matches"][0]["evidence_ids"])
+            self.assertIn("INC-202", correlation["relevant_data_from_memory"][0])
+            self.assertIn("INC-202", (folder / "f3" / "output.md").read_text(encoding="utf-8"))
             alert = OpeningAlert(service="payments-service", family="telemetry", rule="service_signal_missing")
             self.assertIsNotNone(trigger_gap(alert, rows))
 
