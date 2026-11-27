@@ -10,6 +10,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from observa.f5_memory import IncidentMemory, MemoryOperationError
 from observa.f5_memory.f1_adapter import alert_findings_from_f1, incident_context_from_f1
@@ -178,6 +179,14 @@ class F3AdapterTests(MemoryCase):
         self.assertTrue(history[0].startswith("[HISTORICAL, human-approved]"))
         self.assertIn("not evidence for the current incident", history[0])
         self.assertEqual(lookup.last_result["status"], "ok")
+
+    def test_foreign_investigation_is_rejected_before_search(self):
+        report = {**self.report, "incident_id": "OTHER"}
+        lookup = f3_memory_lookup(self.memory, {"incident": self.incident, "investigation": report})
+        with patch.object(self.memory, "check_memory") as search:
+            self.assertEqual(f3_check_memory(self.report, lookup), [])
+            search.assert_not_called()
+        self.assertEqual(lookup.last_result["error"]["code"], "VALIDATION_ERROR")
 
     def test_context_can_be_a_callable_per_incident(self):
         lookup = f3_memory_lookup(self.memory, lambda incident_id: {"incident": self.incident, "investigation": self.report})

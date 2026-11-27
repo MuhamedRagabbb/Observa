@@ -10,13 +10,16 @@ stores nothing: current findings are used only as the query, never written into 
 from .validation import SIGNALS, MemoryOperationError, optional_text, require, text
 
 
-def findings_from_investigation(investigation):
+def findings_from_investigation(investigation, *, expected_incident_id=None):
     """Return ``[{"finding_id", "signal_type", "service", "claim", "claim_kind", "indicator"}]``."""
     if hasattr(investigation, "model_dump"):
         investigation = investigation.model_dump(mode="json")
     try:
         require(isinstance(investigation, dict), "investigation must be an object")
         text(investigation["incident_id"], "investigation.incident_id")
+        if expected_incident_id is not None:
+            require(investigation["incident_id"] == expected_incident_id,
+                    "incident context and investigation belong to different incidents")
         findings = []
         for signal in SIGNALS:
             output = investigation[f"{signal}_output"]

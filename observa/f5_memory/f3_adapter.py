@@ -63,7 +63,7 @@ class F3MemoryLookup:
                 "context belongs to a different incident")
         findings = list(context.get("findings", []))
         if context.get("investigation") is not None:
-            findings += findings_from_investigation(context["investigation"])
+            findings += findings_from_investigation(context["investigation"], expected_incident_id=incident_id)
         return incident, findings
 
     def __call__(self, incident_id: str, services: list[str]) -> list[str]:
