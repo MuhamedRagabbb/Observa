@@ -16,7 +16,8 @@ review service API; ``FakeReviewService`` serves fake fixtures for tests and the
 
 import copy
 import json
-import threading
+from contextlib import contextmanager
+from contextvars import ContextVar
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -176,20 +177,21 @@ class F6ApprovalSource:
 
     def __init__(self, client: ReviewServiceClient):
         self._client = client
-        self._handoffs = {}
-        self._lock = threading.Lock()
+        self._handoff = ContextVar("approval_handoff", default=None)
 
-    def accept(self, handoff):
+    @contextmanager
+    def delivery(self, handoff):
+        """Bind the payload to this save attempt; SQLite retains committed decisions."""
         handoff = validate_handoff(handoff)
-        with self._lock:
-            known = self._handoffs.setdefault(handoff["decision_id"], handoff)
-        require(known == handoff, "This decision was already handed off with different content", "VERSION_CONFLICT")
-        return handoff
+        token = self._handoff.set(handoff)
+        try:
+            yield handoff["decision_id"]
+        finally:
+            self._handoff.reset(token)
 
     def resolve(self, decision_id):
-        with self._lock:
-            handoff = self._handoffs.get(decision_id)
-        require(handoff is not None, "No F6 handoff received for this decision", "NOT_FOUND")
+        handoff = self._handoff.get()
+        require(handoff is not None and handoff["decision_id"] == decision_id, "No F6 handoff received for this decision", "NOT_FOUND")
         report_id, version = handoff["report_id"], handoff["version"]
         try:
             decision = self._decision(handoff)
@@ -249,5 +251,5 @@ class IncidentMemorySink:
 
     def save(self, handoff):
         """Like ``store``, but returns memory's save result (``status``, ``created``, ``item``)."""
-        accepted = self.source.accept(handoff)
-        return self.memory.save_approved_incident(accepted["decision_id"])
+        with self.source.delivery(handoff) as decision_id:
+            return self.memory.save_approved_incident(decision_id)

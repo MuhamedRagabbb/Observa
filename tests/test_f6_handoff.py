@@ -93,6 +93,14 @@ class SinkTests(HandoffTestCase):
                 self.assert_error("VERSION_CONFLICT", lambda: sink.store({**self.handoff(), **change}))
         self.assertEqual(self.stored(), [])
 
+    def test_corrected_delivery_after_rejection_is_saved_once(self):
+        good = self.handoff()
+        self.assert_error("VERSION_CONFLICT", lambda: self.sink.save({**good, "reviewer_id": "WRONG"}))
+        self.assertEqual(self.stored(), [])
+        self.assertTrue(self.sink.save(good)["created"])
+        self.assertFalse(self.sink.save(good)["created"])
+        self.assertEqual(len(self.stored()), 1)
+
     def test_same_decision_with_different_handoff_is_a_conflict(self):
         self.sink.store(self.handoff())
         self.assert_error("VERSION_CONFLICT", lambda: self.sink.store({**self.handoff(), "evidence_ids": ["X"]}))
