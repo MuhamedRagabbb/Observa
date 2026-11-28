@@ -12,7 +12,14 @@ You need Docker with Compose v2 and a Groq API key. Run the commands from the re
    GROQ_API_KEY=your_groq_key_here
    ```
 
-2. Start the full stack from the repository root. The root Compose file includes the checkout app, F1 detector, F2/F3 worker, F5 memory initializer and F4 recommendation worker. Existing incidents are preserved.
+2. If you previously started the detector and investigation worker from their separate Compose projects, stop those workers first so they do not process the same incident twice. Keep the checkout application and its volumes running.
+
+   ```sh
+   docker compose -f alert-detection-grouping/docker-compose.yml stop alerts
+   docker compose -p observa-investigation stop investigate
+   ```
+
+3. Start the full stack from the repository root. The root Compose file includes the checkout app, F1 detector, F2/F3 worker, F5 memory initializer and F4 recommendation worker. Existing incidents are preserved.
 
    ```sh
    docker compose -f compose.yaml up --build -d
