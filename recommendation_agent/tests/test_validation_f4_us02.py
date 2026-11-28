@@ -70,6 +70,36 @@ def _base_context() -> dict:
 
 
 class ValidationTests(unittest.TestCase):
+    def test_gateway_timeout_fix_requires_direct_cited_gateway_evidence(self):
+        raw = _base_context()
+        raw["root_cause_candidates"][0]["evidence_links"] = raw["root_cause_candidates"][0]["evidence_links"][:1]
+        option = ProposedOption(
+            recommendation_id="REC-gateway",
+            action="Increase timeout and retry external payment gateway calls",
+            action_type="remediation",
+            target_service="payments-service",
+            candidate_id="CAUSE-pay",
+            expected_impact="Restore payment charges",
+            cited_evidence_ids=["INC-val/r1/logs#good"],
+            rationale="A gateway timeout might explain the errors.",
+        )
+        findings = [{
+            "finding_id": "F-pay", "signal": "logs", "service": "payments-service",
+            "indicator": "payment_failed", "claim": "payments-service returned HTTP 503",
+            "evidence_ids": ["INC-val/r1/logs#good"],
+        }]
+        unsupported = validate_recommendation_evidence(
+            [option], build_correlation_context(raw, f3_state={"correlated_findings": findings})
+        )[0]
+        self.assertEqual(unsupported.validation, "unsupported")
+        self.assertIn("external gateway", unsupported.reasons[-1])
+
+        findings[0]["claim"] = "External payment gateway call timed out in payments-service"
+        supported = validate_recommendation_evidence(
+            [option], build_correlation_context(raw, f3_state={"correlated_findings": findings})
+        )[0]
+        self.assertEqual(supported.validation, "supported")
+
     def test_remediation_requires_known_candidate_and_candidate_linked_evidence(self):
         raw = _base_context()
         raw["root_cause_candidates"][0]["evidence_links"] = raw["root_cause_candidates"][0]["evidence_links"][:2]

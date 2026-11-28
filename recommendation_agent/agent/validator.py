@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import re
 
 from .contracts import (
     CorrelationCandidateInput,
@@ -90,6 +91,22 @@ def _index_f3_links(
         cand_contradictions[cand.candidate_id] = c_contra
 
     return by_eid, obs_services, cand_contradictions
+
+
+def _unsupported_external_gateway_fix(option: ProposedOption, context: CorrelationContext) -> bool:
+    """Do not infer a gateway timeout from service-level 503s alone."""
+    action = option.action.lower()
+    if not re.search(r"(?:external|downstream|third.party).{0,32}gateway|gateway.{0,32}(?:external|downstream)", action):
+        return False
+    if not re.search(r"timeout|retry|retries|backoff", action):
+        return False
+    cited = set(option.cited_evidence_ids)
+    return not any(
+        cited.intersection(obs.evidence_ids)
+        and re.search(r"(?:external|downstream|third.party).{0,32}gateway|gateway.{0,32}(?:external|downstream)", f"{obs.claim} {obs.indicator}".lower())
+        and re.search(r"timeout|timed out|slow|latency|unavailable|5\d\d|failed|error", f"{obs.claim} {obs.indicator}".lower())
+        for obs in context.observations
+    )
 
 
 def validate_recommendation_evidence(
@@ -380,6 +397,9 @@ def validate_recommendation_evidence(
             elif context.status == "inconclusive" or context.leading_candidate_id is None:
                 validation = "unsupported"
                 reasons.append("F3 diagnosis is inconclusive; remediations cannot be validated without a leading cause.")
+            elif _unsupported_external_gateway_fix(option, context):
+                validation = "unsupported"
+                reasons.append("Cited observations do not establish a failed or slow external gateway call.")
             elif not supported_checks:
                 validation = "unsupported"
                 if not checks:
