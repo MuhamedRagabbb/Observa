@@ -4,6 +4,8 @@ F3 uses findings from the logs, metrics and traces investigations to identify th
 
 ## Incident memory
 
+Compose runs the one-time `memory-init` service before starting the worker. On a fresh checkout it creates an empty SQLite database in `data/incident-memory-v3.sqlite3`. Later starts preserve existing approved entries. Successful initialization exits with code 0. An incompatible database schema stops startup with an error.
+
 The Docker worker searches F5 on each new correlation round, including follow-ups, using the incident and current F2 findings. Compose mounts the repository's `data/` directory read-only at `/memory`. Configure the approval writer to use `data/incident-memory-v3.sqlite3` in that directory. For a worker started outside Docker, set `OBSERVA_MEMORY_DB` to the database path.
 
 The worker logs `matched`, `no_match`, or `unavailable`. The Markdown report lists matching approved incidents, their shared terms or services, and historical evidence IDs. A missing database leaves the investigation running on current evidence. Completed decisions keep the memory result from their original round when replayed from cache.
