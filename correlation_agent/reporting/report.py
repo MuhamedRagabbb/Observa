@@ -140,4 +140,17 @@ def render_markdown(report: CorrelationReport) -> str:
         lines.extend(["", "## Missing evidence", ""])
         for gap in report.missing_evidence:
             lines.append(f"- **{gap.requested_from}** · {plain(gap.required)} — {plain(gap.reason)}")
+    memory = report.memory_search
+    if memory is not None:
+        lines.extend(["", "## Historical incident memory", ""])
+        if memory.status == "unavailable":
+            lines.append(f"Memory unavailable ({code(memory.error_code or 'unknown')}).")
+        elif memory.status == "no_match":
+            lines.append("No similar approved incident was found.")
+        for match in memory.matches:
+            reasons = ", ".join([*match.matched_services, *match.matched_terms])
+            lines.append(f"- {code(match.source_incident_id)} · {code(match.approved_report_id)} "
+                         f"v{match.approved_version}. Matched on: {plain(reasons)}.")
+            if match.evidence_ids:
+                lines.append("  Historical references: " + ", ".join(code(ref) for ref in match.evidence_ids))
     return "\n".join(lines) + "\n"

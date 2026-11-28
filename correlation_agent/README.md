@@ -2,13 +2,21 @@
 
 F3 uses findings from the logs, metrics and traces investigations to identify the probable origin of an incident and explain how it affected other services. Each step in the report cites its evidence. If the evidence is insufficient, the report identifies what is missing. [Example report](examples/example_report.md)
 
+## Incident memory
+
+Compose runs the one-time `memory-init` service before starting the worker. On a fresh checkout it creates an empty SQLite database in `data/incident-memory-v3.sqlite3`. Later starts preserve existing approved entries. Successful initialization exits with code 0. An incompatible database schema stops startup with an error.
+
+The Docker worker searches F5 on each new correlation round, including follow-ups, using the incident and current F2 findings. Compose mounts the repository's `data/` directory read-only at `/memory`. Configure the approval writer to use `data/incident-memory-v3.sqlite3` in that directory. For a worker started outside Docker, set `OBSERVA_MEMORY_DB` to the database path.
+
+The worker logs `matched`, `no_match`, or `unavailable`. The Markdown report lists matching approved incidents, their shared terms or services, and historical evidence IDs. A missing database leaves the investigation running on current evidence. Completed decisions keep the memory result from their original round when replayed from cache.
+
 ## Run with Docker
 
 Start the checkout app and F1 using the [project quickstart](../README.md). F2 and F3 share a worker. Set `GROQ_API_KEY` in `investigation/.env` for F2 and in `correlation_agent/.env` for F3. From the repository root:
 
 ```sh
-docker compose -f correlation_agent/compose.yaml up --build -d
-docker compose -f correlation_agent/compose.yaml logs -f --tail 20 investigate
+docker compose -f compose.yaml up --build -d
+docker compose -f compose.yaml logs -f --tail 20 investigate
 ```
 
 The worker checks for incidents every two seconds while idle. It queues one opening assessment per incident and a final assessment when F1 confirms recovery. If it first sees an incident after recovery, it can generate the final report directly from the saved snapshots.
@@ -36,10 +44,10 @@ Open `correlation_agent/runs/<incident-id>/` on the host:
 To process one incident manually, replace `INC-REPLACE-ME` with an ID from `alert-detection-grouping/reports/index.md`. The command writes to a separate, timestamped directory under `correlation_agent/runs/`.
 
 ```sh
-docker compose -f correlation_agent/compose.yaml run --rm --no-deps investigate INC-REPLACE-ME
+docker compose -f compose.yaml run --rm --no-deps investigate INC-REPLACE-ME
 ```
 
-Stop the worker with `docker compose -f correlation_agent/compose.yaml stop`. For an independent investigation, see [Run F2 on a saved incident](../investigation/README.md#run-f2-on-a-saved-incident).
+Stop the worker with `docker compose -f compose.yaml stop investigate recommend`. For an independent investigation, see [Run F2 on a saved incident](../investigation/README.md#run-f2-on-a-saved-incident).
 
 ## How to read the result
 

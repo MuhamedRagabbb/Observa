@@ -197,11 +197,11 @@ test.describe("order details", () => {
     await page.getByRole("button", { name: "Check status" }).click();
     await expect(page.getByRole("heading", { level: 1, name: "Order" })).toBeVisible();
     expect(status.seen).toEqual(["GET ATT-7F3A-0915"]);
-    expect(await storedCart(page)).toEqual([{ product_id: "sku-003", quantity: 1 }]);
+    await expect.poll(() => storedCart(page)).toEqual([{ product_id: "sku-003", quantity: 1 }]);
     // A reload replays the journal: nothing more comes out.
     await page.reload();
     await expect(page.getByRole("heading", { level: 1, name: "Order" })).toBeVisible();
-    expect(await storedCart(page)).toEqual([{ product_id: "sku-003", quantity: 1 }]);
+    await expect.poll(() => storedCart(page)).toEqual([{ product_id: "sku-003", quantity: 1 }]);
   });
 
   test("payment declined", async ({ page, api, capture }) => {

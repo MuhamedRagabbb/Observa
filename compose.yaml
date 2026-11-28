@@ -1,0 +1,88 @@
+name: observa
+include:
+  - dummy-app/docker-compose.yml
+  - alert-detection-grouping/docker-compose.yml
+services:
+  memory-init:
+    image: observa-agents:local
+    build:
+      context: .
+      dockerfile: correlation_agent/docker/Dockerfile
+    network_mode: none
+    restart: "no"
+    entrypoint:
+      - python
+      - -c
+      - "from observa.f5_memory.service import IncidentMemory; IncidentMemory('/memory/incident-memory-v3.sqlite3'); print('Incident memory ready')"
+    volumes:
+      - ./data:/memory
+  investigate:
+    depends_on:
+      alerts:
+        condition: service_started
+      memory-init:
+        condition: service_completed_successfully
+    networks: [default, telemetry]
+    environment:
+      OBSERVA_MEMORY_DB: /memory/incident-memory-v3.sqlite3
+      LOKI_URL: http://loki:3100
+      PROMETHEUS_URL: http://prometheus:9090
+    restart: unless-stopped
+    init: true
+    image: observa-agents:local
+    build:
+      context: .
+      dockerfile: correlation_agent/docker/Dockerfile
+    env_file: ./investigation/.env
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - |
+        # F2 accepts LLM_API_KEY. F3 reads its own mounted file when GROQ_API_KEY is unset.
+        if [ -n "$${GROQ_API_KEY:-}" ]; then
+          export LLM_API_KEY="$$GROQ_API_KEY"
+          unset GROQ_API_KEY XAI_API_KEY
+        fi
+        export LLM_MODEL="$${LLM_MODEL:-openai/gpt-oss-120b}"
+        exec python -m correlation_agent.docker.run "$$@"
+      - investigate
+    volumes:
+      - type: bind
+        source: ./correlation_agent/.env
+        target: /app/correlation_agent/.env
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./alert-detection-grouping/reports
+        target: /reports
+        read_only: true
+        bind:
+          create_host_path: false
+      - ./data:/memory:ro
+      - ./correlation_agent/runs:/runs
+  recommend:
+    depends_on:
+      investigate:
+        condition: service_started
+      memory-init:
+        condition: service_completed_successfully
+    image: observa-agents:local
+    build:
+      context: .
+      dockerfile: correlation_agent/docker/Dockerfile
+    init: true
+    restart: unless-stopped
+    env_file: ./investigation/.env
+    environment:
+      OBSERVA_MEMORY_DB: /memory/incident-memory-v3.sqlite3
+      F4_USE_LLM: ${F4_USE_LLM:-1}
+    entrypoint: [python, -m, recommendation_agent.docker.watch]
+    volumes:
+      - ./alert-detection-grouping/reports:/reports:ro
+      - ./correlation_agent/runs:/runs
+      - ./data:/memory:ro
+networks:
+  telemetry:
+    external: false
+    name: ${OBSERVABILITY_NETWORK:-observa_observability}

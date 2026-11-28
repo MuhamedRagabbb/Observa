@@ -19,6 +19,7 @@ from observa_investigation.agents.metrics import MetricsSignalAgent
 from observa_investigation.agents.traces import TracesSignalAgent
 from observa_investigation.orchestrator import Orchestrator
 from observa_investigation.contracts import FollowUpRequest, InvestigationResult
+from .memory import WorkerMemoryLookup
 from .watch import unanswered_legacy_request, watch
 
 
@@ -107,8 +108,10 @@ def correlate_with_follow_up(reports, cache, history, inputs, investigations, sa
             publish(decision, result.model_dump_json())
         else:
             print(f"F3: correlating {investigations[0].incident_id} ({history.phase}, {history.snapshot_id}) with Groq")
-            result = correlate(investigations[0].model_dump(), history=history,
+            lookup = WorkerMemoryLookup(inputs[-1], investigations)
+            result = correlate(investigations[0].model_dump(), memory_lookup=lookup, history=history,
                                additional_investigations=[data.model_dump() for data in investigations[1:]])
+            result.report.memory_search = lookup.summary
             publish(decision, result.model_dump_json())
         follow = result.follow_up_request
         if follow is None:

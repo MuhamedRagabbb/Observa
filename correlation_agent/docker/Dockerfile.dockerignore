@@ -6,6 +6,8 @@
 !us01_logs_agent/logs_agent/*.py
 !us02_metrics_agent/metrics_agent/*.py
 !us03_traces_agent/traces_agent/*.py
+!observa/__init__.py
+!observa/f5_memory/*.py
 !correlation_agent/requirements.txt
 !correlation_agent/*.py
 !correlation_agent/agent/*.py
@@ -15,3 +17,7 @@
 # Runtime configuration is supplied by Compose.
 **/.env
 **/.env.*
+!recommendation_agent/*.py
+!recommendation_agent/agent/*.py
+!recommendation_agent/docker/*.py
+!recommendation_agent/requirements.txt

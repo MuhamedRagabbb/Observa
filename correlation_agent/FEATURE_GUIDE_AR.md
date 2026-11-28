@@ -22,7 +22,7 @@ flowchart TD
     P -->|إجابة بأدلة أو توضيح النقص| A
 ```
 
-حاوية `investigate` بتشوف فولدر `alert-detection-grouping/reports` باسم `/reports` بصلاحية القراءة. لما F1 تنشر `INC-…/incident.json`، المراقب يقدر يكتشفها حتى لو F1 والمراقب شغّالين في حاويتين مختلفتين. اخترنا الملف كنقطة تسليم لأن F1 بتنشره بالفعل بعد تجهيز الأدلة. كده نقدر نضيف F3 من غير تغيير طريقة شغل F1. [ربط المجلدات](compose.yaml) · [كود النشر في F1](../alert-detection-grouping/observa_alerts/report.py)
+حاوية `investigate` بتشوف فولدر `alert-detection-grouping/reports` باسم `/reports` بصلاحية القراءة. لما F1 تنشر `INC-…/incident.json`، المراقب يقدر يكتشفها حتى لو F1 والمراقب شغّالين في حاويتين مختلفتين. اخترنا الملف كنقطة تسليم لأن F1 بتنشره بالفعل بعد تجهيز الأدلة. كده نقدر نضيف F3 من غير تغيير طريقة شغل F1. [ربط المجلدات](../compose.yaml) · [كود النشر في F1](../alert-detection-grouping/observa_alerts/report.py)
 
 المراقب بيسجل مرحلة الفتح ومرحلة الإغلاق في SQLite. أول نسخة مفتوحة بتطلع تقرير مبدئي. عند الإغلاق بيشتغل مرة تانية على النسخة النهائية وبيقرأ الـ snapshots المحفوظة من بداية الحادثة. لو أول نسخة يشوفها مقفولة بيطلع النهائي مباشرة. تكرار الفحص أو إعادة التشغيل بيستخدم نتيجة نفس المرحلة والنسخة. [docker/watch.py](docker/watch.py)
 
@@ -101,11 +101,11 @@ flowchart TD
 لو المتغير مضبوط في التيرمنال، شغّل من جذر Observa بعد تشغيل الـdummy app وF1:
 
 ```powershell
-docker compose -f correlation_agent/compose.yaml up --build -d
-docker compose -f correlation_agent/compose.yaml logs -f investigate
+docker compose -f compose.yaml up --build -d
+docker compose -f compose.yaml logs -f investigate
 ```
 
-لما يظهر `F2: reading saved evidence` يبقى المراقب التقط الـincident. الرسالة `F3: correlating` معناها إن خرج F2 بقى جاهز والموديل بيشتغل عليه. و`report saved` معناها إن الملفات اتكتبت على جهازك. الحاوية بتقرأ تقارير F1 والمفتاح وقت التشغيل، وبتكتب النتائج في مجلد منفصل. قائمة ملفات البناء بتحصر اللي يدخل الصورة في الكود والاعتماديات. [Compose](compose.yaml) · [Dockerfile](docker/Dockerfile) · [ملفات البناء المسموح بها](docker/Dockerfile.dockerignore)
+لما يظهر `F2: reading saved evidence` يبقى المراقب التقط الـincident. الرسالة `F3: correlating` معناها إن خرج F2 بقى جاهز والموديل بيشتغل عليه. و`report saved` معناها إن الملفات اتكتبت على جهازك. الحاوية بتقرأ تقارير F1 والمفتاح وقت التشغيل، وبتكتب النتائج في مجلد منفصل. قائمة ملفات البناء بتحصر اللي يدخل الصورة في الكود والاعتماديات. [Compose](../compose.yaml) · [Dockerfile](docker/Dockerfile) · [ملفات البناء المسموح بها](docker/Dockerfile.dockerignore)
 
 لو مرحلة فشلت، المراقب بيعيد المحاولة بعد 5 ثواني وبيضاعف الفترة لحد 5 دقايق. الملفات بتتنشر باستبدال ذري لكل ملف. لو قرار Groq اتحفظ قبل انقطاع كتابة Markdown، المحاولة التالية بتكمّل نشر نفس القرار.
 

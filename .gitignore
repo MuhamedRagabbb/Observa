@@ -48,3 +48,10 @@ docs/superpowers/
 # Team reference documents and design exports stay local unless approved
 docs/project-reference/
 docs/design/
+
+# Local feature notes
+/correlation_agent/RECENT_CHANGES.md
+/docs/F1-alert-detection-grouping.md
+/docs/F2-multi-signal-investigation.md
+/docs/F3-correlation.md
+/docs/README.md

@@ -85,7 +85,23 @@ class IncidentHistory(BaseModel):
     release_findings: list[Observation]
 
 
+class HistoricalMatch(BaseModel):
+    source_incident_id: str
+    approved_report_id: str
+    approved_version: int
+    matched_services: list[str]
+    matched_terms: list[str]
+    evidence_ids: list[str]
+
+
+class MemorySearch(BaseModel):
+    status: Literal["matched", "no_match", "unavailable"]
+    matches: list[HistoricalMatch] = Field(default_factory=list)
+    error_code: str | None = None
+
+
 class CorrelationReport(BaseModel):
+    memory_search: MemorySearch | None = None
     follow_up_stop_reason: Literal["repeated_request", "round_limit"] | None = None
     follow_up_answers: list[EvidenceAnswer] = Field(default_factory=list)
     schema_version: Literal["1.0"] = "1.0"
