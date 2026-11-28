@@ -43,7 +43,9 @@ def process(source: Path) -> bool:
         return False
     if opening and not suffix:
         prior = target / "input.initial.json"
-        if prior.is_file() and json.loads(prior.read_text(encoding="utf-8")).get("sha256") == revision:
+        if not prior.is_file():
+            return False  # Wait for the initial result; do not double the LLM requests.
+        if json.loads(prior.read_text(encoding="utf-8")).get("sha256") == revision:
             for name in ("output.json", "output.md", "state.json"):
                 source_name = name.replace(".", ".initial.", 1)
                 publish(target / name, (target / source_name).read_text(encoding="utf-8"))
@@ -72,13 +74,23 @@ def process(source: Path) -> bool:
     return True
 
 
+_retry: dict[Path, tuple[int, float]] = {}
+
+
 def scan() -> int:
     count = 0
     for source in sorted(RUNS.glob("INC-*/f3/output.initial.json")) + sorted(RUNS.glob("INC-*/f3/output.json")):
+        attempts, retry_at = _retry.get(source, (0, 0.0))
+        if time.monotonic() < retry_at:
+            continue
         try:
             count += process(source)
+            _retry.pop(source, None)
         except Exception as exc:
-            print(f"F4 waiting on {source}: {type(exc).__name__}: {exc}", flush=True)
+            attempts += 1
+            delay = min(30 * (2 ** min(attempts - 1, 3)), 240)
+            _retry[source] = (attempts, time.monotonic() + delay)
+            print(f"F4 waiting on {source}: {type(exc).__name__}; retry in {delay}s", flush=True)
     return count
 
 

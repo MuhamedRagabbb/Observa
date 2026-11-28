@@ -33,3 +33,22 @@ class WatchTests(TestCase):
                 f4 = runs / folder / "f4"
                 for name in ("output.initial.json", "output.json"):
                     self.assertEqual(json.loads((f4 / name).read_text())["status"], "inconclusive")
+
+    def test_provider_failure_waits_before_retry_and_does_not_run_latest_first(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            f3 = root / "runs" / "INC-a" / "f3"
+            f3.mkdir(parents=True)
+            data = {"incident_id": "INC-a", "run_id": "RUN-a", "root_cause_candidates": [],
+                    "leading_candidate_id": None, "missing_evidence": [],
+                    "status": "inconclusive", "follow_up_requests": []}
+            for name in ("output.initial.json", "output.json"):
+                (f3 / name).write_text(json.dumps(data))
+            with (patch.object(watch, "RUNS", root / "runs"),
+                  patch.object(watch, "REPORTS", root / "reports"),
+                  patch.object(watch, "MEMORY", root / "missing.sqlite3"),
+                  patch.object(watch, "USE_LLM", True),
+                  patch.object(watch, "recommend_with_state", side_effect=RuntimeError("provider unavailable")) as run):
+                self.assertEqual(watch.scan(), 0)
+                self.assertEqual(watch.scan(), 0)
+                self.assertEqual(run.call_count, 1)
