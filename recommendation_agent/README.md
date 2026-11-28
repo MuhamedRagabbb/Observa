@@ -44,3 +44,7 @@ python -m recommendation_agent correlation_agent/runs/<incident-id>/f3/output.js
 $env:PYTHONPATH = ".;alert-detection-grouping;us01_logs_agent;us02_metrics_agent;us03_traces_agent;investigation"
 python -m unittest discover -s recommendation_agent/tests -v
 ```
+
+## Docker pipeline
+
+The root [`compose.yaml`](../compose.yaml) runs the `recommend` watcher after `investigate` starts. It waits for each F3 output, validates against F1 retained evidence, reads approved F5 memory in read-only mode, then writes `f4/output.json`, `f4/output.md`, and `f4/state.json` alongside the corresponding F3 run. Initial and final results are separately checkpointed. The watcher retries a failed processing step on its next scan; successful input revisions are not processed again. Set `F4_USE_LLM=0` for local deterministic runs.

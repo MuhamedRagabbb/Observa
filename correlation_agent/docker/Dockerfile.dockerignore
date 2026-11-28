@@ -17,3 +17,7 @@
 # Runtime configuration is supplied by Compose.
 **/.env
 **/.env.*
+!recommendation_agent/*.py
+!recommendation_agent/agent/*.py
+!recommendation_agent/docker/*.py
+!recommendation_agent/requirements.txt
