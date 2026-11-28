@@ -9,6 +9,31 @@ from recommendation_agent.docker import watch
 
 
 class WatchTests(TestCase):
+    def test_old_validation_is_refreshed_from_saved_options_without_llm(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            f3 = root / "runs" / "INC-a" / "f3"
+            f3.mkdir(parents=True)
+            (f3 / "output.initial.json").write_text(json.dumps({
+                "incident_id": "INC-a", "run_id": "RUN-a", "root_cause_candidates": [],
+                "leading_candidate_id": None, "missing_evidence": [],
+                "status": "inconclusive", "follow_up_requests": [],
+            }))
+            with (patch.object(watch, "REPORTS", root / "reports"),
+                  patch.object(watch, "MEMORY", root / "missing.sqlite3"),
+                  patch.object(watch, "USE_LLM", False)):
+                self.assertTrue(watch.process(f3 / "output.initial.json"))
+                stamp = root / "runs" / "INC-a" / "f4" / "input.initial.json"
+                prior = json.loads(stamp.read_text())
+                prior.pop("validation_revision")
+                stamp.write_text(json.dumps(prior))
+                with (patch.object(watch, "recommend_with_state", side_effect=AssertionError("LLM rerun")),
+                      patch.object(watch, "validate_recommendation_evidence",
+                                   wraps=watch.validate_recommendation_evidence) as validate):
+                    self.assertTrue(watch.process(f3 / "output.initial.json"))
+                    self.assertEqual(validate.call_count, 1)
+                self.assertEqual(json.loads(stamp.read_text())["validation_revision"], watch.VALIDATION_REVISION)
+
     def test_accepts_automatic_and_manual_run_folders_and_is_idempotent(self):
         with TemporaryDirectory() as tmp:
             root = Path(tmp)

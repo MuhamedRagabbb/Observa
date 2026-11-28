@@ -70,6 +70,37 @@ def _base_context() -> dict:
 
 
 class ValidationTests(unittest.TestCase):
+    def test_service_errors_alone_do_not_prove_timeout_or_transient_state(self):
+        raw = _base_context()
+        raw["root_cause_candidates"][0]["evidence_links"] = raw["root_cause_candidates"][0]["evidence_links"][:1]
+        findings = [{
+            "finding_id": "F-pay", "signal": "logs", "service": "payments-service",
+            "indicator": "payment_failed", "claim": "payments-service returned HTTP 503",
+            "evidence_ids": ["INC-val/r1/logs#good"],
+        }]
+        actions = [
+            "Increase the request timeout and enable retries for payments-service",
+            "Restart payments-service pods to clear transient state",
+        ]
+        options = [
+            ProposedOption(
+                recommendation_id=f"REC-mechanism-{index}", action=action,
+                action_type="remediation", target_service="payments-service",
+                candidate_id="CAUSE-pay", expected_impact="Restore payment charges",
+                cited_evidence_ids=["INC-val/r1/logs#good"], rationale="HTTP 503 was observed.",
+            )
+            for index, action in enumerate(actions)
+        ]
+        context = build_correlation_context(raw, f3_state={"correlated_findings": findings})
+        self.assertEqual(
+            [record.validation for record in validate_recommendation_evidence(options, context)],
+            ["unsupported", "unsupported"],
+        )
+
+        findings[0]["claim"] = "payments-service connection timed out after high latency"
+        context = build_correlation_context(raw, f3_state={"correlated_findings": findings})
+        self.assertEqual(validate_recommendation_evidence(options[:1], context)[0].validation, "supported")
+
     def test_gateway_timeout_fix_requires_direct_cited_gateway_evidence(self):
         raw = _base_context()
         raw["root_cause_candidates"][0]["evidence_links"] = raw["root_cause_candidates"][0]["evidence_links"][:1]

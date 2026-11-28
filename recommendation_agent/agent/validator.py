@@ -109,6 +109,24 @@ def _unsupported_external_gateway_fix(option: ProposedOption, context: Correlati
     )
 
 
+def _unsupported_mechanism(option: ProposedOption, context: CorrelationContext) -> str | None:
+    """Require cited observations for a claimed timeout or transient process state."""
+    action = option.action.lower()
+    cited = set(option.cited_evidence_ids)
+    observed = " ".join(
+        f"{obs.claim} {obs.indicator}".lower()
+        for obs in context.observations
+        if cited.intersection(obs.evidence_ids)
+    )
+    if re.search(r"\b(?:increase|extend|raise|adjust)\b.{0,50}\btimeout\b", action):
+        if not re.search(r"timeout|timed out|latency breach|slow response|slow call", observed):
+            return "Cited observations do not establish a timeout or latency problem."
+    if "restart" in action and re.search(r"transient state|stale state|reinitialize connections", action):
+        if not re.search(r"transient|stale|connection|crash|hung|deadlock", observed):
+            return "Cited observations do not establish a transient process or connection state."
+    return None
+
+
 def validate_recommendation_evidence(
     options: list[ProposedOption],
     context: CorrelationContext,
@@ -400,6 +418,9 @@ def validate_recommendation_evidence(
             elif _unsupported_external_gateway_fix(option, context):
                 validation = "unsupported"
                 reasons.append("Cited observations do not establish a failed or slow external gateway call.")
+            elif mechanism_reason := _unsupported_mechanism(option, context):
+                validation = "unsupported"
+                reasons.append(mechanism_reason)
             elif not supported_checks:
                 validation = "unsupported"
                 if not checks:
