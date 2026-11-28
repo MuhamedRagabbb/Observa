@@ -1,4 +1,4 @@
-name: observa-dummy
+name: observa
 include:
   - dummy-app/docker-compose.yml
   - alert-detection-grouping/docker-compose.yml
@@ -85,4 +85,4 @@ services:
 networks:
   telemetry:
     external: false
-    name: ${OBSERVABILITY_NETWORK:-observa-dummy_observability}
+    name: ${OBSERVABILITY_NETWORK:-observa_observability}
