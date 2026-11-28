@@ -1,6 +1,21 @@
 name: observa-investigation
 services:
+  memory-init:
+    build:
+      context: ..
+      dockerfile: correlation_agent/docker/Dockerfile
+    network_mode: none
+    restart: "no"
+    entrypoint:
+      - python
+      - -c
+      - "from observa.f5_memory.service import IncidentMemory; IncidentMemory('/memory/incident-memory-v3.sqlite3'); print('Incident memory ready')"
+    volumes:
+      - ../data:/memory
   investigate:
+    depends_on:
+      memory-init:
+        condition: service_completed_successfully
     networks: [default, telemetry]
     environment:
       OBSERVA_MEMORY_DB: /memory/incident-memory-v3.sqlite3
